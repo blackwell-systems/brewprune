@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-02-26
+
+### Fixed
+- **Homebrew 5.x compatibility**: Updated from deprecated `brew list --json=v2` to `brew info --json=v2 --installed`
+- **JSON parsing**: Fixed struct field types for `installed_on_request` (bool) and `installed_time` (int64)
+- **Scan performance**: Optimized from per-package dependency calls to single `brew deps --installed --tree` (4.7s vs 3-6min for 166 packages)
+- **Foreign key errors**: Skip dependencies that don't exist as installed packages
+
+### Changed
+- **Documentation terminology**: Changed "Confidence scoring" to "Heuristic scoring" for accuracy
+- **README improvements**: Added Requirements, Limitations & Accuracy sections, clarified FSEvents monitoring scope
+
 ## [0.1.0] - 2026-02-26
 
 ### Added
@@ -32,5 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/blackwell-systems/brewprune/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/blackwell-systems/brewprune/releases/tag/v0.1.0
