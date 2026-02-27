@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// brewListOutput represents the structure of `brew list --json=v2` output
+// brewListOutput represents the structure of `brew info --json=v2 --installed` output
 type brewListOutput struct {
 	Formulae []brewFormula `json:"formulae"`
 	Casks    []brewCask    `json:"casks"`
@@ -16,19 +16,19 @@ type brewListOutput struct {
 
 // brewFormula represents a Homebrew formula in JSON output
 type brewFormula struct {
-	Name          string                 `json:"name"`
-	FullName      string                 `json:"full_name"`
-	Tap           string                 `json:"tap"`
-	Version       string                 `json:"version"`
-	Installed     []brewInstalledVersion `json:"installed"`
-	LinkedKeg     string                 `json:"linked_keg,omitempty"`
-	InstalledTime int64                  `json:"installed_on_request,omitempty"`
+	Name      string                 `json:"name"`
+	FullName  string                 `json:"full_name"`
+	Tap       string                 `json:"tap"`
+	Version   string                 `json:"version"`
+	Installed []brewInstalledVersion `json:"installed"`
+	LinkedKeg string                 `json:"linked_keg,omitempty"`
 }
 
 // brewInstalledVersion represents an installed version
 type brewInstalledVersion struct {
-	Version       string `json:"version"`
-	InstalledTime int64  `json:"installed_on_request,omitempty"`
+	Version            string `json:"version"`
+	InstalledOnRequest bool   `json:"installed_on_request,omitempty"`
+	Time               int64  `json:"time,omitempty"`
 }
 
 // brewCask represents a Homebrew cask in JSON output
@@ -37,7 +37,7 @@ type brewCask struct {
 	FullToken     string `json:"full_token"`
 	Tap           string `json:"tap"`
 	Version       string `json:"version"`
-	InstalledTime string `json:"installed_time,omitempty"`
+	InstalledTime int64  `json:"installed_time,omitempty"`
 }
 
 // brewInfoOutput represents the structure of `brew info --json=v2` output
@@ -66,18 +66,18 @@ type brewCaskInfo struct {
 
 // ListInstalled returns all installed Homebrew packages (formulae and casks)
 func ListInstalled() ([]*Package, error) {
-	cmd := exec.Command("brew", "list", "--json=v2")
+	cmd := exec.Command("brew", "info", "--json=v2", "--installed")
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("brew list failed: %w (stderr: %s)", err, string(exitErr.Stderr))
+			return nil, fmt.Errorf("brew info failed: %w (stderr: %s)", err, string(exitErr.Stderr))
 		}
-		return nil, fmt.Errorf("brew list failed: %w", err)
+		return nil, fmt.Errorf("brew info failed: %w", err)
 	}
 
 	var listOutput brewListOutput
 	if err := json.Unmarshal(output, &listOutput); err != nil {
-		return nil, fmt.Errorf("failed to parse brew list output: %w", err)
+		return nil, fmt.Errorf("failed to parse brew info output: %w", err)
 	}
 
 	var packages []*Package
@@ -97,8 +97,8 @@ func ListInstalled() ([]*Package, error) {
 		}
 
 		// If we have installed info, use that timestamp
-		if len(formula.Installed) > 0 && formula.Installed[0].InstalledTime > 0 {
-			pkg.InstalledAt = time.Unix(formula.Installed[0].InstalledTime, 0)
+		if len(formula.Installed) > 0 && formula.Installed[0].Time > 0 {
+			pkg.InstalledAt = time.Unix(formula.Installed[0].Time, 0)
 		}
 
 		packages = append(packages, pkg)
@@ -119,10 +119,8 @@ func ListInstalled() ([]*Package, error) {
 		}
 
 		// Try to parse installed time if available
-		if cask.InstalledTime != "" {
-			if t, err := time.Parse(time.RFC3339, cask.InstalledTime); err == nil {
-				pkg.InstalledAt = t
-			}
+		if cask.InstalledTime > 0 {
+			pkg.InstalledAt = time.Unix(cask.InstalledTime, 0)
 		}
 
 		packages = append(packages, pkg)
@@ -162,8 +160,8 @@ func GetPackageInfo(name string) (*Package, error) {
 			BinaryPaths: []string{},
 		}
 
-		if len(formula.Installed) > 0 && formula.Installed[0].InstalledTime > 0 {
-			pkg.InstalledAt = time.Unix(formula.Installed[0].InstalledTime, 0)
+		if len(formula.Installed) > 0 && formula.Installed[0].Time > 0 {
+			pkg.InstalledAt = time.Unix(formula.Installed[0].Time, 0)
 		}
 
 		return pkg, nil
@@ -188,6 +186,22 @@ func GetPackageInfo(name string) (*Package, error) {
 	}
 
 	return nil, fmt.Errorf("package %s not found", name)
+}
+
+// GetAllDependencies returns dependency trees for all installed packages in one call
+// This is much faster than calling GetDependencyTree for each package individually
+// Returns a map where keys are package names and values are their direct dependencies
+func GetAllDependencies() (map[string][]string, error) {
+	cmd := exec.Command("brew", "deps", "--installed", "--tree")
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("brew deps --installed failed: %w (stderr: %s)", err, string(exitErr.Stderr))
+		}
+		return nil, fmt.Errorf("brew deps --installed failed: %w", err)
+	}
+
+	return parseDependencyTree(string(output))
 }
 
 // GetDependencyTree returns the dependency tree for a package

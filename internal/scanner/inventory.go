@@ -18,26 +18,33 @@ func (s *Scanner) ScanPackages() error {
 		return fmt.Errorf("failed to list installed packages: %w", err)
 	}
 
-	// Store each package and its dependencies
+	// Store each package first
 	for _, pkg := range packages {
-		// Insert package into database
 		if err := s.store.InsertPackage(pkg); err != nil {
 			return fmt.Errorf("failed to insert package %s: %w", pkg.Name, err)
 		}
+	}
 
-		// Get dependency tree for this package
-		depsTree, err := brew.GetDependencyTree(pkg.Name)
-		if err != nil {
-			// Log warning but continue - some packages may not have dependencies
-			continue
-		}
-
-		// Store each dependency relationship
-		// GetDependencyTree returns a map where keys are packages and values are their dependencies
-		if deps, ok := depsTree[pkg.Name]; ok {
+	// Get all dependencies in one call (much faster than per-package)
+	depsTree, err := brew.GetAllDependencies()
+	if err != nil {
+		// Log warning but continue - dependencies are optional
+		// Some systems may not have any packages with dependencies
+	} else {
+		// Store all dependency relationships
+		for pkgName, deps := range depsTree {
 			for _, dep := range deps {
-				if err := s.store.InsertDependency(pkg.Name, dep); err != nil {
-					return fmt.Errorf("failed to insert dependency %s -> %s: %w", pkg.Name, dep, err)
+				// Check if both package and dependency exist before inserting relationship
+				// This skips runtime dependencies that aren't installed as top-level packages
+				if _, err := s.store.GetPackage(pkgName); err != nil {
+					continue // Skip if parent package doesn't exist
+				}
+				if _, err := s.store.GetPackage(dep); err != nil {
+					continue // Skip if dependency doesn't exist
+				}
+
+				if err := s.store.InsertDependency(pkgName, dep); err != nil {
+					return fmt.Errorf("failed to insert dependency %s -> %s: %w", pkgName, dep, err)
 				}
 			}
 		}

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Test data: sample brew list --json=v2 output
+// Test data: sample brew info --json=v2 --installed output
 const mockBrewListJSON = `{
   "formulae": [
     {
