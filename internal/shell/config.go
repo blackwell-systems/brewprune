@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // EnsurePathEntry checks whether dir is on PATH and, if not, appends the
@@ -72,14 +71,3 @@ func EnsurePathEntry(dir string) (added bool, configFile string, err error) {
 	return true, configPath, nil
 }
 
-// splitPathList splits a PATH-style colon-separated list, filtering empty entries.
-// This is a convenience wrapper used by tests to inspect PATH components.
-func splitPathList(path string) []string {
-	var result []string
-	for _, p := range strings.Split(path, string(filepath.ListSeparator)) {
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	return result
-}
