@@ -15,5 +15,5 @@ services:
     stdin_open: true
     tty: true
     environment:
-      - PATH=/root/.brewprune/bin:/usr/local/bin:/usr/bin:/bin
+      - PATH=/root/.brewprune/bin:/opt/mock-brew/bin:/usr/local/bin:/usr/bin:/bin
       - HOME=/root

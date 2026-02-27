@@ -2,7 +2,7 @@ FROM golang:1.23-bookworm
 
 # ── Real binaries to be shimmed ──────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
-    git curl jq ripgrep htop tree \
+    git curl jq ripgrep htop tree sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Fake brew cellar structure ────────────────────────────────────────────────
@@ -48,6 +48,10 @@ RUN ln -s /opt/mock-brew/Cellar/git/2.43.0/bin/git          /opt/mock-brew/bin/g
     ln -s /opt/mock-brew/Cellar/htop/3.3.0/bin/htop         /opt/mock-brew/bin/htop     && \
     ln -s /opt/mock-brew/Cellar/tree/2.1.1/bin/tree         /opt/mock-brew/bin/tree
 
+# Symlink /opt/homebrew → /opt/mock-brew so brewprune-shim's findRealBinary()
+# (which hardcodes /opt/homebrew and /usr/local) finds binaries at exec time.
+RUN ln -s /opt/mock-brew /opt/homebrew
+
 # ── Mock brew CLI ─────────────────────────────────────────────────────────────
 COPY docker/brew          /usr/local/bin/brew
 COPY docker/packages.json /opt/mock-brew/packages.json
@@ -73,8 +77,9 @@ RUN chmod +x /test.sh
 # ~/.brewprune/bin is pre-created; brewprune scan will populate it
 RUN mkdir -p /root/.brewprune/bin
 
-# Shim dir first on PATH so shimmed commands are intercepted
-ENV PATH="/root/.brewprune/bin:/usr/local/bin:$PATH"
+# Shim dir first on PATH, then mock-brew bin (so exec.LookPath finds brew
+# versions during scan), then system dirs.
+ENV PATH="/root/.brewprune/bin:/opt/mock-brew/bin:/usr/local/bin:$PATH"
 ENV HOME=/root
 
 ENTRYPOINT ["/test.sh"]
