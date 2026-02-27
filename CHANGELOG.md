@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.5] - 2026-02-27
 
 ### Fixed
-- **Infinite exec loop when shim is invoked by its own name** — `brewprune-shim` is now installed to `/opt/homebrew/bin/` as part of the Homebrew formula. If invoked directly as `brewprune-shim`, `findRealBinary` would resolve to itself and `syscall.Exec` would loop forever, logging thousands of spurious events per second. Guard added: `findRealBinary` returns `""` if `name == "brewprune-shim"`, causing a clean error exit instead.
+- **Infinite exec loop in brewprune-shim** — v0.1.4 bundled `brewprune-shim` into the Homebrew formula, placing it at `/opt/homebrew/bin/brewprune-shim`. This introduced a loop: when the shim was invoked as `brewprune-shim`, `findRealBinary` resolved to `/opt/homebrew/bin/brewprune-shim` (itself), and `syscall.Exec` would re-execute it indefinitely — logging thousands of spurious events per second with no CPU overhead (same PID, no fork). Fixed by returning `""` early when `name == "brewprune-shim"`, producing a clean error exit instead.
 
 ## [0.1.4] - 2026-02-27
 
