@@ -70,97 +70,134 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		dbExists = true
 	}
 
+	if !dbExists {
+		fmt.Println("brewprune is not set up — run 'brewprune scan' to get started.")
+		return nil
+	}
+
 	// Open database to get statistics
-	var packagesTracked int
-	var eventsLogged int
+	var formulaeCount int
+	var totalEvents int
+	var events24h int
 	var trackingSince *time.Time
-	var lastEvent *UsageEventInfo
+	var dbSize int64
 
-	if dbExists {
-		st, err := store.New(dbPath)
+	st, err := store.New(dbPath)
+	if err == nil {
+		defer st.Close()
+
+		packages, err := st.ListPackages()
 		if err == nil {
-			defer st.Close()
-
-			// Get package count
-			packages, err := st.ListPackages()
-			if err == nil {
-				packagesTracked = len(packages)
-			}
-
-			// Get event statistics
-			eventsLogged, trackingSince, lastEvent = getUsageStats(st)
+			formulaeCount = len(packages)
 		}
+		totalEvents, trackingSince, _ = getUsageStats(st)
+		events24h = getEvents24h(st)
 	}
 
-	// Display status
+	if fi, err := os.Stat(dbPath); err == nil {
+		dbSize = fi.Size()
+	}
+
+	// Shim info
+	shimDir, _ := os.UserHomeDir()
+	shimDir = shimDir + "/.brewprune/bin"
+	shimCount := countSymlinks(shimDir)
+	shimActive := shimCount > 0
+	pathOK := isOnPATH(shimDir)
+
+	const label = "%-14s"
+
 	fmt.Println()
 
-	// Daemon status
+	// Tracking line
 	if daemonRunning {
-		fmt.Printf("Daemon Status:        ✓ Running (PID %d)\n", pid)
+		pidSince := daemonSince(pidFile)
+		fmt.Printf(label+"running (since %s, PID %d)\n", "Tracking:", pidSince, pid)
 	} else {
-		fmt.Printf("⚠ Daemon Status:      Not Running\n")
+		fmt.Printf(label+"stopped  (run 'brew services start brewprune')\n", "Tracking:")
 	}
 
-	// Database status
-	if dbExists {
-		fmt.Printf("Database:             ✓ Found (%s)\n", dbPath)
-	} else {
-		fmt.Printf("Database:             ✗ Not Found (%s)\n", dbPath)
+	// Events line
+	fmt.Printf(label+"%s total · %d in last 24h\n", "Events:", formatNumber(totalEvents), events24h)
+
+	// Shims line
+	shimStatus := "inactive"
+	if shimActive {
+		shimStatus = "active"
 	}
-
-	// Statistics
-	fmt.Printf("Packages Tracked:     %d\n", packagesTracked)
-	fmt.Printf("Events Logged:        %s\n", formatNumber(eventsLogged))
-
-	// Tracking duration
-	if trackingSince != nil {
-		duration := time.Since(*trackingSince)
-		fmt.Printf("Tracking Since:       %s\n", formatDuration(duration))
-	} else {
-		fmt.Printf("Tracking Since:       never\n")
+	pathStatus := "PATH ok"
+	if !pathOK {
+		pathStatus = "PATH missing ⚠"
 	}
+	fmt.Printf(label+"%s · %d commands · %s\n", "Shims:", shimStatus, shimCount, pathStatus)
 
-	// Data quality indicator
+	// Last scan line (use DB mtime as proxy)
+	dbMtime := "unknown"
+	if fi, err := os.Stat(dbPath); err == nil {
+		dbMtime = formatDuration(time.Since(fi.ModTime()))
+	}
+	fmt.Printf(label+"%s · %d formulae · %s\n", "Last scan:", dbMtime, formulaeCount, formatSize(dbSize))
+
+	// Data quality line
 	var quality string
-	if eventsLogged == 0 {
-		quality = "NOT READY (no usage data yet)"
-	} else if trackingSince != nil {
-		daysSinceTracking := int(time.Since(*trackingSince).Hours() / 24)
-		if daysSinceTracking < 7 {
-			quality = fmt.Sprintf("COLLECTING (tracking for %d days, need 7-14 for best results)", daysSinceTracking)
-		} else if daysSinceTracking < 14 {
-			quality = fmt.Sprintf("GOOD (tracking for %d days)", daysSinceTracking)
+	if trackingSince != nil {
+		days := int(time.Since(*trackingSince).Hours() / 24)
+		if days < 14 {
+			quality = fmt.Sprintf("COLLECTING (%d of 14 days)", days)
 		} else {
-			quality = fmt.Sprintf("EXCELLENT (tracking for %d days)", daysSinceTracking)
+			quality = "READY"
 		}
 	} else {
-		quality = "NOT READY (no usage data yet)"
+		quality = "COLLECTING (0 of 14 days)"
 	}
-	fmt.Printf("Data Quality:         %s\n", quality)
-
-	// Last event
-	if lastEvent != nil {
-		timeSince := time.Since(lastEvent.Timestamp)
-		fmt.Printf("\nLast Event: %s (%s)\n", formatDuration(timeSince), lastEvent.Package)
-	}
-
-	// Show warning if daemon not running
-	if !daemonRunning {
-		fmt.Println()
-		fmt.Println("WARNING: The watch daemon is not running. Package usage is not being tracked.")
-		fmt.Println()
-		fmt.Println("Start tracking:  brewprune watch --daemon")
-
-		logFile, err := getDefaultLogFile()
-		if err == nil {
-			fmt.Printf("View logs:       tail -f %s\n", logFile)
-		}
-	}
+	fmt.Printf(label+"%s\n", "Data quality:", quality)
 
 	fmt.Println()
-
 	return nil
+}
+
+// getEvents24h counts usage events in the last 24 hours.
+func getEvents24h(st *store.Store) int {
+	cutoff := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
+	var count int
+	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events WHERE timestamp >= ?", cutoff)
+	row.Scan(&count)
+	return count
+}
+
+// countSymlinks counts symlinks in dir (non-recursive).
+func countSymlinks(dir string) int {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	count := 0
+	for _, e := range entries {
+		if e.Type()&os.ModeSymlink != 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// isOnPATH reports whether dir appears in the current PATH.
+func isOnPATH(dir string) bool {
+	path := os.Getenv("PATH")
+	for _, p := range strings.Split(path, ":") {
+		if p == dir {
+			return true
+		}
+	}
+	return false
+}
+
+// daemonSince returns a human-readable age of the PID file (proxy for daemon start time).
+func daemonSince(pidFile string) string {
+	fi, err := os.Stat(pidFile)
+	if err != nil {
+		return "unknown"
+	}
+	return formatDuration(time.Since(fi.ModTime()))
 }
 
 // UsageEventInfo holds information about a usage event

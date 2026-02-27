@@ -85,6 +85,17 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	snapshotDir := getSnapshotDir()
 	snapMgr := snapshots.New(st, snapshotDir)
 
+	// Drift check: warn if brew has new formulae not yet in the DB
+	if allPkgs, err := st.ListPackages(); err == nil {
+		pkgNames := make([]string, len(allPkgs))
+		for i, p := range allPkgs {
+			pkgNames[i] = p.Name
+		}
+		if newCount, _ := brew.CheckStaleness(pkgNames); newCount > 0 {
+			fmt.Fprintf(os.Stderr, "⚠  %d new formulae since last scan. Run 'brewprune scan' to update shims.\n\n", newCount)
+		}
+	}
+
 	var packagesToRemove []string
 	var totalSize int64
 
@@ -149,6 +160,19 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if len(packagesToRemove) == 0 {
 		fmt.Println("No packages to remove.")
 		return nil
+	}
+
+	// Show per-package score summary inline before confirmation
+	if len(packagesToRemove) > 0 && len(args) == 0 {
+		// Already shown via displayConfidenceScores for tier-based removal
+	} else if len(args) > 0 {
+		fmt.Println()
+		for _, pkg := range packagesToRemove {
+			score, err := anlzr.ComputeScore(pkg)
+			if err == nil {
+				fmt.Printf("  %-20s  %3d/100  %-6s  %s\n", pkg, score.Score, strings.ToUpper(score.Tier), score.Reason)
+			}
+		}
 	}
 
 	// Display summary

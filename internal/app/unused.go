@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
+	"github.com/blackwell-systems/brewprune/internal/brew"
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/spf13/cobra"
@@ -108,6 +109,15 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Drift check: warn if brew has new formulae not yet in the DB
+	pkgNames := make([]string, len(packages))
+	for i, p := range packages {
+		pkgNames[i] = p.Name
+	}
+	if newCount, _ := brew.CheckStaleness(pkgNames); newCount > 0 {
+		fmt.Fprintf(os.Stderr, "⚠  %d new formulae since last scan. Run 'brewprune scan' to update shims.\n\n", newCount)
+	}
+
 	// Compute scores for all packages
 	var scores []*analyzer.ConfidenceScore
 	for _, pkg := range packages {
@@ -188,6 +198,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	summary := computeSummary(scores)
 	fmt.Printf("\nSummary: %d safe, %d medium, %d risky packages\n",
 		summary["safe"], summary["medium"], summary["risky"])
+	fmt.Println("Note: Safe = low observed execution risk. Review medium/risky tiers before removing libraries or daemons.")
 
 	// Add confidence assessment
 	if err := showConfidenceAssessment(st); err != nil {
