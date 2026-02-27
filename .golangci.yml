@@ -1,0 +1,30 @@
+version: 2
+
+linters:
+  disable:
+    - errcheck
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck
+
+issues:
+  exclude-use-default: true
+  exclude:
+    # Empty branch checks in test files are fine (testing error paths)
+    - 'SA9003.*empty branch'
+    # Deprecated filepath.HasPrefix is OK for /Applications check
+    - 'SA1019.*filepath\.HasPrefix'
+    # Unused mock functions in tests are fine
+    - 'func mock.* is unused'
+    # Allow WriteString(fmt.Sprintf) pattern
+    - 'QF1012.*Use fmt.Fprintf'
+    # Append result not used in test is fine
+    - 'SA4010.*this result of append'
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+    - .github
