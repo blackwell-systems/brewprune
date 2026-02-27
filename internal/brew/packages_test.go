@@ -14,7 +14,7 @@ const mockBrewListJSON = `{
       "full_name": "node",
       "tap": "homebrew/core",
       "version": "20.10.0",
-      "installed": [{"version": "20.10.0", "installed_on_request": 1704067200}],
+      "installed": [{"version": "20.10.0", "installed_on_request": true, "time": 1704067200}],
       "linked_keg": "20.10.0"
     },
     {
@@ -22,7 +22,7 @@ const mockBrewListJSON = `{
       "full_name": "git",
       "tap": "homebrew/core",
       "version": "2.43.0",
-      "installed": [{"version": "2.43.0", "installed_on_request": 1703462400}]
+      "installed": [{"version": "2.43.0", "installed_on_request": false, "time": 1703462400}]
     },
     {
       "name": "openssl@3",
@@ -38,7 +38,7 @@ const mockBrewListJSON = `{
       "full_token": "visual-studio-code",
       "tap": "homebrew/cask",
       "version": "1.85.0",
-      "installed_time": "2024-01-01T00:00:00Z"
+      "installed_time": 1704067200
     }
   ]
 }`
@@ -51,7 +51,7 @@ const mockBrewInfoJSON = `{
       "full_name": "node",
       "tap": "homebrew/core",
       "version": "20.10.0",
-      "installed": [{"version": "20.10.0", "installed_on_request": 1704067200}],
+      "installed": [{"version": "20.10.0", "installed_on_request": true, "time": 1704067200}],
       "linked_keg": "20.10.0"
     }
   ],
@@ -482,8 +482,8 @@ func TestBrewJSONArrayIndexing(t *testing.T) {
       "name": "first",
       "version": "1.0.0",
       "installed": [
-        {"version": "1.0.0", "installed_on_request": 1704067200},
-        {"version": "0.9.0"}
+        {"version": "1.0.0", "installed_on_request": true, "time": 1704067200},
+        {"version": "0.9.0", "installed_on_request": false}
       ]
     }
   ],
