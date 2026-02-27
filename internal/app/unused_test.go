@@ -75,26 +75,35 @@ func TestSortScores(t *testing.T) {
 			scores[0].Package, scores[0].Score)
 	}
 
-	// Test sort by size (currently sorts by name)
+	// Test sort by size (largest first)
 	scores2 := []*analyzer.ConfidenceScore{
-		{Package: "pkg-c", Score: 50},
-		{Package: "pkg-a", Score: 90},
-		{Package: "pkg-b", Score: 70},
+		{Package: "pkg-c", Score: 50, SizeBytes: 1000},
+		{Package: "pkg-a", Score: 90, SizeBytes: 5000},
+		{Package: "pkg-b", Score: 70, SizeBytes: 3000},
 	}
 	sortScores(scores2, "size")
-	if scores2[0].Package != "pkg-a" {
-		t.Errorf("sort by size failed: got %s, want pkg-a", scores2[0].Package)
+	if scores2[0].Package != "pkg-a" || scores2[0].SizeBytes != 5000 {
+		t.Errorf("sort by size failed: got %s with %d bytes, want pkg-a with 5000",
+			scores2[0].Package, scores2[0].SizeBytes)
+	}
+	if scores2[1].Package != "pkg-b" || scores2[1].SizeBytes != 3000 {
+		t.Errorf("sort by size failed: got %s with %d bytes at position 1, want pkg-b with 3000",
+			scores2[1].Package, scores2[1].SizeBytes)
 	}
 
-	// Test sort by age (currently sorts by name)
+	// Test sort by age (oldest first)
+	now := time.Now()
 	scores3 := []*analyzer.ConfidenceScore{
-		{Package: "pkg-c", Score: 50},
-		{Package: "pkg-a", Score: 90},
-		{Package: "pkg-b", Score: 70},
+		{Package: "pkg-c", Score: 50, InstalledAt: now.AddDate(0, 0, -30)},  // 30 days ago
+		{Package: "pkg-a", Score: 90, InstalledAt: now.AddDate(0, 0, -200)}, // 200 days ago (oldest)
+		{Package: "pkg-b", Score: 70, InstalledAt: now.AddDate(0, 0, -100)}, // 100 days ago
 	}
 	sortScores(scores3, "age")
 	if scores3[0].Package != "pkg-a" {
-		t.Errorf("sort by age failed: got %s, want pkg-a", scores3[0].Package)
+		t.Errorf("sort by age failed: got %s, want pkg-a (oldest)", scores3[0].Package)
+	}
+	if scores3[1].Package != "pkg-b" {
+		t.Errorf("sort by age failed: got %s at position 1, want pkg-b", scores3[1].Package)
 	}
 }
 

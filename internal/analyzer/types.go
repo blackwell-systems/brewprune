@@ -5,14 +5,16 @@ import "time"
 // ConfidenceScore represents a package's removal confidence score.
 type ConfidenceScore struct {
 	Package     string
-	Score       int    // 0-100
-	Tier        string // "safe", "medium", "risky"
-	UsageScore  int    // 0-40 points
-	DepsScore   int    // 0-30 points
-	AgeScore    int    // 0-20 points
-	TypeScore   int    // 0-10 points
-	Reason      string // Human-readable explanation
-	IsCritical  bool   // True if package is a core dependency
+	Score       int       // 0-100
+	Tier        string    // "safe", "medium", "risky"
+	UsageScore  int       // 0-40 points
+	DepsScore   int       // 0-30 points
+	AgeScore    int       // 0-20 points
+	TypeScore   int       // 0-10 points
+	Reason      string    // Human-readable explanation
+	IsCritical  bool      // True if package is a core dependency
+	SizeBytes   int64     // Package size in bytes (for sorting)
+	InstalledAt time.Time // Installation date (for sorting)
 	Explanation ScoreExplanation
 }
 

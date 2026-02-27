@@ -21,7 +21,9 @@ func (a *Analyzer) ComputeScore(pkg string) (*ConfidenceScore, error) {
 	}
 
 	score := &ConfidenceScore{
-		Package: pkg,
+		Package:     pkg,
+		SizeBytes:   pkgInfo.SizeBytes,
+		InstalledAt: pkgInfo.InstalledAt,
 	}
 
 	// 1. Usage Score (40 points)

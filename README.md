@@ -254,7 +254,7 @@ $ brewprune watch --stop
 **`brewprune unused` flags:**
 - `--tier safe|medium|risky` - Filter by heuristic tier
 - `--min-score N` - Minimum heuristic score (0-100)
-- `--sort score|size|age` - Sort order
+- `--sort score|size|age` - Sort order (score: highest first, size: largest first, age: oldest first)
 
 **`brewprune remove` flags:**
 - `--safe` - Remove only safe-tier packages

@@ -198,16 +198,12 @@ func sortScores(scores []*analyzer.ConfidenceScore, sortBy string) {
 			return scores[i].Score > scores[j].Score
 		})
 	case "size":
-		// Sort by size requires package info - we'll sort by name for now
-		// In a real implementation, we'd fetch package sizes
 		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].Package < scores[j].Package
+			return scores[i].SizeBytes > scores[j].SizeBytes // Largest first
 		})
 	case "age":
-		// Sort by age requires install date - we'll sort by name for now
-		// In a real implementation, we'd fetch install dates
 		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].Package < scores[j].Package
+			return scores[i].InstalledAt.Before(scores[j].InstalledAt) // Oldest first
 		})
 	}
 }
