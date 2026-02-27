@@ -509,3 +509,33 @@ func (s *Store) GetSnapshotPackages(snapshotID int64) ([]*SnapshotPackage, error
 
 	return packages, nil
 }
+
+// GetEventCount returns the total number of usage events recorded.
+func (s *Store) GetEventCount() (int, error) {
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM usage_events").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get event count: %w", err)
+	}
+	return count, nil
+}
+
+// GetFirstEventTime returns the timestamp of the first usage event recorded.
+// Returns zero time if no events exist.
+func (s *Store) GetFirstEventTime() (time.Time, error) {
+	var timestamp string
+	err := s.db.QueryRow("SELECT MIN(timestamp) FROM usage_events").Scan(&timestamp)
+	if err == sql.ErrNoRows || timestamp == "" {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to get first event time: %w", err)
+	}
+
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	return t, nil
+}

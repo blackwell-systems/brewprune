@@ -44,11 +44,13 @@ Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental re
   # Show only safe-to-remove packages
   brewprune unused --tier safe
 
-  # Show packages with confidence >= 70
-  brewprune unused --min-score 70
+  # Preview removal with --dry-run first
+  brewprune unused --tier safe
+  # Then: brewprune remove --safe --dry-run
+  # Then: brewprune remove --safe
 
-  # Sort by size instead of score
-  brewprune unused --sort size`,
+  # Show packages with score >= 70
+  brewprune unused --min-score 70`,
 	RunE: runUnused,
 }
 
@@ -187,6 +189,12 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nSummary: %d safe, %d medium, %d risky packages\n",
 		summary["safe"], summary["medium"], summary["risky"])
 
+	// Add confidence assessment
+	if err := showConfidenceAssessment(st); err != nil {
+		// Don't fail the command, just log warning
+		fmt.Fprintf(os.Stderr, "Warning: failed to show confidence assessment: %v\n", err)
+	}
+
 	return nil
 }
 
@@ -263,4 +271,37 @@ func checkUsageWarning(st *store.Store) {
 	fmt.Println("Current recommendations are LOW CONFIDENCE without usage tracking.")
 	fmt.Println("─────────────────────────────────────────────────────────────────────────")
 	fmt.Println()
+}
+
+// showConfidenceAssessment displays the overall confidence level based on tracking data.
+func showConfidenceAssessment(st *store.Store) error {
+	eventCount, err := st.GetEventCount()
+	if err != nil {
+		return err
+	}
+
+	firstEventTime, err := st.GetFirstEventTime()
+	if err != nil {
+		return err
+	}
+
+	// Calculate days since tracking started
+	var daysSinceTracking int
+	if !firstEventTime.IsZero() {
+		daysSinceTracking = int(time.Since(firstEventTime).Hours() / 24)
+	}
+
+	fmt.Println()
+
+	if eventCount == 0 {
+		fmt.Println("Confidence: LOW (0 usage events recorded, tracking since: never)")
+		fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
+	} else if daysSinceTracking < 7 {
+		fmt.Printf("Confidence: MEDIUM (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+		fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
+	} else {
+		fmt.Printf("Confidence: HIGH (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+	}
+
+	return nil
 }

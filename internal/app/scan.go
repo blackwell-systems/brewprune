@@ -123,6 +123,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if !scanQuiet {
 		fmt.Println()
 		fmt.Printf("Scan complete: %d packages found (%s total)\n", len(packages), formatSize(totalSize))
+
+		// Add timeline reminder for first-time users
+		fmt.Println("\n⚠️  NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
+		fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
 		fmt.Println()
 
 		// Display package table
