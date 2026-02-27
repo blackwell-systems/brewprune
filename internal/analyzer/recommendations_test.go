@@ -18,16 +18,16 @@ func TestGetRecommendations(t *testing.T) {
 
 	// Insert packages with different safety levels
 	packages := []struct {
-		name      string
-		daysAgo   int
-		sizeBytes int64
-		hasBinary bool
+		name        string
+		daysAgo     int
+		sizeBytes   int64
+		hasBinary   bool
 		usedDaysAgo int // 0 means never used
 	}{
-		{"large_safe", 200, 100000000, true, 20},   // 100MB - used 20d ago: 30+30+20+10=90
-		{"medium_safe", 180, 50000000, true, 60},   // 50MB - used 60d ago: 20+30+20+10=80
-		{"small_medium", 200, 1000000, true, 0},    // 1MB - never used: 0+30+20+10=60 (medium)
-		{"risky_recent", 10, 80000000, true, 3},    // Recent install and use
+		{"large_safe", 200, 100000000, true, 20},    // 100MB - used 20d ago: 30+30+20+10=90
+		{"medium_safe", 180, 50000000, true, 60},    // 50MB - used 60d ago: 20+30+20+10=80
+		{"small_medium", 200, 1000000, true, 0},     // 1MB - never used: 0+30+20+10=60 (medium)
+		{"risky_recent", 10, 80000000, true, 3},     // Recent install and use
 		{"risky_no_binary", 200, 5000000, false, 0}, // Library
 	}
 

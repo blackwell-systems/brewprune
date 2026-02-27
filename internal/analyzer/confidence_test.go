@@ -237,8 +237,8 @@ func TestComputeScore_TierBoundaries(t *testing.T) {
 		expectedScore int
 	}{
 		{"medium_boundary_60", 200, false, "medium", 60}, // 0+30+20+10=60 (medium, not safe)
-		{"medium_boundary_50", 40, false, "medium", 50}, // 0+30+10+10=50
-		{"risky_boundary_20", 20, true, "risky", 20},    // 0+10+0+10=20
+		{"medium_boundary_50", 40, false, "medium", 50},  // 0+30+10+10=50
+		{"risky_boundary_20", 20, true, "risky", 20},     // 0+10+0+10=20
 	}
 
 	for _, tt := range tests {

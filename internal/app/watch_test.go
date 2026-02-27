@@ -119,12 +119,12 @@ func TestWatchCommandFlagParsing(t *testing.T) {
 	watchStop = false
 
 	tests := []struct {
-		name               string
-		args               []string
-		expectedDaemon     bool
-		expectedStop       bool
-		expectedPIDFile    string
-		expectedLogFile    string
+		name            string
+		args            []string
+		expectedDaemon  bool
+		expectedStop    bool
+		expectedPIDFile string
+		expectedLogFile string
 	}{
 		{
 			name:            "default flags",

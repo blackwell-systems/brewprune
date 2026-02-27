@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	watchDaemon     bool
+	watchDaemon      bool
 	watchDaemonChild bool
-	watchPIDFile    string
-	watchLogFile    string
-	watchStop       bool
+	watchPIDFile     string
+	watchLogFile     string
+	watchStop        bool
 
 	watchCmd = &cobra.Command{
 		Use:   "watch",

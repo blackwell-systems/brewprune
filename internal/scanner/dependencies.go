@@ -8,22 +8,22 @@ import (
 // coreDependencies is a list of system-level packages that are commonly
 // dependencies of many other packages. These should typically not be pruned.
 var coreDependencies = map[string]bool{
-	"openssl":     true,
-	"openssl@1.1": true,
-	"openssl@3":   true,
-	"icu4c":       true,
-	"readline":    true,
-	"gettext":     true,
-	"libffi":      true,
-	"gmp":         true,
-	"pcre":        true,
-	"pcre2":       true,
+	"openssl":         true,
+	"openssl@1.1":     true,
+	"openssl@3":       true,
+	"icu4c":           true,
+	"readline":        true,
+	"gettext":         true,
+	"libffi":          true,
+	"gmp":             true,
+	"pcre":            true,
+	"pcre2":           true,
 	"ca-certificates": true,
-	"zlib":        true,
-	"xz":          true,
-	"sqlite":      true,
-	"python@3.12": true,
-	"python@3.11": true,
+	"zlib":            true,
+	"xz":              true,
+	"sqlite":          true,
+	"python@3.12":     true,
+	"python@3.11":     true,
 }
 
 // BuildDependencyGraph builds a complete dependency graph for all packages

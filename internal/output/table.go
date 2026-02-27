@@ -308,7 +308,7 @@ func truncate(s string, maxLen int) string {
 type ConfidenceScore struct {
 	Package  string
 	Score    int
-	Tier     string    // "safe", "medium", "risky"
+	Tier     string // "safe", "medium", "risky"
 	LastUsed time.Time
 	Reason   string
 }

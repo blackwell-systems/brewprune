@@ -141,10 +141,10 @@ func TestScanCommandFlagParsing(t *testing.T) {
 
 	// Test flag parsing
 	tests := []struct {
-		name                      string
-		args                      []string
-		expectedRefreshBinaries   bool
-		expectedQuiet             bool
+		name                    string
+		args                    []string
+		expectedRefreshBinaries bool
+		expectedQuiet           bool
 	}{
 		{
 			name:                    "default flags",

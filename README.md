@@ -7,133 +7,192 @@ You have 100+ Homebrew packages installed. You use 20 of them. The other 80 are 
 ## Quick example
 
 ```bash
-$ brewprune scan
+$ brewprune unused --tier safe
 
-📦 100 packages installed (14.2 GB)
+Package              Score    Tier       Last Used     Reason
+────────────────────────────────────────────────────────────────────────────────
+node@16              85       SAFE       never         never used, no dependents
+postgresql@14        90       SAFE       never         never used, no dependents
+python@3.9           82       SAFE       6 months ago  rarely used, safe to remove
 
-Safe to remove (high confidence):
-  node@16        2.1 GB    installed 142 days ago, 0 uses
-  postgresql@14  890 MB    installed 89 days ago, 0 uses
-  python@3.9     1.2 GB    installed 201 days ago, 0 uses
-
-Medium confidence:
-  imagemagick    450 MB    installed 67 days ago, last used 45 days ago
-
-Risky (low confidence):
-  git            180 MB    installed 12 days ago, used 847 times
-
-Total reclaimable (safe only): 4.2 GB
+Summary: 3 safe, 2 medium, 1 risky packages
 ```
 
 ```bash
 $ brewprune remove --safe
-Creating snapshot... ✓
-Removing node@16...
-Removing postgresql@14...
-Removing python@3.9...
+Creating snapshot...
+Snapshot created: ID 1
 
-Removed 3 packages, reclaimed 4.2 GB
+Removing 3 packages...
+
+✓ Removed 3 packages, freed 4.2 GB
+
+Snapshot: ID 1
+Undo with: brewprune undo 1
 ```
 
 ```bash
 # If something breaks, rollback is one command:
-$ brewprune undo
-Restored snapshot from 2026-02-26 14:23
-Reinstalled 3 packages
+$ brewprune undo latest
+Restoring 3 packages from snapshot...
+
+✓ Restored 3 packages from snapshot 1
+
+Run 'brewprune scan' to update the package database.
 ```
 
 ## How it works
 
 **FSEvents monitoring**
-brewprune watches `/usr/local/bin`, `/opt/homebrew/bin`, and `/Applications` for file access. When you run a Homebrew-installed binary, it gets logged with a timestamp.
+brewprune watches Homebrew binary directories (`$(brew --prefix)/bin`, `/Applications`) for file access. When you run a Homebrew-installed binary, it gets logged with a timestamp.
 
 **SQLite usage database**
-All usage data lives in `~/.brewprune/usage.db`. No cloud sync, no network calls—everything stays local.
+All usage data lives in `~/.brewprune/brewprune.db`. No cloud sync, no network calls—everything stays local.
 
 **Confidence scoring**
-Packages are scored based on:
-- **Install age** - Older installations with no usage → high removal confidence
-- **Usage frequency** - Never used → safe, used recently → risky
-- **Dependency status** - Leaf packages (no dependents) → safer to remove
-- **Recency** - Last used 3+ months ago → medium confidence
+Each package receives a score from 0-100 based on four weighted factors:
 
-Scoring thresholds:
-- **Safe** - Installed 60+ days ago, 0-1 uses OR last used 90+ days ago
-- **Medium** - Installed 30+ days ago, moderate usage OR last used 30-90 days ago
-- **Risky** - Recent installation, frequent usage, or used in last 30 days
+**Total Score = Usage (40pts) + Dependencies (30pts) + Age (20pts) + Type (10pts)**
+
+- **Usage Score (40 points):**
+  - Last 7 days: 40 points
+  - Last 30 days: 30 points
+  - Last 90 days: 20 points
+  - Last year: 10 points
+  - Never used: 0 points
+
+- **Dependencies Score (30 points):**
+  - No dependents: 30 points
+  - 1-3 unused dependents: 20 points
+  - 1-3 used dependents: 10 points
+  - 4+ dependents: 0 points
+
+- **Age Score (20 points):**
+  - Installed >180 days: 20 points
+  - Installed >90 days: 15 points
+  - Installed >30 days: 10 points
+  - Installed <30 days: 0 points
+
+- **Type Score (10 points):**
+  - Leaf package with binaries: 10 points
+  - Library with no binaries: 5 points
+  - Core dependency: 0 points
+
+**Confidence Tiers:**
+- **Safe (80-100):** High confidence, minimal impact
+- **Medium (50-79):** Review before removal
+- **Risky (0-49):** Keep unless certain
 
 **Automatic snapshots**
-Before any removal, brewprune creates a snapshot containing:
-- List of removed packages and versions
-- Removal timestamp
-- Disk space reclaimed
+Before any removal, brewprune creates a snapshot in `~/.brewprune/snapshots/` containing:
+- Package names and exact versions
+- Tap sources for reinstallation
+- Timestamp and reason for snapshot
 
-Rollback reinstalls exact versions from the snapshot.
+Rollback reinstalls packages from the snapshot using `brew install`.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `brewprune scan` | Analyze installed packages and show removal candidates |
-| `brewprune remove --safe` | Remove packages with high confidence scores |
-| `brewprune remove --medium` | Remove packages with medium+ confidence scores |
-| `brewprune remove <package>` | Remove a specific package (creates snapshot) |
-| `brewprune undo` | Restore the most recent snapshot |
-| `brewprune list-snapshots` | Show all snapshots with rollback points |
-| `brewprune monitor` | Start usage monitoring daemon (runs in background) |
-| `brewprune status` | Show monitoring status and database stats |
+| `brewprune scan` | Scan and index installed Homebrew packages |
+| `brewprune watch` | Monitor package usage via filesystem events (can run as daemon) |
+| `brewprune unused [--tier safe\|medium\|risky]` | List unused packages with confidence scores |
+| `brewprune stats [--days N] [--package NAME]` | Show usage statistics for packages |
+| `brewprune remove [--tier safe\|medium\|risky] [packages...]` | Remove unused packages (creates snapshot) |
+| `brewprune undo [snapshot-id\|latest]` | Restore packages from a snapshot |
 
-### Usage examples
+### Common workflow
 
 ```bash
-# Start monitoring (do this once, runs in background)
-$ brewprune monitor --daemon
-
-# After a few weeks, scan for cleanup candidates
+# 1. Initial scan
 $ brewprune scan
 
-# Remove only the safest packages
+# 2. Start monitoring (runs in background)
+$ brewprune watch --daemon
+
+# 3. After a week or two, view unused packages
+$ brewprune unused --tier safe
+
+# 4. Check usage statistics
+$ brewprune stats --days 30
+
+# 5. Remove safe packages with dry-run first
+$ brewprune remove --safe --dry-run
+
+# 6. Actually remove them (creates snapshot automatically)
 $ brewprune remove --safe
 
-# Or be more aggressive
-$ brewprune remove --medium
+# 7. If something breaks, rollback
+$ brewprune undo latest
 
-# Check what was removed
-$ brewprune list-snapshots
-
-# Rollback if something broke
-$ brewprune undo
+# 8. Stop the monitoring daemon when not needed
+$ brewprune watch --stop
 ```
+
+### Key flags
+
+**`brewprune unused` flags:**
+- `--tier safe|medium|risky` - Filter by confidence tier
+- `--min-score N` - Minimum confidence score (0-100)
+- `--sort score|size|age` - Sort order
+
+**`brewprune remove` flags:**
+- `--safe` - Remove only safe-tier packages
+- `--medium` - Remove safe + medium-tier packages
+- `--risky` - Remove all unused packages (requires confirmation)
+- `--dry-run` - Show what would be removed without removing
+- `--yes` - Skip confirmation prompts
+- `--no-snapshot` - Skip automatic snapshot creation (dangerous!)
+
+**`brewprune watch` flags:**
+- `--daemon` - Run as background daemon
+- `--stop` - Stop running daemon
+- `--pid-file PATH` - Custom PID file location
+- `--log-file PATH` - Custom log file location
+
+**`brewprune undo` flags:**
+- `--list` - List all available snapshots
+- `--yes` - Skip confirmation prompt
+
+**`brewprune stats` flags:**
+- `--days N` - Time window in days (default: 30)
+- `--package NAME` - Show stats for specific package
 
 ## Installation
 
 ### From source
 
 ```bash
-go install github.com/yourusername/brewprune@latest
+go install github.com/blackwell-systems/brewprune@latest
 ```
 
 ### Homebrew tap (coming soon)
 
 ```bash
-brew tap yourusername/brewprune
+brew tap blackwell-systems/brewprune
 brew install brewprune
 ```
 
 ### First-time setup
 
-After installation, start the monitoring daemon:
+After installation, run an initial scan and start the monitoring daemon:
 
 ```bash
-brewprune monitor --daemon
+# Scan existing packages
+brewprune scan
+
+# Start background monitoring
+brewprune watch --daemon
 ```
 
-This runs in the background and tracks package usage via FSEvents. Let it run for at least a week before doing cleanup—more data means better confidence scores.
+The daemon runs in the background and tracks package usage via FSEvents. Let it run for at least a week before doing cleanup—more data means better confidence scores.
 
 ## Privacy
 
 brewprune is completely local:
-- All data stays in `~/.brewprune/usage.db` (SQLite)
+- All data stays in `~/.brewprune/brewprune.db` (SQLite)
+- Snapshots stored in `~/.brewprune/snapshots/`
 - No network calls
 - No telemetry
 - No cloud sync
@@ -163,28 +222,30 @@ Usage tracking only monitors Homebrew binary paths. It doesn't track arguments, 
 A: At least 1-2 weeks of monitoring. The longer you wait, the better the confidence scores.
 
 **Q: What happens if I remove something I need?**
-A: Run `brewprune undo` to restore the exact packages you removed. Snapshots include version info, so you get back exactly what you had.
+A: Run `brewprune undo latest` to restore the exact packages you removed. Snapshots include version info, so you get back exactly what you had.
 
 **Q: Does this track what I do in my terminal?**
 A: No. It only tracks *which binaries are executed*, not what you pass to them. If you run `git commit -m "secret"`, brewprune only sees "git was used at 2:34pm"—nothing about arguments or content.
 
-**Q: Can I exclude packages from removal?**
-A: Yes. Add packages to `~/.brewprune/exclude.txt` (one per line) and they'll never show up in removal candidates.
-
 **Q: Does this work with Homebrew Cask?**
-A: Yes. brewprune monitors both `/usr/local/bin` (formulae) and `/Applications` (casks).
+A: Yes. brewprune monitors both Homebrew bin directories (formulae) and `/Applications` (casks).
 
 **Q: What if I use a package via a script?**
-A: As long as the script executes the binary, FSEvents will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage—be careful with `--medium` in this case.
+A: As long as the script executes the binary, FSEvents will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage—be careful with `--medium` and `--risky` in this case.
+
+**Q: How do I see what snapshots I have?**
+A: Run `brewprune undo --list` to see all available snapshots with their IDs, creation times, and package counts.
 
 ## Roadmap
 
+- [x] Confidence-based package scoring
+- [x] Automatic snapshot creation and rollback
+- [x] Daemon mode for background monitoring
+- [x] Dry-run mode for safe previews
 - [ ] Web UI for browsing usage history
 - [ ] Export reports (JSON, CSV)
-- [ ] Scheduled scanning (weekly email summaries)
 - [ ] Integration with `brew bundle` for reproducible environments
 - [ ] Dependency tree visualization
-- [ ] "Dry run" mode with detailed impact analysis
 
 ## License
 
