@@ -57,6 +57,9 @@ changelog:
       order: 999
 
 release:
+  github:
+    owner: blackwell-systems
+    name: brewprune
   draft: false
   prerelease: auto
 
