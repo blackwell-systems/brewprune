@@ -166,8 +166,7 @@ func TestRootCommandHelp(t *testing.T) {
 func TestExecute(t *testing.T) {
 	// Test that Execute function works
 	// We can't easily test the actual execution without mocking,
-	// but we can verify the function exists and has the right signature
-	if Execute == nil {
-		t.Error("Execute function should exist")
-	}
+	// but we can verify the function exists
+	// Note: Functions are never nil in Go, so we just check it's callable
+	_ = Execute
 }

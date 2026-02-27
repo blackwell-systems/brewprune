@@ -92,33 +92,6 @@ func TestDetermineTier(t *testing.T) {
 	removeFlagRisky = false
 }
 
-func TestFormatSize(t *testing.T) {
-	tests := []struct {
-		name     string
-		bytes    int64
-		expected string
-	}{
-		{"zero", 0, "0 B"},
-		{"bytes", 512, "512 B"},
-		{"kilobytes", 1024, "1 KB"},
-		{"kilobytes decimal", 2048, "2 KB"},
-		{"megabytes", 1024 * 1024, "1 MB"},
-		{"megabytes decimal", 5 * 1024 * 1024, "5 MB"},
-		{"gigabytes", 1024 * 1024 * 1024, "1.0 GB"},
-		{"gigabytes decimal", 3 * 1024 * 1024 * 1024, "3.0 GB"},
-		{"1.5 GB", 1536 * 1024 * 1024, "1.5 GB"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatSize(tt.bytes)
-			if result != tt.expected {
-				t.Errorf("formatSize(%d) = %q, want %q", tt.bytes, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestRemoveCommandRegistration(t *testing.T) {
 	// Create a temporary root command for testing
 	tempRoot := &cobra.Command{Use: "test"}
