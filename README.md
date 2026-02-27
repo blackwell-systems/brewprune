@@ -370,17 +370,6 @@ Protected packages include: openssl, ca-certificates, git, curl, wget, cmake, pk
 
 See the full list in code: [internal/scanner/dependencies.go](https://github.com/blackwell-systems/brewprune/blob/main/internal/scanner/dependencies.go)
 
-## Roadmap
-
-- [x] Heuristic-based package scoring
-- [x] Automatic snapshot creation and rollback
-- [x] Daemon mode for background monitoring
-- [x] Dry-run mode for safe previews
-- [ ] Web UI for browsing usage history
-- [ ] Export reports (JSON, CSV)
-- [ ] Integration with `brew bundle` for reproducible environments
-- [ ] Dependency tree visualization
-
 ## License
 
 MIT
