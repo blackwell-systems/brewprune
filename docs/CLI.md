@@ -152,18 +152,15 @@ Displays a progress spinner for each scan phase, followed by a summary table sho
 
 ### brewprune watch
 
-Monitors package usage via filesystem events.
+Processes the PATH shim log to record package usage.
 
 **Description:**
 
-Starts monitoring filesystem events to track package usage in real-time. The watch command monitors binary executions in Homebrew directories and tracks when packages are used. This data is used to build confidence scores for removal recommendations.
+Reads `~/.brewprune/usage.log` (written by the shim binary on every command execution) every 30 seconds, resolves binary names to Homebrew packages, and batch-inserts usage events into the database. This data drives the confidence scores shown by `brewprune unused`.
 
-The watcher tracks:
-- Binary executions in brew bin/sbin directories
-- Application launches from /Applications
-- Frequency and recency of usage
+Run `brewprune scan` first to build the shim binary and create per-command symlinks, then add `~/.brewprune/bin` to the front of your PATH.
 
-Usage data is written to the database periodically (every 30 seconds) to minimize I/O overhead.
+Usage data is written every 30 seconds to minimise I/O overhead.
 
 **Watch modes:**
 - **Foreground (default):** Run in current terminal with Ctrl+C to stop

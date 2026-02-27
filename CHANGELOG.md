@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-02-27
+
+### Added
+- **PATH shim execution tracking** — `brewprune scan` now builds a Go interceptor binary (`~/.brewprune/bin/brewprune-shim`) and creates symlinks for every Homebrew command on your PATH. When you run `git`, `gh`, `jq`, etc., the shim logs the execution to `~/.brewprune/usage.log` and hands off to the real binary with zero perceptible overhead.
+- **`cmd/brewprune-shim`** — standalone binary that uses `syscall.Exec` (no fork) and O_APPEND atomic log writes
+- **`internal/shim` package** — `BuildShimBinary`, `GenerateShims` (LookPath collision-safe), `RemoveShims`, `IsShimSetup`
+- **`internal/watcher/shim_processor.go`** — reads usage.log from a tracked byte offset, resolves basenames to packages, and batch-inserts events in a single SQLite transaction every 30 seconds
+- **Crash-safe offset tracking** — offset file updated via temp-file rename after successful commit; events are never lost on crash
+- **`brewprune doctor`** now checks shim binary exists and `~/.brewprune/bin` is correctly positioned in PATH
+
+### Fixed
+- **Usage tracking was completely broken** — the previous fsnotify watcher listened for `Write`/`Chmod` events on Homebrew bin directories, which never fire on binary execution (only on file modification). Zero events were ever captured despite the daemon running. PATH shims fix this permanently.
+
+### Changed
+- `brewprune scan` shows PATH setup instructions when shim directory is not yet in PATH
+- `brewprune watch` description updated to reflect shim log processing
+- README and docs updated to remove all FSEvents references
+
+### Removed
+- `github.com/fsnotify/fsnotify` dependency (no longer needed)
+- `internal/watcher.BuildBinaryMap` and `MatchPathToPackage` (dead code, only served the broken fsnotify path)
+
+### Technical
+- `Watcher` struct simplified from 8 fields to 4 (store, stopCh, wg, batchTicker)
+- All fsnotify imports, event handlers, and tests removed; −749 lines of dead code
+- `go mod tidy` removed fsnotify from go.mod/go.sum
+
 ## [0.1.4] - 2026-02-27
 
 ### Added

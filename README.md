@@ -11,7 +11,7 @@ You have 100+ Homebrew packages installed. You use 20 of them. The rest can quie
 **brewprune solves this.** It monitors what you actually use, scores packages by removal safety, and creates automatic snapshots so you can undo any removal with one command. Less guesswork. Just data-driven cleanup.
 
 **Requirements:**
-- macOS 12+ (uses FSEvents for monitoring)
+- macOS 12+ (Apple Silicon or Intel)
 - Homebrew installed
 - Formula support: full | Cask support: best-effort
 
@@ -200,12 +200,10 @@ $ brewprune watch --stop
 
 ## How it works
 
-**Filesystem Monitoring**
-brewprune watches Homebrew binary paths for filesystem activity consistent with execution, then records timestamps for the owning package. It uses macOS FSEvents to monitor:
-- `$(brew --prefix)/bin` and `/opt/homebrew/bin` for formula binaries
-- `/Applications` for cask app bundles
+**PATH Shims**
+`brewprune scan` builds a tiny Go interceptor binary (`~/.brewprune/bin/brewprune-shim`) and creates a symlink for every Homebrew command you have on PATH. When you run `git`, `gh`, `jq`, or any shimmed tool, the shim logs the execution to `~/.brewprune/usage.log` (nanosecond timestamp + command name) and immediately hands off to the real binary with zero perceptible overhead. The watch daemon picks up those log entries every 30 seconds and records usage events in the database.
 
-When activity occurs, brewprune records a usage timestamp for the owning package.
+**One setup step:** add `~/.brewprune/bin` to the front of your PATH (brewprune scan will tell you exactly what to add).
 
 **Package Size Calculation**
 During scan, brewprune calculates actual disk usage for each package using `du -sk` on the Cellar/Caskroom directories. This enables sorting by size and shows real space savings potential.
@@ -342,7 +340,7 @@ This checks:
 **What brewprune tracks:**
 - Executed binaries installed by Homebrew formulae
 - App bundle access in /Applications (as a proxy for cask usage)
-- Filesystem activity via FSEvents (not direct process execution)
+- Direct binary execution via PATH shims (exact, not a proxy)
 
 **What it doesn't track:**
 - Language imports (Python/Ruby/Node modules) unless a binary is executed
@@ -394,7 +392,7 @@ It only knows "this binary/app was accessed at this time."
 A: Yes, with best-effort accuracy. brewprune monitors both Homebrew bin directories (formulae) and `/Applications` (casks). Cask usage detection is based on app bundle access, which is a proxy for user launch.
 
 **Q: What if I use a package via a script?**
-A: As long as the script executes the binary, FSEvents will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage—be careful with `--medium` and `--risky` in this case.
+A: As long as the script executes the binary directly, the shim will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage—be careful with `--medium` and `--risky` in this case.
 
 **Q: How do I see what snapshots I have?**
 A: Run `brewprune undo --list` to see all available snapshots with their IDs, creation times, and package counts.
