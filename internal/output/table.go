@@ -1,0 +1,323 @@
+// Package output provides terminal output utilities for brewprune.
+//
+// This package includes:
+//   - Table rendering functions for packages, confidence scores, usage stats, and snapshots
+//   - Progress bars for long-running operations
+//   - Spinners for indeterminate operations
+//   - Human-readable formatting for sizes, dates, and other data
+//
+// All table rendering functions use ASCII characters and ANSI color codes for terminal output.
+// Progress indicators are thread-safe and can be used from multiple goroutines.
+package output
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/blackwell-systems/brewprune/internal/brew"
+	"github.com/blackwell-systems/brewprune/internal/store"
+)
+
+// ANSI color codes for confidence tier display
+const (
+	colorReset  = "\033[0m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorRed    = "\033[31m"
+	colorGray   = "\033[90m"
+)
+
+// RenderPackageTable renders a table of packages with their details.
+func RenderPackageTable(packages []*brew.Package) string {
+	if len(packages) == 0 {
+		return "No packages found.\n"
+	}
+
+	// Sort packages by name for consistent output
+	sorted := make([]*brew.Package, len(packages))
+	copy(sorted, packages)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString(fmt.Sprintf("%-20s %-12s %-8s %-13s %-13s\n",
+		"Package", "Version", "Size", "Installed", "Last Used"))
+	sb.WriteString(strings.Repeat("─", 80))
+	sb.WriteString("\n")
+
+	// Rows
+	for _, pkg := range sorted {
+		size := formatSize(pkg.SizeBytes)
+		installed := formatRelativeTime(pkg.InstalledAt)
+		lastUsed := "never" // Default, will be overridden by analyzer data
+
+		sb.WriteString(fmt.Sprintf("%-20s %-12s %-8s %-13s %-13s\n",
+			truncate(pkg.Name, 20),
+			truncate(pkg.Version, 12),
+			size,
+			installed,
+			lastUsed))
+	}
+
+	return sb.String()
+}
+
+// RenderConfidenceTable renders a table of packages with confidence scores.
+// The ConfidenceScore type will be defined by the analyzer package.
+func RenderConfidenceTable(scores []ConfidenceScore) string {
+	if len(scores) == 0 {
+		return "No confidence scores available.\n"
+	}
+
+	// Sort by score descending (highest confidence first)
+	sorted := make([]ConfidenceScore, len(scores))
+	copy(sorted, scores)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Score > sorted[j].Score
+	})
+
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString(fmt.Sprintf("%-20s %-8s %-10s %-13s %s\n",
+		"Package", "Score", "Tier", "Last Used", "Reason"))
+	sb.WriteString(strings.Repeat("─", 80))
+	sb.WriteString("\n")
+
+	// Rows
+	for _, score := range sorted {
+		tierStr := formatTier(score.Tier)
+		lastUsed := formatRelativeTime(score.LastUsed)
+
+		sb.WriteString(fmt.Sprintf("%-20s %s%-8d%s %-10s %-13s %s\n",
+			truncate(score.Package, 20),
+			getTierColor(score.Tier),
+			score.Score,
+			colorReset,
+			tierStr,
+			lastUsed,
+			truncate(score.Reason, 30)))
+	}
+
+	return sb.String()
+}
+
+// RenderUsageTable renders a table of usage statistics.
+// The UsageStats type will be defined by the analyzer package.
+func RenderUsageTable(stats map[string]UsageStats) string {
+	if len(stats) == 0 {
+		return "No usage statistics available.\n"
+	}
+
+	// Convert map to slice for sorting
+	type entry struct {
+		pkg   string
+		stats UsageStats
+	}
+	entries := make([]entry, 0, len(stats))
+	for pkg, s := range stats {
+		entries = append(entries, entry{pkg: pkg, stats: s})
+	}
+
+	// Sort by total runs descending
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].stats.TotalRuns > entries[j].stats.TotalRuns
+	})
+
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString(fmt.Sprintf("%-20s %-10s %-13s %-13s %s\n",
+		"Package", "Total Runs", "Last Used", "Frequency", "Trend"))
+	sb.WriteString(strings.Repeat("─", 80))
+	sb.WriteString("\n")
+
+	// Rows
+	for _, e := range entries {
+		lastUsed := formatRelativeTime(e.stats.LastUsed)
+		trend := formatTrend(e.stats.Trend)
+
+		sb.WriteString(fmt.Sprintf("%-20s %-10d %-13s %-13s %s\n",
+			truncate(e.pkg, 20),
+			e.stats.TotalRuns,
+			lastUsed,
+			e.stats.Frequency,
+			trend))
+	}
+
+	return sb.String()
+}
+
+// RenderSnapshotTable renders a table of snapshots.
+func RenderSnapshotTable(snapshots []*store.Snapshot) string {
+	if len(snapshots) == 0 {
+		return "No snapshots found.\n"
+	}
+
+	// Sort by creation time descending (newest first)
+	sorted := make([]*store.Snapshot, len(snapshots))
+	copy(sorted, snapshots)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].CreatedAt.After(sorted[j].CreatedAt)
+	})
+
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString(fmt.Sprintf("%-5s %-17s %-10s %s\n",
+		"ID", "Created", "Packages", "Reason"))
+	sb.WriteString(strings.Repeat("─", 80))
+	sb.WriteString("\n")
+
+	// Rows
+	for _, snap := range sorted {
+		created := formatRelativeTime(snap.CreatedAt)
+
+		sb.WriteString(fmt.Sprintf("%-5d %-17s %-10d %s\n",
+			snap.ID,
+			created,
+			snap.PackageCount,
+			truncate(snap.Reason, 40)))
+	}
+
+	return sb.String()
+}
+
+// formatSize converts bytes to human-readable size (GB, MB, KB).
+func formatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.0f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.0f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
+// formatRelativeTime converts a timestamp to relative time (e.g., "2 days ago").
+func formatRelativeTime(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+
+	now := time.Now()
+	diff := now.Sub(t)
+
+	switch {
+	case diff < time.Minute:
+		return "just now"
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	case diff < 24*time.Hour:
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case diff < 7*24*time.Hour:
+		days := int(diff.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	case diff < 30*24*time.Hour:
+		weeks := int(diff.Hours() / 24 / 7)
+		if weeks == 1 {
+			return "1 week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", weeks)
+	case diff < 365*24*time.Hour:
+		months := int(diff.Hours() / 24 / 30)
+		if months == 1 {
+			return "1 month ago"
+		}
+		return fmt.Sprintf("%d months ago", months)
+	default:
+		years := int(diff.Hours() / 24 / 365)
+		if years == 1 {
+			return "1 year ago"
+		}
+		return fmt.Sprintf("%d years ago", years)
+	}
+}
+
+// formatTier returns a display string for confidence tier.
+func formatTier(tier string) string {
+	return strings.ToUpper(tier)
+}
+
+// getTierColor returns the ANSI color code for a confidence tier.
+func getTierColor(tier string) string {
+	switch strings.ToLower(tier) {
+	case "safe":
+		return colorGreen
+	case "medium":
+		return colorYellow
+	case "risky":
+		return colorRed
+	default:
+		return colorGray
+	}
+}
+
+// formatTrend returns a visual representation of usage trend.
+func formatTrend(trend string) string {
+	switch strings.ToLower(trend) {
+	case "up", "increasing":
+		return "↑"
+	case "down", "decreasing":
+		return "↓"
+	case "stable":
+		return "→"
+	default:
+		return "—"
+	}
+}
+
+// truncate truncates a string to maxLen, adding "..." if truncated.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+// ConfidenceScore represents a package's confidence score for removal.
+// This is a placeholder definition - the actual type will come from analyzer package.
+type ConfidenceScore struct {
+	Package  string
+	Score    int
+	Tier     string    // "safe", "medium", "risky"
+	LastUsed time.Time
+	Reason   string
+}
+
+// UsageStats represents usage statistics for a package.
+// This is a placeholder definition - the actual type will come from analyzer package.
+type UsageStats struct {
+	TotalRuns int
+	LastUsed  time.Time
+	Frequency string // "daily", "weekly", "monthly", "rarely"
+	Trend     string // "increasing", "stable", "decreasing"
+}
