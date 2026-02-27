@@ -70,4 +70,3 @@ func EnsurePathEntry(dir string) (added bool, configFile string, err error) {
 
 	return true, configPath, nil
 }
-
