@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-02-27
+
+### Fixed
+- **Shim binary not found when installed via Homebrew** — `brewprune-shim` is now bundled in GoReleaser release tarballs and installed alongside `brewprune`. Strategy 1 (co-location lookup) now works correctly for Homebrew installs; the `go install` fallback is no longer needed in production.
+
+### Changed
+- Homebrew formula now installs both `brewprune` and `brewprune-shim` binaries
+
 ## [0.1.3] - 2026-02-27
 
 ### Added
