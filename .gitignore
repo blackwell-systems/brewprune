@@ -39,3 +39,4 @@ Thumbs.db
 
 # Build artifacts
 dist/
+brewprune-shim
