@@ -63,17 +63,19 @@ release:
   draft: false
   prerelease: auto
 
-brews:
-  - name: brewprune
-    repository:
-      owner: blackwell-systems
-      name: homebrew-tap
-      token: "{{ .Env.GITHUB_TOKEN }}"
-    directory: Formula
-    homepage: https://github.com/blackwell-systems/brewprune
-    description: "Smart Homebrew package cleanup with usage tracking and confidence-scored removal"
-    license: MIT
-    test: |
-      system "#{bin}/brewprune", "--version"
-    install: |
-      bin.install "brewprune"
+# Brew publishing disabled - requires PAT with cross-repo permissions
+# Formula is manually maintained in blackwell-systems/homebrew-tap
+# brews:
+#   - name: brewprune
+#     repository:
+#       owner: blackwell-systems
+#       name: homebrew-tap
+#       token: "{{ .Env.GITHUB_TOKEN }}"
+#     directory: Formula
+#     homepage: https://github.com/blackwell-systems/brewprune
+#     description: "Smart Homebrew package cleanup with usage tracking and confidence-scored removal"
+#     license: MIT
+#     test: |
+#       system "#{bin}/brewprune", "--version"
+#     install: |
+#       bin.install "brewprune"
