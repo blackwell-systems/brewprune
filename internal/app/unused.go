@@ -16,12 +16,15 @@ var (
 	unusedTier     string
 	unusedMinScore int
 	unusedSort     string
+	unusedVerbose  bool
 )
 
 var unusedCmd = &cobra.Command{
 	Use:   "unused",
 	Short: "List unused packages with confidence scores",
 	Long: `Analyze installed packages and display confidence scores for removal.
+
+Use --verbose to see detailed scoring breakdown for each package.
 
 The confidence score (0-100) is computed from:
   - Usage patterns (40 points): Recent activity indicates active use
@@ -32,7 +35,9 @@ The confidence score (0-100) is computed from:
 Packages are classified into tiers:
   - safe (80-100): High confidence for removal
   - medium (50-79): Review before removal
-  - risky (0-49): Keep unless certain`,
+  - risky (0-49): Keep unless certain
+
+Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental removal.`,
 	Example: `  # Show all unused packages
   brewprune unused
 
@@ -51,6 +56,7 @@ func init() {
 	unusedCmd.Flags().StringVar(&unusedTier, "tier", "", "Filter by tier: safe, medium, risky")
 	unusedCmd.Flags().IntVar(&unusedMinScore, "min-score", 0, "Minimum confidence score (0-100)")
 	unusedCmd.Flags().StringVar(&unusedSort, "sort", "score", "Sort by: score, size, age")
+	unusedCmd.Flags().BoolVarP(&unusedVerbose, "verbose", "v", false, "Show detailed explanation for each package")
 
 	// Register with root command
 	RootCmd.AddCommand(unusedCmd)
@@ -130,21 +136,51 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	// Sort scores
 	sortScores(scores, unusedSort)
 
-	// Convert to output format
-	outputScores := make([]output.ConfidenceScore, len(scores))
-	for i, s := range scores {
-		outputScores[i] = output.ConfidenceScore{
-			Package:  s.Package,
-			Score:    s.Score,
-			Tier:     s.Tier,
-			LastUsed: getLastUsed(st, s.Package),
-			Reason:   s.Reason,
-		}
-	}
-
 	// Render table
-	table := output.RenderConfidenceTable(outputScores)
-	fmt.Print(table)
+	if unusedVerbose {
+		// Verbose mode - show detailed breakdown
+		verboseScores := make([]output.VerboseScore, len(scores))
+		for i, s := range scores {
+			verboseScores[i] = output.VerboseScore{
+				Package:    s.Package,
+				Score:      s.Score,
+				Tier:       s.Tier,
+				UsageScore: s.UsageScore,
+				DepsScore:  s.DepsScore,
+				AgeScore:   s.AgeScore,
+				TypeScore:  s.TypeScore,
+				Reason:     s.Reason,
+				IsCritical: s.IsCritical,
+				Explanation: struct {
+					UsageDetail string
+					DepsDetail  string
+					AgeDetail   string
+					TypeDetail  string
+				}{
+					UsageDetail: s.Explanation.UsageDetail,
+					DepsDetail:  s.Explanation.DepsDetail,
+					AgeDetail:   s.Explanation.AgeDetail,
+					TypeDetail:  s.Explanation.TypeDetail,
+				},
+			}
+		}
+		table := output.RenderConfidenceTableVerbose(verboseScores)
+		fmt.Print(table)
+	} else {
+		// Convert to output format for standard table
+		outputScores := make([]output.ConfidenceScore, len(scores))
+		for i, s := range scores {
+			outputScores[i] = output.ConfidenceScore{
+				Package:  s.Package,
+				Score:    s.Score,
+				Tier:     s.Tier,
+				LastUsed: getLastUsed(st, s.Package),
+				Reason:   s.Reason,
+			}
+		}
+		table := output.RenderConfidenceTable(outputScores)
+		fmt.Print(table)
+	}
 
 	// Show summary
 	summary := computeSummary(scores)

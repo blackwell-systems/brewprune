@@ -107,6 +107,65 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 	return sb.String()
 }
 
+// VerboseScore contains detailed score information for verbose output.
+// This mirrors the structure from analyzer.ConfidenceScore but is defined here
+// to avoid circular dependencies.
+type VerboseScore struct {
+	Package     string
+	Score       int
+	Tier        string
+	UsageScore  int
+	DepsScore   int
+	AgeScore    int
+	TypeScore   int
+	Reason      string
+	IsCritical  bool
+	Explanation struct {
+		UsageDetail string
+		DepsDetail  string
+		AgeDetail   string
+		TypeDetail  string
+	}
+}
+
+// RenderConfidenceTableVerbose renders a detailed table showing score breakdown.
+func RenderConfidenceTableVerbose(scores []VerboseScore) string {
+	if len(scores) == 0 {
+		return "No packages to display.\n"
+	}
+
+	var sb strings.Builder
+
+	for i, score := range scores {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+
+		// Header line
+		tierStr := formatTier(score.Tier)
+		tierColor := getTierColor(score.Tier)
+		sb.WriteString(fmt.Sprintf("Package: %s\n", score.Package))
+		sb.WriteString(fmt.Sprintf("Score:   %s%d%s (%s)\n", tierColor, score.Score, colorReset, tierStr))
+
+		// Breakdown section
+		sb.WriteString("\nBreakdown:\n")
+		sb.WriteString(fmt.Sprintf("  Usage:        %2d/40 pts - %s\n", score.UsageScore, score.Explanation.UsageDetail))
+		sb.WriteString(fmt.Sprintf("  Dependencies: %2d/30 pts - %s\n", score.DepsScore, score.Explanation.DepsDetail))
+		sb.WriteString(fmt.Sprintf("  Age:          %2d/20 pts - %s\n", score.AgeScore, score.Explanation.AgeDetail))
+		sb.WriteString(fmt.Sprintf("  Type:         %2d/10 pts - %s\n", score.TypeScore, score.Explanation.TypeDetail))
+
+		if score.IsCritical {
+			sb.WriteString(fmt.Sprintf("  Critical:     YES      - capped at 70 (core system dependency)\n"))
+		}
+
+		sb.WriteString(fmt.Sprintf("\nReason: %s\n", score.Reason))
+		sb.WriteString(strings.Repeat("─", 72))
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
 // RenderUsageTable renders a table of usage statistics.
 // The UsageStats type will be defined by the analyzer package.
 func RenderUsageTable(stats map[string]UsageStats) string {

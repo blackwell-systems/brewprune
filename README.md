@@ -15,6 +15,11 @@ You have 100+ Homebrew packages installed. You use 20 of them. The other 80 are 
 - Homebrew installed
 - Formula support: full | Cask support: best-effort
 
+**Privacy:**
+- 100% local (all data in ~/.brewprune)
+- No telemetry, no cloud sync, no network calls
+- Only tracks FSEvents on Homebrew paths (not commands/arguments)
+
 ## Quick example
 
 ```bash
@@ -156,6 +161,33 @@ Before removal, brewprune creates a snapshot containing:
 - Removal timestamp
 
 Snapshots enable rollback via `brewprune undo`. Exact version restoration depends on Homebrew bottle/formula availability.
+
+## Safety & Risks
+
+**What can go wrong:**
+- Remove a package you need → Undo with `brewprune undo latest` (restores if versions available)
+- Remove a library used only via imports → Check medium/risky packages carefully before removing
+- Daemon stops silently → Run `brewprune status` to check, restart if needed
+
+**What CANNOT go wrong:**
+- Core dependencies protected (openssl, git, coreutils, etc.) - capped at "medium" tier
+- Snapshots created automatically before every removal
+- No system files touched (only Homebrew packages)
+- All changes reversible via `brew install` even without snapshots
+
+**If something breaks:** `brewprune undo latest` restores packages immediately.
+
+## Timeline & Expectations
+
+**Day 1:** Install → scan → start daemon → verify with `brewprune status`
+
+**Days 2-14:** Daemon collects usage data in background (no action needed)
+
+**Day 14+:** View unused packages → review carefully → remove safe tier with `--dry-run` first
+
+**Ongoing:** Rescan after manual brew installs (`brewprune scan`), check status occasionally
+
+**Important:** First 1-2 weeks show "never used" for most packages because tracking hasn't captured your workflow patterns yet. This is normal - wait for meaningful data.
 
 ## Limitations & Accuracy
 
@@ -329,6 +361,14 @@ A: As long as the script executes the binary, FSEvents will catch it. If you onl
 
 **Q: How do I see what snapshots I have?**
 A: Run `brewprune undo --list` to see all available snapshots with their IDs, creation times, and package counts.
+
+**Q: Why is git/openssl/coreutils only "medium" tier even though never used?**
+
+A: brewprune protects 47 foundational packages by capping their scores at 70 (medium tier max). These packages are critical infrastructure that many other packages depend on indirectly.
+
+Protected packages include: openssl, ca-certificates, git, curl, wget, cmake, pkg-config, autoconf, automake, gcc, llvm, ncurses, readline, gettext, sqlite, zlib, and more.
+
+See the full list in code: [internal/scanner/dependencies.go](https://github.com/blackwell-systems/brewprune/blob/main/internal/scanner/dependencies.go)
 
 ## Roadmap
 
