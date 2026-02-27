@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-
 func TestGetShimDir(t *testing.T) {
 	dir, err := GetShimDir()
 	if err != nil {
