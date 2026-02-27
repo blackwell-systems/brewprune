@@ -121,6 +121,24 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Tracking Since:       never\n")
 	}
 
+	// Data quality indicator
+	var quality string
+	if eventsLogged == 0 {
+		quality = "NOT READY (no usage data yet)"
+	} else if trackingSince != nil {
+		daysSinceTracking := int(time.Since(*trackingSince).Hours() / 24)
+		if daysSinceTracking < 7 {
+			quality = fmt.Sprintf("COLLECTING (tracking for %d days, need 7-14 for best results)", daysSinceTracking)
+		} else if daysSinceTracking < 14 {
+			quality = fmt.Sprintf("GOOD (tracking for %d days)", daysSinceTracking)
+		} else {
+			quality = fmt.Sprintf("EXCELLENT (tracking for %d days)", daysSinceTracking)
+		}
+	} else {
+		quality = "NOT READY (no usage data yet)"
+	}
+	fmt.Printf("Data Quality:         %s\n", quality)
+
 	// Last event
 	if lastEvent != nil {
 		timeSince := time.Since(lastEvent.Timestamp)

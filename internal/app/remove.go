@@ -43,10 +43,17 @@ Safety features:
   - Requires confirmation for risky operations
 
 Examples:
-  brewprune remove --safe            # Remove safe packages
-  brewprune remove --medium --dry-run  # Preview medium-tier removal
-  brewprune remove wget curl         # Remove specific packages
-  brewprune remove --risky --yes     # Remove all unused (skip confirmation)`,
+  # Preview what would be removed (dry-run)
+  brewprune remove --safe --dry-run
+
+  # Actually remove safe packages
+  brewprune remove --safe
+
+  # Remove specific packages with confirmation
+  brewprune remove package1 package2
+
+  # Remove medium-tier packages without snapshot (dangerous!)
+  brewprune remove --medium --no-snapshot --yes`,
 	RunE: runRemove,
 }
 
