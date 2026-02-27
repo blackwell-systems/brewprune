@@ -54,10 +54,10 @@ var coreDependencies = map[string]bool{
 	"berkeley-db": true,
 
 	// XML and config parsing
-	"libxml2":  true,
-	"libxslt":  true,
-	"libyaml":  true,
-	"json-c":   true,
+	"libxml2": true,
+	"libxslt": true,
+	"libyaml": true,
+	"json-c":  true,
 }
 
 // BuildDependencyGraph builds a complete dependency graph for all packages
