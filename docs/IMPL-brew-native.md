@@ -108,11 +108,11 @@ func RunShimTest(st *store.Store, maxWait time.Duration) error
 
 ## Status
 
-- [ ] Wave 1 Agent A — shim package extensions
-- [ ] Wave 1 Agent B — shim startup version check
-- [ ] Wave 1 Agent C — exec path disambiguation
-- [ ] Wave 1 Agent D — formula + README (draft, hold release)
-- [ ] Wave 2 Agent E — scan --refresh-shims
-- [ ] Wave 2 Agent F — doctor self-test
+- [x] Wave 1 Agent A — shim package extensions
+- [x] Wave 1 Agent B — shim startup version check
+- [x] Wave 1 Agent C — exec path disambiguation
+- [x] Wave 1 Agent D — formula + README (draft, hold release)
+- [x] Wave 2 Agent E — scan --refresh-shims
+- [x] Wave 2 Agent F — doctor self-test
 - [ ] Wave 3 Agent G — quickstart blessed workflow
 - [ ] Release Agent D formula change (after Wave 2 ships)

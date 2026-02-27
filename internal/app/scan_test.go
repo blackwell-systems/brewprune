@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"github.com/blackwell-systems/brewprune/internal/store"
 )
 
 func TestScanCommand(t *testing.T) {
@@ -204,5 +206,101 @@ func TestScanCommandRegistration(t *testing.T) {
 
 	if !found {
 		t.Error("scan command not registered with root command")
+	}
+}
+
+// TestRefreshShimsFlag verifies that the --refresh-shims flag is registered
+// with the correct name, default value, and non-empty usage text.
+func TestRefreshShimsFlag(t *testing.T) {
+	flag := scanCmd.Flags().Lookup("refresh-shims")
+	if flag == nil {
+		t.Fatal("expected --refresh-shims flag to be registered on scan command")
+	}
+
+	if flag.DefValue != "false" {
+		t.Errorf("expected --refresh-shims default to be false, got %q", flag.DefValue)
+	}
+
+	if flag.Usage == "" {
+		t.Error("expected --refresh-shims to have non-empty usage text")
+	}
+}
+
+// TestRefreshShimsFlagParsing verifies that --refresh-shims parses correctly.
+func TestRefreshShimsFlagParsing(t *testing.T) {
+	// Reset to known state.
+	scanRefreshShims = false
+
+	if err := scanCmd.ParseFlags([]string{"--refresh-shims"}); err != nil {
+		t.Fatalf("ParseFlags returned unexpected error: %v", err)
+	}
+
+	if !scanRefreshShims {
+		t.Error("expected scanRefreshShims to be true after --refresh-shims flag")
+	}
+
+	// Reset after test.
+	scanRefreshShims = false
+}
+
+// TestRefreshShimsFlagDefaultFalse verifies that the flag is false by default
+// (i.e. does not activate when absent from the command line).
+func TestRefreshShimsFlagDefaultFalse(t *testing.T) {
+	// Reset to known state.
+	scanRefreshShims = false
+
+	if err := scanCmd.ParseFlags([]string{}); err != nil {
+		t.Fatalf("ParseFlags returned unexpected error: %v", err)
+	}
+
+	if scanRefreshShims {
+		t.Error("expected scanRefreshShims to be false when --refresh-shims is not provided")
+	}
+}
+
+// TestRunRefreshShimsEmptyDB verifies that runRefreshShims succeeds with an
+// empty database. With no packages the binary list is empty; RefreshShims
+// will remove any stale symlinks (none present in a fresh shim dir) and
+// return (0, 0, nil). The function should therefore return nil.
+//
+// NOTE: When the shim binary is missing, BuildShimBinary is attempted. In the
+// test environment that call may fail (no brewprune-shim on PATH / GOPATH)
+// but runRefreshShims treats that as a soft warning — the test still expects
+// a nil return value because RefreshShims itself will error only if the shim
+// binary is truly absent AND symlinks need to be created.
+//
+// In this test the DB is empty so allBinaries == nil, meaning RefreshShims
+// will have nothing to create and nothing to remove, therefore it succeeds
+// even without the shim binary.
+func TestRunRefreshShimsEmptyDB(t *testing.T) {
+	db, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.CreateSchema(); err != nil {
+		t.Fatalf("CreateSchema: %v", err)
+	}
+
+	// Save and restore global quiet flag so we don't pollute other tests.
+	origQuiet := scanQuiet
+	scanQuiet = true
+	defer func() { scanQuiet = origQuiet }()
+
+	err = runRefreshShims(db)
+	if err != nil {
+		t.Errorf("runRefreshShims with empty DB returned unexpected error: %v", err)
+	}
+}
+
+// TestScanCommandFlagsIncludesRefreshShims extends the existing flag table
+// test to confirm --refresh-shims appears alongside the other flags.
+func TestScanCommandFlagsIncludesRefreshShims(t *testing.T) {
+	flagNames := []string{"refresh-binaries", "quiet", "refresh-shims"}
+	for _, name := range flagNames {
+		if f := scanCmd.Flags().Lookup(name); f == nil {
+			t.Errorf("expected flag %q to be registered on scan command", name)
+		}
 	}
 }

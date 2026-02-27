@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`brewprune scan --refresh-shims` flag** — fast path used by the Homebrew formula `post_install` hook after upgrades. Reads binary paths from the existing DB, diffs them against current symlinks via `shim.RefreshShims`, and adds/removes only the changed symlinks — skipping the full dep tree rebuild. Prints a summary line (`Refreshed shims: +N added, -M removed`). Rebuilds the shim binary (and writes `shim.version`) only when the binary is absent.
+- **`brewprune doctor` pipeline test** — Check 8 executes a real shimmed binary (`git --version` or equivalent) and polls `usage_events` for up to 35 seconds to verify the full shim → daemon → database pipeline is functioning end-to-end. Reports pass/fail with elapsed time; suggests `brewprune scan` on failure.
+- **`internal/app/shimtest.go`** — `RunShimTest(st *store.Store, maxWait time.Duration) error` selects a safe shimmed binary from `~/.brewprune/bin/` (preferring `git`, `ls`, `echo`, `true`), executes it, and polls `usage_events` until a new event appears or the deadline is reached. Guards against the infinite exec loop by excluding `brewprune-shim` from selection. Skips gracefully if `~/.brewprune/bin/` does not yet exist.
+
 ## [0.1.5] - 2026-02-27
 
 ### Fixed

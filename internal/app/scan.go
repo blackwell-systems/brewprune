@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/scanner"
@@ -13,6 +15,7 @@ import (
 var (
 	scanRefreshBinaries bool
 	scanQuiet           bool
+	scanRefreshShims    bool
 
 	scanCmd = &cobra.Command{
 		Use:   "scan",
@@ -33,6 +36,9 @@ The scan command should be run:
   # Scan without refreshing binary paths
   brewprune scan --refresh-binaries=false
 
+  # Fast path: refresh shims only (used by post_install hook)
+  brewprune scan --refresh-shims
+
   # Scan quietly (suppress output)
   brewprune scan --quiet`,
 		RunE: runScan,
@@ -42,6 +48,7 @@ The scan command should be run:
 func init() {
 	scanCmd.Flags().BoolVar(&scanRefreshBinaries, "refresh-binaries", true, "refresh binary path mappings")
 	scanCmd.Flags().BoolVar(&scanQuiet, "quiet", false, "suppress output")
+	scanCmd.Flags().BoolVar(&scanRefreshShims, "refresh-shims", false, "fast path: diff and update shims only, skip full dep tree rebuild")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -61,6 +68,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Create schema if needed
 	if err := db.CreateSchema(); err != nil {
 		return fmt.Errorf("failed to create database schema: %w", err)
+	}
+
+	// Fast path: refresh shims only without a full dep tree rebuild.
+	if scanRefreshShims {
+		return runRefreshShims(db)
 	}
 
 	// Create scanner
@@ -179,6 +191,68 @@ func runScan(cmd *cobra.Command, args []string) error {
 		// Display package table
 		table := output.RenderPackageTable(packages)
 		fmt.Print(table)
+	}
+
+	return nil
+}
+
+// runRefreshShims implements the --refresh-shims fast path.
+//
+// It reads the current binary list from the DB (no brew invocation or dep tree
+// rebuild), calls shim.RefreshShims to add/remove symlinks for changed packages,
+// and optionally calls shim.BuildShimBinary + shim.WriteShimVersion when the
+// shim binary itself needs to be (re)installed. This is the path used by the
+// Homebrew formula's post_install hook after an upgrade.
+func runRefreshShims(db *store.Store) error {
+	// Load all packages stored in the DB.
+	packages, err := db.ListPackages()
+	if err != nil {
+		return fmt.Errorf("failed to list packages from database: %w", err)
+	}
+
+	// Collect every binary path stored across all packages.
+	var allBinaries []string
+	for _, pkg := range packages {
+		allBinaries = append(allBinaries, pkg.BinaryPaths...)
+	}
+
+	// Ensure the shim binary exists. If it is missing (e.g. first run after
+	// upgrade) build it now so that RefreshShims can create valid symlinks.
+	shimBinaryMissing := false
+	shimDir, dirErr := shim.GetShimDir()
+	if dirErr == nil {
+		shimBin := filepath.Join(shimDir, "brewprune-shim")
+		if _, statErr := os.Stat(shimBin); os.IsNotExist(statErr) {
+			shimBinaryMissing = true
+		}
+	}
+
+	var version string
+	if shimBinaryMissing {
+		if err := shim.BuildShimBinary(); err != nil {
+			if !scanQuiet {
+				fmt.Printf("warning: could not build shim binary: %v\n", err)
+			}
+		} else {
+			version = "refreshed"
+		}
+	}
+
+	// Perform the incremental diff — only adds/removes symlinks for changes.
+	added, removed, err := shim.RefreshShims(allBinaries)
+	if err != nil {
+		return fmt.Errorf("failed to refresh shims: %w", err)
+	}
+
+	// Write shim version marker when a new binary was built.
+	if version != "" {
+		if err := shim.WriteShimVersion(version); err != nil && !scanQuiet {
+			fmt.Printf("warning: could not write shim version: %v\n", err)
+		}
+	}
+
+	if !scanQuiet {
+		fmt.Printf("Refreshed shims: +%d added, -%d removed\n", added, removed)
 	}
 
 	return nil

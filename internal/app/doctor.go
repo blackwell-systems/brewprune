@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
@@ -36,21 +37,21 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	issues := 0
 
 	// Check 1: Database exists
-	dbPath, err := getDBPath()
+	resolvedDBPath, err := getDBPath()
 	if err != nil {
 		fmt.Println("✗ Database path error:", err)
 		issues++
-	} else if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		fmt.Println("✗ Database not found at:", dbPath)
+	} else if _, err := os.Stat(resolvedDBPath); os.IsNotExist(err) {
+		fmt.Println("✗ Database not found at:", resolvedDBPath)
 		fmt.Println("  Fix: Run 'brewprune scan' to create database")
 		issues++
 	} else {
-		fmt.Println("✓ Database found:", dbPath)
+		fmt.Println("✓ Database found:", resolvedDBPath)
 	}
 
 	// Check 2: Database accessible
 	if issues == 0 {
-		db, err := store.New(dbPath)
+		db, err := store.New(resolvedDBPath)
 		if err != nil {
 			fmt.Println("✗ Cannot open database:", err)
 			issues++
@@ -150,6 +151,28 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				} else {
 					fmt.Println("✓ Shim directory in PATH")
 				}
+			}
+		}
+	}
+
+	// Check 8: End-to-end pipeline test (only when all prior checks pass)
+	if issues == 0 {
+		pipelineStart := time.Now()
+		db2, dbErr := store.New(resolvedDBPath)
+		if dbErr != nil {
+			fmt.Println("✗ Pipeline test: cannot open database:", dbErr)
+			issues++
+		} else {
+			defer db2.Close()
+			pipelineErr := RunShimTest(db2, 35*time.Second)
+			pipelineElapsed := time.Since(pipelineStart).Round(time.Millisecond)
+			if pipelineErr != nil {
+				fmt.Printf("✗ Pipeline test: fail (%v)\n", pipelineElapsed)
+				fmt.Printf("  %v\n", pipelineErr)
+				fmt.Println("  Fix: Run 'brewprune scan' to rebuild shims and restart the daemon")
+				issues++
+			} else {
+				fmt.Printf("✓ Pipeline test: pass (%v)\n", pipelineElapsed)
 			}
 		}
 	}
