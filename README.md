@@ -1,5 +1,11 @@
 # brewprune
 
+[![Blackwell Systems™](https://raw.githubusercontent.com/blackwell-systems/blackwell-docs-theme/main/badge-trademark.svg)](https://github.com/blackwell-systems)
+[![CI](https://github.com/blackwell-systems/brewprune/actions/workflows/ci.yml/badge.svg)](https://github.com/blackwell-systems/brewprune/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/blackwell-systems/brewprune)](https://goreportcard.com/report/github.com/blackwell-systems/brewprune)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/blackwell-systems/brewprune)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 You have 100+ Homebrew packages installed. You use 20 of them. The other 80 are taking up 15GB of disk space, but you don't know which ones are safe to remove. `brew autoremove` only handles dependency chains—it doesn't track whether you actually *use* a package. Removing things manually is scary because one wrong move could break your workflow.
 
 **brewprune solves this.** It monitors what you actually use, scores packages by removal safety, and creates automatic snapshots so you can undo any removal with one command. No guesswork. No fear. Just data-driven cleanup.

@@ -62,3 +62,18 @@ release:
     name: "{{ .ProjectName }}"
   draft: false
   prerelease: auto
+
+brews:
+  - name: brewprune
+    repository:
+      owner: blackwell-systems
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/blackwell-systems/brewprune
+    description: "Smart Homebrew package cleanup with usage tracking and confidence-scored removal"
+    license: MIT
+    test: |
+      system "#{bin}/brewprune", "--version"
+    install: |
+      bin.install "brewprune"
