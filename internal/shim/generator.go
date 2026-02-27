@@ -76,8 +76,14 @@ func IsShimSetup() (bool, string) {
 	return true, ""
 }
 
-// BuildShimBinary compiles the shim binary from source and places it at
-// <shimDir>/brewprune-shim. Requires Go toolchain on PATH.
+// BuildShimBinary ensures the shim binary exists at <shimDir>/brewprune-shim.
+//
+// Strategy (in order):
+//  1. If brewprune-shim is already in the same directory as the running
+//     brewprune binary (true after `go install ./...` or a GoReleaser build),
+//     copy it into shimDir.
+//  2. Otherwise run `go install` for the shim package (dev workflow) and copy
+//     from GOPATH/bin.
 func BuildShimBinary() error {
 	shimDir, err := GetShimDir()
 	if err != nil {
@@ -89,15 +95,75 @@ func BuildShimBinary() error {
 	}
 
 	outputPath := filepath.Join(shimDir, shimBinaryName)
-	cmd := exec.Command("go", "build", "-o", outputPath,
-		"github.com/blackwell-systems/brewprune/cmd/brewprune-shim")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to compile shim binary: %w", err)
+	// Strategy 1: look for brewprune-shim next to the running brewprune binary.
+	if self, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(self), shimBinaryName)
+		if _, err := os.Stat(candidate); err == nil {
+			return copyFile(candidate, outputPath)
+		}
 	}
 
+	// Strategy 2: go install into GOPATH/bin, then copy.
+	installCmd := exec.Command("go", "install",
+		"github.com/blackwell-systems/brewprune/cmd/brewprune-shim")
+	installCmd.Stdout = os.Stderr
+	installCmd.Stderr = os.Stderr
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install shim binary: %w", err)
+	}
+
+	// Find the installed binary.
+	gopath, err := goPath()
+	if err != nil {
+		return fmt.Errorf("cannot determine GOPATH: %w", err)
+	}
+	installed := filepath.Join(gopath, "bin", shimBinaryName)
+	if _, err := os.Stat(installed); err != nil {
+		return fmt.Errorf("shim binary not found at %s after install", installed)
+	}
+
+	return copyFile(installed, outputPath)
+}
+
+// goPath returns the effective GOPATH.
+func goPath() (string, error) {
+	out, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// copyFile copies src to dst, making dst executable.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source: %w", err)
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return fmt.Errorf("open dest: %w", err)
+	}
+	defer out.Close()
+
+	buf := make([]byte, 1<<20) // 1 MB buffer
+	for {
+		n, readErr := in.Read(buf)
+		if n > 0 {
+			if _, err := out.Write(buf[:n]); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+		}
+		if readErr != nil {
+			if readErr.Error() == "EOF" {
+				break
+			}
+			return fmt.Errorf("read: %w", readErr)
+		}
+	}
 	return nil
 }
 
