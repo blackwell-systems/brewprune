@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-02-27
+
+### Added
+- Package size calculation - shows actual disk usage instead of "0 B"
+- Functional `--sort size` - sorts by disk usage (largest first)
+- Functional `--sort age` - sorts by installation date (oldest first)
+
 ### Fixed
-- `--sort size` now correctly sorts by actual package size (largest first)
-- `--sort age` now correctly sorts by installation date (oldest first)
+- Size calculation now runs during scan and populates database
+- Sorting flags now work correctly (previously ignored by render function)
+
+### Changed
+- Removed roadmap section from README (all core features complete)
+
+### Technical
+- Added `calculatePackageSize()` function using `du -sk`
+- Added `SizeBytes` and `InstalledAt` fields to `ConfidenceScore`
+- Fixed `RenderConfidenceTable()` to respect caller's sort order
 
 ## [0.1.2] - 2026-02-27
 
@@ -72,7 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/blackwell-systems/brewprune/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/blackwell-systems/brewprune/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/blackwell-systems/brewprune/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/blackwell-systems/brewprune/releases/tag/v0.1.0
