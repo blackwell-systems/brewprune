@@ -9,6 +9,7 @@
 package shim
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -230,6 +231,158 @@ func GenerateShims(binaries []string) (int, error) {
 	}
 
 	return count, nil
+}
+
+// RefreshShims performs an incremental diff of the desired shim set against the
+// symlinks that currently exist in the shim directory.
+//
+// For each basename derived from binaries, the same LookPath collision-safety
+// logic as GenerateShims is applied: a symlink is only created if the brew
+// version of the binary is what the user would actually run.
+//
+// Returns the count of symlinks added and the count removed.
+// This function does NOT rebuild the shim binary itself; call BuildShimBinary
+// separately when the binary needs to be updated.
+func RefreshShims(binaries []string) (added int, removed int, err error) {
+	shimDir, err := GetShimDir()
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot get shim dir: %w", err)
+	}
+
+	shimBinary := filepath.Join(shimDir, shimBinaryName)
+	if _, err := os.Stat(shimBinary); os.IsNotExist(err) {
+		return 0, 0, fmt.Errorf(
+			"shim binary not found at %s; run 'brewprune scan' first to build it",
+			shimBinary,
+		)
+	}
+
+	// Read existing symlinks in shimDir (skip the shim binary itself).
+	entries, err := os.ReadDir(shimDir)
+	if err != nil && !os.IsNotExist(err) {
+		return 0, 0, fmt.Errorf("cannot read shim dir %s: %w", shimDir, err)
+	}
+
+	current := make(map[string]struct{})
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == shimBinaryName {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			current[name] = struct{}{}
+		}
+	}
+
+	// Build the desired set — apply the same LookPath collision-safety logic as
+	// GenerateShims so we only shim binaries that the brew version would run.
+	desired := make(map[string]struct{})
+	for _, binPath := range binaries {
+		basename := filepath.Base(binPath)
+		if basename == shimBinaryName {
+			continue
+		}
+
+		found, err := exec.LookPath(basename)
+		if err != nil {
+			continue // not on PATH at all
+		}
+
+		resolvedFound, _ := filepath.EvalSymlinks(found)
+		resolvedBin, _ := filepath.EvalSymlinks(binPath)
+
+		if resolvedFound != resolvedBin && found != binPath {
+			continue // system version would be run — skip
+		}
+
+		desired[basename] = struct{}{}
+	}
+
+	// Create symlinks that are desired but not yet present.
+	for basename := range desired {
+		if _, exists := current[basename]; exists {
+			// Already present — verify it points to the right target.
+			symlinkPath := filepath.Join(shimDir, basename)
+			if existing, err := os.Readlink(symlinkPath); err == nil && existing == shimBinary {
+				continue // already correct
+			}
+			// Stale/wrong target — remove and recreate.
+			os.Remove(symlinkPath)
+		}
+
+		symlinkPath := filepath.Join(shimDir, basename)
+		if err := os.Symlink(shimBinary, symlinkPath); err != nil {
+			return added, removed, fmt.Errorf("failed to create shim for %s: %w", basename, err)
+		}
+		added++
+	}
+
+	// Remove symlinks that are present but no longer desired.
+	for basename := range current {
+		if _, exists := desired[basename]; !exists {
+			if err := os.Remove(filepath.Join(shimDir, basename)); err != nil {
+				return added, removed, fmt.Errorf("failed to remove stale shim for %s: %w", basename, err)
+			}
+			removed++
+		}
+	}
+
+	return added, removed, nil
+}
+
+// shimVersionPath returns the path to the shim version file.
+func shimVersionPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	return filepath.Join(home, ".brewprune", "shim.version"), nil
+}
+
+// WriteShimVersion writes version atomically to ~/.brewprune/shim.version using
+// a temp-file rename pattern so the update is crash-safe.
+func WriteShimVersion(version string) error {
+	versionPath, err := shimVersionPath()
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(versionPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create directory %s: %w", dir, err)
+	}
+
+	tmpPath := filepath.Join(dir, ".shim.version.tmp")
+	if err := os.WriteFile(tmpPath, []byte(version), 0600); err != nil {
+		return fmt.Errorf("write temp version file: %w", err)
+	}
+	if err := os.Rename(tmpPath, versionPath); err != nil {
+		return fmt.Errorf("rename version file: %w", err)
+	}
+	return nil
+}
+
+// ReadShimVersion returns the version string from ~/.brewprune/shim.version.
+// Returns ("", nil) if the file does not exist — this is not an error; it simply
+// means that a shim scan has not been run yet.
+func ReadShimVersion() (string, error) {
+	versionPath, err := shimVersionPath()
+	if err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(versionPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read shim version: %w", err)
+	}
+	return string(data), nil
 }
 
 // RemoveShims removes all symlinks in the shim directory.
