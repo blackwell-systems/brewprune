@@ -121,9 +121,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 		totalSize += pkg.SizeBytes
 	}
 
-	// Build and deploy PATH shims so the watch daemon can track executions.
-	// This replaces the broken fsnotify approach (which only saw file writes,
-	// not binary executions).
+	// Build the shim binary and create per-command symlinks so the watch
+	// daemon can intercept and log executions via ~/.brewprune/usage.log.
 	var shimCount int
 	if scanRefreshBinaries {
 		if !scanQuiet {

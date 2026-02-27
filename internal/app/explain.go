@@ -136,8 +136,8 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 		fmt.Printf("%sDo not remove.%s ", colorRed, colorReset)
 		if score.IsCritical {
 			fmt.Println("This is a foundational package that other tools may")
-			fmt.Println("depend on indirectly. Even though FSEvents hasn't observed direct")
-			fmt.Println("usage, removing it could break your development environment.")
+			fmt.Println("depend on indirectly. Even though no direct usage has been recorded,")
+			fmt.Println("removing it could break your development environment.")
 		} else {
 			fmt.Println("This package has recent activity or many dependents.")
 			fmt.Println("Removing it may break workflows or other installed packages.")

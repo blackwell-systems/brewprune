@@ -3,7 +3,6 @@ module github.com/blackwell-systems/brewprune
 go 1.22
 
 require (
-	github.com/fsnotify/fsnotify v1.7.0
 	github.com/spf13/cobra v1.8.0
 	modernc.org/sqlite v1.29.1
 )

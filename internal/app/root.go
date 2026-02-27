@@ -29,7 +29,7 @@ Quick Start:
   4. brewprune unused --tier safe
 
 Features:
-  • Real-time usage tracking via FSEvents
+  • Real-time usage tracking via PATH shims
   • Heuristic-based removal recommendations
   • Automatic snapshot creation before removals
   • One-command rollback capability

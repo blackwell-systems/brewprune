@@ -7,8 +7,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/blackwell-systems/brewprune/internal/brew"
 )
 
 func TestIsDaemonRunning_NotRunning(t *testing.T) {
@@ -218,19 +216,6 @@ func TestStartDaemon_InvalidLogFile(t *testing.T) {
 func TestRunDaemon_StopBeforeStart(t *testing.T) {
 	st := setupTestStore(t)
 	defer st.Close()
-
-	// Insert a test package so BuildBinaryMap doesn't fail
-	pkg := &brew.Package{
-		Name:        "test",
-		Version:     "1.0.0",
-		InstallType: "explicit",
-		HasBinary:   false,
-		BinaryPaths: []string{},
-		InstalledAt: time.Now(),
-	}
-	if err := st.InsertPackage(pkg); err != nil {
-		t.Fatalf("failed to insert test package: %v", err)
-	}
 
 	w, err := New(st)
 	if err != nil {

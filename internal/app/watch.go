@@ -21,25 +21,23 @@ var (
 
 	watchCmd = &cobra.Command{
 		Use:   "watch",
-		Short: "Monitor package usage via filesystem events",
-		Long: `Start monitoring filesystem events to track package usage in real-time.
+		Short: "Process shim log and record package usage",
+		Long: `Process the PATH shim usage log to track which Homebrew packages you use.
 
-The watch command monitors binary executions in Homebrew directories and tracks
-when packages are used. This data is used to build confidence scores for removal
-recommendations.
+When you run a shimmed command (e.g. git, gh, jq), the shim binary appends
+an entry to ~/.brewprune/usage.log. The watch daemon reads that log every 30
+seconds and records resolved usage events in the database. This data drives
+the confidence scores shown by 'brewprune unused'.
+
+Run 'brewprune scan' first to build the shim binary and create symlinks.
+Then add ~/.brewprune/bin to the front of your PATH.
 
 Watch modes:
   • Foreground (default): Run in current terminal with Ctrl+C to stop
-  • Daemon: Run as background process with automatic restart on reboot
+  • Daemon: Run as background process (recommended)
   • Stop: Stop a running daemon
 
-The watcher tracks:
-  • Binary executions in brew bin/sbin directories
-  • Application launches from /Applications
-  • Frequency and recency of usage
-
-Usage data is written to the database periodically (every 30 seconds) to minimize
-I/O overhead.`,
+Usage data is written every 30 seconds to minimise I/O overhead.`,
 		Example: `  # Run in foreground (Ctrl+C to stop)
   brewprune watch
 
@@ -182,20 +180,20 @@ func runWatchDaemonChild(w *watcher.Watcher) error {
 }
 
 func runWatchForeground(w *watcher.Watcher) error {
-	fmt.Println("Starting usage tracking (press Ctrl+C to stop)...")
+	fmt.Println("Starting shim log processor (press Ctrl+C to stop)...")
 	fmt.Println()
 
-	spinner := output.NewSpinner("Building binary map...")
+	spinner := output.NewSpinner("Processing usage log...")
 
 	// Start the watcher
 	if err := w.Start(); err != nil {
 		spinner.Stop()
 		return fmt.Errorf("failed to start watcher: %w", err)
 	}
-	spinner.StopWithMessage("✓ Watcher started")
+	spinner.StopWithMessage("✓ Shim log processor started")
 
 	fmt.Println()
-	fmt.Println("Tracking package usage. Events are written every 30 seconds.")
+	fmt.Println("Processing ~/.brewprune/usage.log every 30 seconds.")
 	fmt.Println("Press Ctrl+C to stop.")
 	fmt.Println()
 

@@ -262,7 +262,7 @@ func TestWatchCommandLongDescription(t *testing.T) {
 	longDesc := watchCmd.Long
 
 	expectedKeywords := []string{
-		"monitor",
+		"shim",
 		"usage",
 		"foreground",
 		"daemon",
