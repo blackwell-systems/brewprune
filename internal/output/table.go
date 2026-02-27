@@ -155,10 +155,10 @@ func RenderConfidenceTableVerbose(scores []VerboseScore) string {
 		sb.WriteString(fmt.Sprintf("  Type:         %2d/10 pts - %s\n", score.TypeScore, score.Explanation.TypeDetail))
 
 		if score.IsCritical {
-			sb.WriteString(fmt.Sprintf("  Critical:     YES      - capped at 70 (core system dependency)\n"))
+			sb.WriteString("  Critical:     YES      - capped at 70 (core system dependency)\n")
 		}
 
-		sb.WriteString(fmt.Sprintf("\nReason: %s\n", score.Reason))
+		sb.WriteString("\nReason: " + score.Reason + "\n")
 		sb.WriteString(strings.Repeat("─", 72))
 		sb.WriteString("\n")
 	}
