@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-02-27
+
+### Added
+- **`brewprune status` command**: Check daemon status, database stats, event count, and tracking uptime at a glance
+- **`brewprune explain <package>` command**: Deep-dive scoring analysis with detailed component breakdown and recommendations
+- **`--verbose` flag for `unused`**: Show per-package scoring breakdown (Usage/Dependencies/Age/Type details)
+- **Explainability scoring**: Added `ScoreExplanation` struct with detailed reasoning for each score component
+- **Criticality penalty system**: Core dependencies (git, openssl, coreutils, etc.) capped at score 70 (medium tier max)
+- **Expanded core dependencies**: Protection list increased from 15 to 47 packages including build tools, compilers, and essential libraries
+- **Warning banner in `unused`**: Prominent alert when no usage data exists (LOW CONFIDENCE)
+- **README improvements**: Added Privacy callout, Safety & Risks section, Timeline expectations, and Protected Packages FAQ
+
+### Changed
+- **Help text**: Root command now emphasizes daemon requirement with IMPORTANT notice and Quick Start steps
+- **README structure**: Moved Quick Start to line 70 (immediately after Installation) with daemon setup impossible to miss
+- **Scoring display**: Verbose mode shows component breakdown with points and detailed explanations
+
+### Technical
+- `ScoreExplanation` type with UsageDetail, DepsDetail, AgeDetail, TypeDetail fields
+- `IsCritical` boolean flag on scores to identify foundational packages
+- `RenderConfidenceTableVerbose()` for expanded output format
+- launchd service configuration example for auto-start on login
+- Updated terminology: "heuristic scoring" consistently throughout documentation
+
 ## [0.1.1] - 2026-02-26
 
 ### Fixed
@@ -44,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/blackwell-systems/brewprune/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/blackwell-systems/brewprune/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/blackwell-systems/brewprune/releases/tag/v0.1.0
