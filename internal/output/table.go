@@ -69,17 +69,11 @@ func RenderPackageTable(packages []*brew.Package) string {
 
 // RenderConfidenceTable renders a table of packages with confidence scores.
 // The ConfidenceScore type will be defined by the analyzer package.
+// Note: Does not sort - expects scores to be pre-sorted by caller.
 func RenderConfidenceTable(scores []ConfidenceScore) string {
 	if len(scores) == 0 {
 		return "No confidence scores available.\n"
 	}
-
-	// Sort by score descending (highest confidence first)
-	sorted := make([]ConfidenceScore, len(scores))
-	copy(sorted, scores)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Score > sorted[j].Score
-	})
 
 	var sb strings.Builder
 
@@ -90,7 +84,7 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 	sb.WriteString("\n")
 
 	// Rows
-	for _, score := range sorted {
+	for _, score := range scores {
 		tierStr := formatTier(score.Tier)
 		lastUsed := formatRelativeTime(score.LastUsed)
 
