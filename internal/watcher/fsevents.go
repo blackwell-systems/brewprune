@@ -12,6 +12,13 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// shimMode controls whether the watcher uses PATH shim log processing
+// (true) or legacy fsnotify event monitoring (false).
+// PATH shims are the correct mechanism: fsnotify Write/Chmod events do not
+// fire on binary execution — only on file modification — so they never
+// captured actual command usage.
+const shimMode = true
+
 // Watcher monitors filesystem events to track package binary usage.
 type Watcher struct {
 	store       *store.Store
@@ -38,8 +45,57 @@ func New(st *store.Store) (*Watcher, error) {
 	}, nil
 }
 
-// Start begins monitoring filesystem events.
+// Start begins usage tracking.
+// When shimMode is true (default), it polls ~/.brewprune/usage.log written
+// by the PATH shim binary. When shimMode is false, it falls back to the legacy
+// fsnotify-based monitoring (which does not capture executions — kept for
+// reference only).
 func (w *Watcher) Start() error {
+	if shimMode {
+		return w.startShimMode()
+	}
+	return w.startFSNotifyMode()
+}
+
+// startShimMode polls the shim usage log on a 30-second ticker.
+func (w *Watcher) startShimMode() error {
+	// Process any events already in the log immediately on startup.
+	if err := ProcessUsageLog(w.store); err != nil {
+		fmt.Fprintf(os.Stderr, "watcher: initial shim log processing: %v\n", err)
+	}
+
+	w.batchTicker = time.NewTicker(30 * time.Second)
+
+	w.wg.Add(1)
+	go w.runShimLogProcessor()
+
+	return nil
+}
+
+// runShimLogProcessor is the goroutine that processes the shim log on each tick.
+func (w *Watcher) runShimLogProcessor() {
+	defer w.wg.Done()
+
+	for {
+		select {
+		case <-w.batchTicker.C:
+			if err := ProcessUsageLog(w.store); err != nil {
+				fmt.Fprintf(os.Stderr, "watcher: shim log processing error: %v\n", err)
+			}
+		case <-w.stopCh:
+			// Final flush before exiting.
+			if err := ProcessUsageLog(w.store); err != nil {
+				fmt.Fprintf(os.Stderr, "watcher: final shim log flush error: %v\n", err)
+			}
+			return
+		}
+	}
+}
+
+// startFSNotifyMode starts the legacy fsnotify-based watcher.
+// NOTE: This does NOT capture binary executions — fsnotify Write/Chmod events
+// fire on file modifications, not on execution. Kept for reference only.
+func (w *Watcher) startFSNotifyMode() error {
 	// Build the binary map first
 	if err := w.BuildBinaryMap(); err != nil {
 		return fmt.Errorf("failed to build binary map: %w", err)
@@ -89,29 +145,30 @@ func (w *Watcher) Start() error {
 
 // Stop halts the watcher and flushes remaining events.
 func (w *Watcher) Stop() error {
-	// Signal stop
+	// Signal stop to all goroutines.
 	close(w.stopCh)
 
-	// Stop the batch ticker
 	if w.batchTicker != nil {
 		w.batchTicker.Stop()
 	}
 
-	// Close the watcher
+	// Close the fsnotify watcher if it was started (legacy mode only).
 	if w.watcher != nil {
 		if err := w.watcher.Close(); err != nil {
 			return fmt.Errorf("failed to close watcher: %w", err)
 		}
 	}
 
-	// Wait for goroutines to finish
+	// Wait for goroutines to finish (runShimLogProcessor does a final flush).
 	w.wg.Wait()
 
-	// Flush remaining events
-	close(w.eventQueue)
-	for event := range w.eventQueue {
-		if err := w.store.InsertUsageEvent(event); err != nil {
-			return fmt.Errorf("failed to flush event: %w", err)
+	// Drain the legacy event queue if it was used (fsnotify mode only).
+	if !shimMode {
+		close(w.eventQueue)
+		for event := range w.eventQueue {
+			if err := w.store.InsertUsageEvent(event); err != nil {
+				return fmt.Errorf("failed to flush event: %w", err)
+			}
 		}
 	}
 

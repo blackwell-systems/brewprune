@@ -5,6 +5,7 @@ import (
 
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/scanner"
+	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -120,13 +121,60 @@ func runScan(cmd *cobra.Command, args []string) error {
 		totalSize += pkg.SizeBytes
 	}
 
+	// Build and deploy PATH shims so the watch daemon can track executions.
+	// This replaces the broken fsnotify approach (which only saw file writes,
+	// not binary executions).
+	var shimCount int
+	if scanRefreshBinaries {
+		if !scanQuiet {
+			spinner = output.NewSpinner("Building shim binary...")
+		}
+		if err := shim.BuildShimBinary(); err != nil {
+			if !scanQuiet {
+				spinner.Stop()
+				fmt.Printf("⚠ Could not build shim binary (usage tracking unavailable): %v\n", err)
+			}
+		} else {
+			if !scanQuiet {
+				spinner.StopWithMessage("✓ Shim binary built")
+				spinner = output.NewSpinner("Generating PATH shims...")
+			}
+
+			var allBinaries []string
+			for _, pkg := range packages {
+				allBinaries = append(allBinaries, pkg.BinaryPaths...)
+			}
+
+			var shimErr error
+			shimCount, shimErr = shim.GenerateShims(allBinaries)
+			if !scanQuiet {
+				if shimErr != nil {
+					spinner.Stop()
+					fmt.Printf("⚠ Shim generation incomplete: %v\n", shimErr)
+				} else {
+					spinner.StopWithMessage(fmt.Sprintf("✓ %d command shims created", shimCount))
+				}
+			}
+		}
+	}
+
 	if !scanQuiet {
 		fmt.Println()
 		fmt.Printf("Scan complete: %d packages found (%s total)\n", len(packages), formatSize(totalSize))
 
-		// Add timeline reminder for first-time users
-		fmt.Println("\n⚠️  NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
-		fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
+		// Show PATH setup instructions if shims were created but shimDir not in PATH.
+		if shimCount > 0 {
+			if ok, reason := shim.IsShimSetup(); !ok {
+				fmt.Printf("\n⚠ Usage tracking requires one more step:\n  %s\n", reason)
+				fmt.Println("  Then restart your shell and run: brewprune watch --daemon")
+			} else {
+				fmt.Println("\n⚠️  NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
+				fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
+			}
+		} else {
+			fmt.Println("\n⚠️  NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
+			fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
+		}
 		fmt.Println()
 
 		// Display package table

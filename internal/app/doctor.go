@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/blackwell-systems/brewprune/internal/watcher"
 	"github.com/spf13/cobra"
@@ -112,6 +113,43 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				fmt.Printf("✓ Daemon running (PID %d)\n", pid)
 			} else {
 				fmt.Println("✓ Daemon running")
+			}
+		}
+	}
+
+	// Check 6: Shim binary exists
+	shimDir, shimDirErr := shim.GetShimDir()
+	if shimDirErr != nil {
+		fmt.Println("✗ Cannot determine shim directory:", shimDirErr)
+		issues++
+	} else {
+		shimBin := shimDir + "/brewprune-shim"
+		if _, err := os.Stat(shimBin); os.IsNotExist(err) {
+			fmt.Println("✗ Shim binary not found — usage tracking disabled")
+			fmt.Println("  Fix: Run 'brewprune scan' to build it")
+			issues++
+		} else {
+			fmt.Println("✓ Shim binary found:", shimBin)
+
+			// Check 7: Shim directory in PATH
+			if ok, reason := shim.IsShimSetup(); !ok {
+				fmt.Println("✗ Shim directory not in PATH — executions won't be intercepted")
+				fmt.Printf("  Fix: %s\n", reason)
+				issues++
+			} else {
+				// Count symlinks in shim dir
+				entries, err := os.ReadDir(shimDir)
+				if err == nil {
+					symlinkCount := 0
+					for _, e := range entries {
+						if info, err := e.Info(); err == nil && info.Mode()&os.ModeSymlink != 0 {
+							symlinkCount++
+						}
+					}
+					fmt.Printf("✓ PATH shims active (%d commands intercepted)\n", symlinkCount)
+				} else {
+					fmt.Println("✓ Shim directory in PATH")
+				}
 			}
 		}
 	}
