@@ -1,0 +1,13 @@
+git
+curl
+└── openssl@3
+    └── ca-certificates
+jq
+└── oniguruma
+ripgrep
+htop
+tree
+openssl@3
+└── ca-certificates
+ca-certificates
+oniguruma

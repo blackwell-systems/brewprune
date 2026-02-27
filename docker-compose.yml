@@ -1,0 +1,19 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    # Remove the container after the test run
+    remove: true
+
+  # Interactive shell for manual exploration
+  shell:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true
+    environment:
+      - PATH=/root/.brewprune/bin:/usr/local/bin:/usr/bin:/bin
+      - HOME=/root

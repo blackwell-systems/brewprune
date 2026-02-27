@@ -1,0 +1,87 @@
+#!/bin/bash
+# Mock brew CLI for brewprune container testing.
+# Handles every brew subcommand that brewprune invokes.
+
+MOCK_PREFIX="/opt/mock-brew"
+
+case "$1" in
+
+  # ── Package info ────────────────────────────────────────────────────────────
+  "info")
+    if [[ "$2" == "--json=v2" && "$3" == "--installed" ]]; then
+      cat "$MOCK_PREFIX/packages.json"
+    elif [[ "$2" == "--json=v2" && -n "$3" ]]; then
+      # Single-package query: return a filtered subset of packages.json
+      pkg="$3"
+      jq --arg name "$pkg" \
+        '{formulae: [.formulae[] | select(.name == $name)], casks: []}' \
+        "$MOCK_PREFIX/packages.json"
+    fi
+    ;;
+
+  # ── Dependency tree ─────────────────────────────────────────────────────────
+  "deps")
+    if [[ "$2" == "--installed" && "$3" == "--tree" ]]; then
+      cat "$MOCK_PREFIX/deps-all.txt"
+    elif [[ "$2" == "--tree" && -n "$3" ]]; then
+      case "$3" in
+        "curl")     printf "curl\n└── openssl@3\n    └── ca-certificates\n" ;;
+        "jq")       printf "jq\n└── oniguruma\n" ;;
+        "openssl@3") printf "openssl@3\n└── ca-certificates\n" ;;
+        *)          printf "%s\n" "$3" ;;
+      esac
+    fi
+    ;;
+
+  # ── Formula list ────────────────────────────────────────────────────────────
+  "list")
+    if [[ "$2" == "--formula" ]]; then
+      printf "ca-certificates\ncurl\ngit\nhtop\njq\noniguruma\nopenssl@3\nripgrep\ntree\n"
+    fi
+    ;;
+
+  # ── Prefix / cellar / caskroom ──────────────────────────────────────────────
+  "--prefix")   echo "$MOCK_PREFIX" ;;
+  "--cellar")   echo "$MOCK_PREFIX/Cellar" ;;
+  "--caskroom") echo "$MOCK_PREFIX/Caskroom" ;;
+
+  # ── Package management ──────────────────────────────────────────────────────
+  "uninstall")
+    shift
+    echo "mock brew: uninstalled: $*"
+    ;;
+
+  "install")
+    shift
+    echo "mock brew: installed: $*"
+    ;;
+
+  # ── Search ──────────────────────────────────────────────────────────────────
+  "search")
+    if [[ "$2" == "--formula" ]]; then
+      echo "$3" | tr -d '^$'
+    elif [[ "$2" == "--cask" ]]; then
+      exit 0   # no casks in mock
+    fi
+    ;;
+
+  # ── Taps ────────────────────────────────────────────────────────────────────
+  "tap")
+    if [[ -z "$2" ]]; then
+      echo "homebrew/core"
+    else
+      echo "mock brew: tapped $2"
+    fi
+    ;;
+
+  # ── Services (not applicable in container) ──────────────────────────────────
+  "services")
+    echo "mock brew: services not available in container"
+    exit 0
+    ;;
+
+  *)
+    echo "mock brew: unhandled: $*" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,77 @@
+{
+  "formulae": [
+    {
+      "name": "git",
+      "full_name": "git",
+      "tap": "homebrew/core",
+      "version": "2.43.0",
+      "installed": [{ "version": "2.43.0", "installed_on_request": true,  "time": 1764547200 }],
+      "linked_keg": "2.43.0"
+    },
+    {
+      "name": "curl",
+      "full_name": "curl",
+      "tap": "homebrew/core",
+      "version": "8.6.0",
+      "installed": [{ "version": "8.6.0",  "installed_on_request": true,  "time": 1767225600 }],
+      "linked_keg": "8.6.0"
+    },
+    {
+      "name": "jq",
+      "full_name": "jq",
+      "tap": "homebrew/core",
+      "version": "1.7.1",
+      "installed": [{ "version": "1.7.1",  "installed_on_request": true,  "time": 1768425600 }],
+      "linked_keg": "1.7.1"
+    },
+    {
+      "name": "ripgrep",
+      "full_name": "ripgrep",
+      "tap": "homebrew/core",
+      "version": "14.1.0",
+      "installed": [{ "version": "14.1.0", "installed_on_request": true,  "time": 1756684800 }],
+      "linked_keg": "14.1.0"
+    },
+    {
+      "name": "htop",
+      "full_name": "htop",
+      "tap": "homebrew/core",
+      "version": "3.3.0",
+      "installed": [{ "version": "3.3.0",  "installed_on_request": true,  "time": 1759363200 }],
+      "linked_keg": "3.3.0"
+    },
+    {
+      "name": "tree",
+      "full_name": "tree",
+      "tap": "homebrew/core",
+      "version": "2.1.1",
+      "installed": [{ "version": "2.1.1",  "installed_on_request": true,  "time": 1754870400 }],
+      "linked_keg": "2.1.1"
+    },
+    {
+      "name": "openssl@3",
+      "full_name": "openssl@3",
+      "tap": "homebrew/core",
+      "version": "3.2.0",
+      "installed": [{ "version": "3.2.0",  "installed_on_request": false, "time": 1767225600 }],
+      "linked_keg": "3.2.0"
+    },
+    {
+      "name": "ca-certificates",
+      "full_name": "ca-certificates",
+      "tap": "homebrew/core",
+      "version": "2024.1.1",
+      "installed": [{ "version": "2024.1.1","installed_on_request": false, "time": 1767225600 }],
+      "linked_keg": "2024.1.1"
+    },
+    {
+      "name": "oniguruma",
+      "full_name": "oniguruma",
+      "tap": "homebrew/core",
+      "version": "6.9.8",
+      "installed": [{ "version": "6.9.8",  "installed_on_request": false, "time": 1768425600 }],
+      "linked_keg": "6.9.8"
+    }
+  ],
+  "casks": []
+}
