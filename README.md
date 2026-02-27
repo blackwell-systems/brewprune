@@ -137,6 +137,9 @@ brewprune watches Homebrew binary paths for filesystem activity consistent with 
 
 When activity occurs, brewprune records a usage timestamp for the owning package.
 
+**Package Size Calculation**
+During scan, brewprune calculates actual disk usage for each package using `du -sk` on the Cellar/Caskroom directories. This enables sorting by size and shows real space savings potential.
+
 **SQLite Storage**
 All usage data lives in `~/.brewprune/brewprune.db`. No cloud sync, no network calls.
 
