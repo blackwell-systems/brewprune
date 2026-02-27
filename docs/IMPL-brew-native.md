@@ -114,5 +114,5 @@ func RunShimTest(st *store.Store, maxWait time.Duration) error
 - [x] Wave 1 Agent D — formula + README (draft, hold release)
 - [x] Wave 2 Agent E — scan --refresh-shims
 - [x] Wave 2 Agent F — doctor self-test
-- [ ] Wave 3 Agent G — quickstart blessed workflow
-- [ ] Release Agent D formula change (after Wave 2 ships)
+- [x] Wave 3 Agent G — quickstart blessed workflow
+- [x] Release Agent D formula change (after Wave 2 ships)
