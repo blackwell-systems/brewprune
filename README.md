@@ -1,5 +1,7 @@
 # brewprune
 
+*Usage-tracked Homebrew cleanup with automatic rollback*
+
 [![Blackwell Systems™](https://raw.githubusercontent.com/blackwell-systems/blackwell-docs-theme/main/badge-trademark.svg)](https://github.com/blackwell-systems)
 [![CI](https://github.com/blackwell-systems/brewprune/actions/workflows/ci.yml/badge.svg)](https://github.com/blackwell-systems/brewprune/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/blackwell-systems/brewprune)](https://goreportcard.com/report/github.com/blackwell-systems/brewprune)
@@ -10,18 +12,9 @@ You have 100+ Homebrew packages installed. You use 20 of them. The rest can quie
 
 **brewprune solves this.** It monitors what you actually use, scores packages by removal safety, and creates automatic snapshots so you can undo any removal with one command. Less guesswork. Just data-driven cleanup.
 
-**Requirements:**
-- macOS 12+ (Apple Silicon or Intel)
-- Homebrew installed
-- Formula support: full (usage tracked via PATH shims) | Cask support: heuristic-only (no usage tracking)
-
-## Privacy
-
-- 100% local: data stored in `~/.brewprune/` (SQLite + snapshots)
-- No telemetry, no cloud sync, no network calls
-- Tracks filesystem events only on Homebrew-managed paths (not commands, args, shell history, or file contents)
-
 ## Quick example
+
+*Score 0–100: higher means safer to remove. See [How it works](#how-it-works).*
 
 ```bash
 $ brewprune unused --tier safe
@@ -73,7 +66,9 @@ brew install brewprune
 go install github.com/blackwell-systems/brewprune@latest
 ```
 
-## Quick Start (CRITICAL: Don't skip step 2!)
+**Requirements:** macOS 12+ (Apple Silicon or Intel) · Homebrew installed · Formula support: full (usage tracked via PATH shims) · Cask support: heuristic-only (no usage tracking)
+
+## Quick Start
 
 **New to brewprune? Try the interactive setup:**
 ```bash
@@ -87,19 +82,27 @@ brewprune quickstart
 brewprune scan
 ```
 
-**2. ⚠️ START THE DAEMON (required for tracking):**
+**2. Add shims to your PATH** ⚠️ required for usage tracking:
+
+`brewprune scan` will print the exact line to add. Add it to your shell config (e.g. `~/.zprofile`) **after** any `brew shellenv` line:
+```bash
+export PATH="$HOME/.brewprune/bin:$PATH"
+```
+Then open a new terminal and verify: `which git` should return `~/.brewprune/bin/git`.
+
+**3. Start the daemon:**
 ```bash
 brewprune watch --daemon
 ```
 
-**Without the daemon running, brewprune cannot track usage and all packages will show "never used".**
+**Without both steps above, brewprune cannot track usage and all packages will show "never used".**
 
-**3. Wait 1-2 weeks** for meaningful usage data, then:
+**4. Wait 1-2 weeks** for meaningful usage data, then:
 ```bash
 brewprune unused --tier safe
 ```
 
-**4. (Optional) Auto-start on login:**
+**5. (Optional) Auto-start on login:**
 
 ```bash
 # Recommended: Use brew services
@@ -107,21 +110,6 @@ brew services start brewprune
 ```
 
 If `brew services` doesn't work, see [Daemon Mode](#daemon-mode) for manual launchd setup.
-
-## One-Minute Setup
-
-```bash
-# 1) Index installed packages
-brewprune scan
-
-# 2) Start usage tracking (required - must stay running)
-brewprune watch --daemon
-
-# 3) Use your machine normally for 1-2 weeks, then:
-brewprune unused --tier safe
-brewprune remove --safe --dry-run  # Preview first
-brewprune remove --safe             # Actually remove
-```
 
 ## Commands
 
@@ -131,7 +119,7 @@ brewprune remove --safe             # Actually remove
 | `brewprune doctor` | Diagnose issues and check system health |
 | `brewprune status` | Check daemon status and tracking statistics (overall health) |
 | `brewprune scan` | Scan and index installed Homebrew packages |
-| `brewprune watch [--daemon]` | Monitor package usage via filesystem events |
+| `brewprune watch [--daemon]` | Process shim log and record package usage events |
 | `brewprune unused [--tier safe\|medium\|risky]` | List packages with heuristic scores |
 | `brewprune stats [--days N] [--package NAME]` | Show usage statistics |
 | `brewprune remove [--safe\|--medium\|--risky] [packages...]` | Remove packages (creates snapshot) |
@@ -268,7 +256,7 @@ Snapshots enable rollback via `brewprune undo`. If an exact version can't be fet
 - Forks a background process that survives terminal closure
 - Writes PID to `~/.brewprune/watch.pid`
 - Logs to `~/.brewprune/watch.log`
-- Batches filesystem events and writes to database every 30 seconds
+- Reads new shim log entries from `~/.brewprune/usage.log` and writes to database every 30 seconds
 
 **Management:**
 ```bash
@@ -370,6 +358,12 @@ This checks:
 - `brew cleanup` removes old versions and cache files
 - brewprune removes entire unused packages
 - Different use cases—run both for maximum disk reclamation
+
+## Privacy
+
+- 100% local: data stored in `~/.brewprune/` (SQLite + snapshots)
+- No telemetry, no cloud sync, no network calls
+- Tracks binary executions only — logs command name + timestamp via PATH shims (not arguments, file contents, shell history, or network activity)
 
 ## FAQ
 
