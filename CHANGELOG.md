@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-02-27
+
+### Added
+- **`brewprune quickstart` command**: Interactive walkthrough for first-time users (runs scan + starts daemon + shows next steps)
+- **`brewprune doctor` command**: Diagnostic tool that checks database, daemon status, and provides fix suggestions
+- **Timeline reminder in scan output**: Shows "⚠️ NEXT STEP: Start usage tracking" after scan completes
+- **Confidence summary in unused output**: Displays data quality (LOW/MEDIUM/HIGH) based on event count and tracking duration
+- **Data quality indicator in status output**: Shows NOT READY/COLLECTING/GOOD/EXCELLENT based on tracking duration
+
+### Changed
+- **Help text improvements**: Added `--dry-run` workflow examples to `remove` and `unused` commands
+- **Better onboarding**: First-time users now see clear next steps at every stage
+
+### Technical
+- Added `GetEventCount()` and `GetFirstEventTime()` helper methods to store package
+- Timeline expectations now prominent in user-facing output
+- Diagnostic checks for daemon health, database state, and usage data
+
 ## [0.1.3] - 2026-02-27
 
 ### Added
@@ -87,7 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/blackwell-systems/brewprune/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/blackwell-systems/brewprune/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/blackwell-systems/brewprune/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/blackwell-systems/brewprune/compare/v0.1.0...v0.1.1

@@ -79,6 +79,19 @@ go test ./internal/analyzer -v
 go test ./internal/analyzer -run TestComputeScore_NeverUsedLeafPackage -v
 ```
 
+## Testing New User Experience
+
+When making UX changes, test the first-time user experience:
+
+```bash
+# Simulate new user
+rm -rf ~/.brewprune
+brewprune quickstart
+
+# Or use doctor for diagnostics
+brewprune doctor
+```
+
 ## Code Style
 
 ### Go Conventions

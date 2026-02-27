@@ -5,6 +5,8 @@ Complete reference for all brewprune commands, flags, and usage patterns.
 ## Table of Contents
 
 - [Commands](#commands)
+  - [brewprune quickstart](#brewprune-quickstart)
+  - [brewprune doctor](#brewprune-doctor)
   - [brewprune scan](#brewprune-scan)
   - [brewprune watch](#brewprune-watch)
   - [brewprune status](#brewprune-status)
@@ -20,6 +22,90 @@ Complete reference for all brewprune commands, flags, and usage patterns.
 - [Examples by Use Case](#examples-by-use-case)
 
 ## Commands
+
+### brewprune quickstart
+
+Interactive walkthrough for first-time users. Guides you through the initial setup.
+
+**Usage:**
+```
+brewprune quickstart
+```
+
+**What it does:**
+1. Runs `brewprune scan` to index packages
+2. Starts `brewprune watch --daemon` for usage tracking
+3. Explains timeline expectations (1-2 weeks)
+4. Shows next steps
+
+**When to use:**
+- First time using brewprune
+- Setting up on a new machine
+- After a fresh Homebrew installation
+
+**Example:**
+```bash
+brewprune quickstart
+
+# Output:
+# Welcome to brewprune! Let's get you set up.
+#
+# Step 1/3: Scanning installed packages
+# ...
+# Step 2/3: Starting usage tracking
+# ...
+# ✓ Setup complete!
+```
+
+**Exit Codes:**
+- 0: Success
+- 1: Error (scan or daemon start failed)
+
+---
+
+### brewprune doctor
+
+Diagnostic tool that checks for common issues and provides fixes.
+
+**Usage:**
+```
+brewprune doctor
+```
+
+**Checks:**
+- Database exists and is accessible
+- Packages have been scanned
+- Usage events are being recorded
+- Daemon is running
+
+**Exit Codes:**
+- 0: All checks passed
+- 1: Issues found (provides specific fixes)
+
+**Example:**
+```bash
+brewprune doctor
+
+# Output:
+# Running brewprune diagnostics...
+#
+# ✓ Database found: ~/.brewprune/brewprune.db
+# ✓ Database is accessible
+# ✓ 165 packages tracked
+# ⚠ No usage events recorded yet
+#   This is normal for new installations
+# ✓ Daemon running (PID 85011)
+#
+# ✓ All checks passed!
+```
+
+**When to use:**
+- Troubleshooting issues
+- Verifying setup is correct
+- Checking daemon status
+- After fresh installation
+
+---
 
 ### brewprune scan
 
@@ -202,6 +288,11 @@ Analyzes installed packages and displays confidence scores for removal. The conf
 
 Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental removal.
 
+**Recommended workflow:**
+1. Start with `--tier safe` to see high-confidence candidates
+2. Use `--dry-run` with `remove` to preview removals
+3. Proceed with removal only after reviewing
+
 **Usage:**
 ```bash
 brewprune unused [flags]
@@ -222,20 +313,24 @@ brewprune unused [flags]
 # Show all unused packages
 brewprune unused
 
-# Show only safe-to-remove packages
+# Show only safe-to-remove packages (recommended starting point)
 brewprune unused --tier safe
 
 # Show packages with confidence >= 70
 brewprune unused --min-score 70
 
-# Sort by size instead of score
-brewprune unused --sort size
+# Sort by size to target large packages
+brewprune unused --sort size --tier safe
 
 # Sort by age (oldest first)
 brewprune unused --sort age
 
 # Show verbose output with detailed scoring breakdown
 brewprune unused --tier safe --verbose
+
+# Preview removal before actually removing
+brewprune unused --tier safe
+brewprune remove --safe --dry-run
 ```
 
 **Output:**
@@ -378,6 +473,11 @@ Removes unused Homebrew packages based on confidence tiers or explicit list. If 
 - Creates automatic snapshot (unless `--no-snapshot`)
 - Requires confirmation for risky operations
 
+**Recommended workflow:**
+1. Use `--dry-run` first to preview removals
+2. Review the list carefully
+3. Run without `--dry-run` to perform removal
+
 **Usage:**
 ```bash
 brewprune remove [flags]
@@ -400,10 +500,13 @@ brewprune remove [packages...]
 
 **Examples:**
 ```bash
+# Preview safe packages first (recommended)
+brewprune remove --safe --dry-run
+
 # Remove safe packages
 brewprune remove --safe
 
-# Preview medium-tier removal (dry-run)
+# Preview medium-tier removal
 brewprune remove --medium --dry-run
 
 # Actually remove medium-tier packages
@@ -611,6 +714,10 @@ brewprune watch --daemon --pid-file /tmp/watch.pid --log-file /tmp/watch.log
 Complete setup workflow:
 
 ```bash
+# Option 1: Interactive setup (recommended for new users)
+brewprune quickstart
+
+# Option 2: Manual setup
 # 1. Scan installed packages
 brewprune scan
 
@@ -702,6 +809,9 @@ tail -f ~/.brewprune/watch.log
 ### Troubleshooting
 
 ```bash
+# Run diagnostics (recommended first step)
+brewprune doctor
+
 # Check if daemon is running
 brewprune status
 

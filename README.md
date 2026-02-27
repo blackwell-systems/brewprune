@@ -74,6 +74,13 @@ go install github.com/blackwell-systems/brewprune@latest
 
 ## Quick Start (CRITICAL: Don't skip step 2!)
 
+**New to brewprune? Try the interactive setup:**
+```bash
+brewprune quickstart
+```
+
+**Or follow these steps manually:**
+
 **1. Scan your packages:**
 ```bash
 brewprune scan
@@ -214,6 +221,8 @@ Snapshots enable rollback via `brewprune undo`. Exact version restoration depend
 
 | Command | Description |
 |---------|-------------|
+| `brewprune quickstart` | Interactive setup walkthrough for first-time users |
+| `brewprune doctor` | Diagnose issues and check system health |
 | `brewprune status` | Check daemon status and tracking statistics |
 | `brewprune scan` | Scan and index installed Homebrew packages |
 | `brewprune watch [--daemon]` | Monitor package usage via filesystem events |
@@ -311,6 +320,26 @@ tail -f ~/.brewprune/watch.log
 **Permissions:** No special permissions required (doesn't need Full Disk Access)
 
 **Start on login:** Add to launchd or use `brew services` (formula includes service)
+
+## Troubleshooting
+
+If you're experiencing issues, run the diagnostic tool:
+
+```bash
+brewprune doctor
+```
+
+This checks:
+- Database exists and is accessible
+- Daemon is running
+- Usage events are being recorded
+- Provides specific fix commands for any issues found
+
+**Common issues:**
+
+- **No usage data after days**: Check `brewprune status` to verify daemon is running
+- **Can't find database**: Run `brewprune scan` to initialize
+- **Daemon not running**: Start with `brewprune watch --daemon`
 
 ## Privacy
 
