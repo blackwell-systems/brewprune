@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -77,12 +78,12 @@ func TestComputeScore_RecentlyUsedPackage(t *testing.T) {
 	defer s.Close()
 
 	pkg := &brew.Package{
-		Name:        "git",
-		Version:     "2.43.0",
+		Name:        "jq",
+		Version:     "1.7.0",
 		InstalledAt: time.Now().AddDate(0, 0, -100),
 		InstallType: "explicit",
 		HasBinary:   true,
-		SizeBytes:   50000000,
+		SizeBytes:   500000,
 	}
 
 	if err := s.InsertPackage(pkg); err != nil {
@@ -91,7 +92,7 @@ func TestComputeScore_RecentlyUsedPackage(t *testing.T) {
 
 	// Add recent usage event
 	event := &store.UsageEvent{
-		Package:   "git",
+		Package:   "jq",
 		EventType: "exec",
 		Timestamp: time.Now().AddDate(0, 0, -3),
 	}
@@ -100,7 +101,7 @@ func TestComputeScore_RecentlyUsedPackage(t *testing.T) {
 	}
 
 	analyzer := New(s)
-	score, err := analyzer.ComputeScore("git")
+	score, err := analyzer.ComputeScore("jq")
 	if err != nil {
 		t.Fatalf("ComputeScore failed: %v", err)
 	}
@@ -359,6 +360,222 @@ func TestGetPackagesByTier_InvalidTier(t *testing.T) {
 	_, err := analyzer.GetPackagesByTier("invalid")
 	if err == nil {
 		t.Error("expected error for invalid tier, got nil")
+	}
+}
+
+func TestComputeScore_CriticalityPenalty(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	// Test that core dependencies get capped at 70 even with high scores
+	tests := []struct {
+		name          string
+		pkg           string
+		daysAgo       int
+		expectedScore int
+		expectedTier  string
+		isCritical    bool
+	}{
+		{
+			name:          "git_capped",
+			pkg:           "git",
+			daysAgo:       200,
+			expectedScore: 70, // Would be 80+ without cap (0+30+20+10=60, but let's test never used)
+			expectedTier:  "medium",
+			isCritical:    true,
+		},
+		{
+			name:          "openssl_capped",
+			pkg:           "openssl@3",
+			daysAgo:       200,
+			expectedScore: 50, // 0+30+20+0=50 (TypeScore is 0 for core deps)
+			expectedTier:  "medium",
+			isCritical:    true,
+		},
+		{
+			name:          "coreutils_capped",
+			pkg:           "coreutils",
+			daysAgo:       200,
+			expectedScore: 60, // 0+30+20+10=60 (if it has binaries)
+			expectedTier:  "medium",
+			isCritical:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg := &brew.Package{
+				Name:        tt.pkg,
+				Version:     "1.0.0",
+				InstalledAt: time.Now().AddDate(0, 0, -tt.daysAgo),
+				InstallType: "explicit",
+				HasBinary:   true,
+				SizeBytes:   1000000,
+			}
+			if err := s.InsertPackage(pkg); err != nil {
+				t.Fatalf("failed to insert package: %v", err)
+			}
+
+			analyzer := New(s)
+			score, err := analyzer.ComputeScore(tt.pkg)
+			if err != nil {
+				t.Fatalf("ComputeScore failed: %v", err)
+			}
+
+			if score.IsCritical != tt.isCritical {
+				t.Errorf("expected IsCritical=%v, got %v", tt.isCritical, score.IsCritical)
+			}
+
+			// For critical packages, score should be capped at 70
+			if score.IsCritical && score.Score > 70 {
+				t.Errorf("critical package score %d exceeds cap of 70", score.Score)
+			}
+
+			// Critical packages should never be in "safe" tier
+			if score.IsCritical && score.Tier == "safe" {
+				t.Errorf("critical package should never be in 'safe' tier, got: %s", score.Tier)
+			}
+		})
+	}
+}
+
+func TestScoreExplanation_Fields(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	// Insert a test package
+	pkg := &brew.Package{
+		Name:        "test-pkg",
+		Version:     "1.0.0",
+		InstalledAt: time.Now().AddDate(0, 0, -45),
+		InstallType: "explicit",
+		HasBinary:   true,
+		SizeBytes:   1000000,
+	}
+	if err := s.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Add usage event
+	event := &store.UsageEvent{
+		Package:   "test-pkg",
+		EventType: "exec",
+		Timestamp: time.Now().AddDate(0, 0, -10),
+	}
+	if err := s.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	analyzer := New(s)
+	score, err := analyzer.ComputeScore("test-pkg")
+	if err != nil {
+		t.Fatalf("ComputeScore failed: %v", err)
+	}
+
+	// Test that Explanation fields are populated
+	if score.Explanation.UsageDetail == "" {
+		t.Error("UsageDetail should not be empty")
+	}
+	if score.Explanation.DepsDetail == "" {
+		t.Error("DepsDetail should not be empty")
+	}
+	if score.Explanation.AgeDetail == "" {
+		t.Error("AgeDetail should not be empty")
+	}
+	if score.Explanation.TypeDetail == "" {
+		t.Error("TypeDetail should not be empty")
+	}
+
+	// Test specific content expectations
+	if score.Explanation.UsageDetail != "last used 10 days ago" {
+		t.Errorf("expected 'last used 10 days ago', got: %s", score.Explanation.UsageDetail)
+	}
+	if score.Explanation.DepsDetail != "no dependents" {
+		t.Errorf("expected 'no dependents', got: %s", score.Explanation.DepsDetail)
+	}
+	if score.Explanation.AgeDetail != "installed 45 days ago" {
+		t.Errorf("expected 'installed 45 days ago', got: %s", score.Explanation.AgeDetail)
+	}
+	if score.Explanation.TypeDetail != "leaf package with binaries" {
+		t.Errorf("expected 'leaf package with binaries', got: %s", score.Explanation.TypeDetail)
+	}
+}
+
+func TestScoreExplanation_CriticalPackage(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	pkg := &brew.Package{
+		Name:        "cmake",
+		Version:     "3.28.0",
+		InstalledAt: time.Now().AddDate(0, 0, -100),
+		InstallType: "dependency",
+		HasBinary:   true,
+		SizeBytes:   50000000,
+	}
+	if err := s.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	analyzer := New(s)
+	score, err := analyzer.ComputeScore("cmake")
+	if err != nil {
+		t.Fatalf("ComputeScore failed: %v", err)
+	}
+
+	// Check that critical packages have the right TypeDetail
+	if !score.IsCritical {
+		t.Error("cmake should be marked as critical")
+	}
+	if score.Explanation.TypeDetail != "foundational package (reduced confidence)" {
+		t.Errorf("expected 'foundational package (reduced confidence)', got: %s", score.Explanation.TypeDetail)
+	}
+}
+
+func TestScoreExplanation_WithDependents(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	// Insert a library
+	lib := &brew.Package{
+		Name:        "test-lib",
+		Version:     "1.0.0",
+		InstalledAt: time.Now().AddDate(0, 0, -100),
+		InstallType: "dependency",
+		HasBinary:   false,
+		SizeBytes:   500000,
+	}
+	if err := s.InsertPackage(lib); err != nil {
+		t.Fatalf("failed to insert library: %v", err)
+	}
+
+	// Insert dependents
+	for i := 1; i <= 3; i++ {
+		dep := &brew.Package{
+			Name:        fmt.Sprintf("dependent-%d", i),
+			Version:     "1.0.0",
+			InstalledAt: time.Now().AddDate(0, 0, -50),
+			InstallType: "explicit",
+			HasBinary:   true,
+			SizeBytes:   1000000,
+		}
+		if err := s.InsertPackage(dep); err != nil {
+			t.Fatalf("failed to insert dependent: %v", err)
+		}
+		if err := s.InsertDependency(dep.Name, "test-lib"); err != nil {
+			t.Fatalf("failed to insert dependency: %v", err)
+		}
+	}
+
+	analyzer := New(s)
+	score, err := analyzer.ComputeScore("test-lib")
+	if err != nil {
+		t.Fatalf("ComputeScore failed: %v", err)
+	}
+
+	// Should show unused dependents
+	if score.Explanation.DepsDetail != "3 unused dependents" {
+		t.Errorf("expected '3 unused dependents', got: %s", score.Explanation.DepsDetail)
 	}
 }
 

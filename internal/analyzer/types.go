@@ -4,14 +4,24 @@ import "time"
 
 // ConfidenceScore represents a package's removal confidence score.
 type ConfidenceScore struct {
-	Package    string
-	Score      int    // 0-100
-	Tier       string // "safe", "medium", "risky"
-	UsageScore int    // 0-40 points
-	DepsScore  int    // 0-30 points
-	AgeScore   int    // 0-20 points
-	TypeScore  int    // 0-10 points
-	Reason     string // Human-readable explanation
+	Package     string
+	Score       int    // 0-100
+	Tier        string // "safe", "medium", "risky"
+	UsageScore  int    // 0-40 points
+	DepsScore   int    // 0-30 points
+	AgeScore    int    // 0-20 points
+	TypeScore   int    // 0-10 points
+	Reason      string // Human-readable explanation
+	IsCritical  bool   // True if package is a core dependency
+	Explanation ScoreExplanation
+}
+
+// ScoreExplanation provides detailed breakdown of score components.
+type ScoreExplanation struct {
+	UsageDetail string // "never observed execution" / "last used 45 days ago"
+	DepsDetail  string // "no dependents" / "3 used dependents" / "1 unused dependent"
+	AgeDetail   string // "installed 240 days ago"
+	TypeDetail  string // "leaf package with binaries" / "library-only (low confidence)" / "core dependency"
 }
 
 // UsageStats represents usage statistics for a package.

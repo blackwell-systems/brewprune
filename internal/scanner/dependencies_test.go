@@ -204,10 +204,14 @@ func TestIsCoreDependency(t *testing.T) {
 		pkg      string
 		expected bool
 	}{
+		// Core cryptography
 		{"openssl", "openssl", true},
 		{"openssl@1.1", "openssl@1.1", true},
 		{"openssl@3", "openssl@3", true},
 		{"openssl@4", "openssl@4", true},
+		{"ca-certificates", "ca-certificates", true},
+
+		// Core libraries
 		{"icu4c", "icu4c", true},
 		{"readline", "readline", true},
 		{"gettext", "gettext", true},
@@ -215,17 +219,48 @@ func TestIsCoreDependency(t *testing.T) {
 		{"gmp", "gmp", true},
 		{"pcre", "pcre", true},
 		{"pcre2", "pcre2", true},
-		{"ca-certificates", "ca-certificates", true},
 		{"zlib", "zlib", true},
 		{"xz", "xz", true},
 		{"sqlite", "sqlite", true},
+		{"ncurses", "ncurses", true},
+
+		// Python versions
 		{"python@3.11", "python@3.11", true},
 		{"python@3.12", "python@3.12", true},
 		{"python@3.13", "python@3.13", true},
-		{"git", "git", false},
+
+		// Core utilities and tools
+		{"git", "git", true},
+		{"curl", "curl", true},
+		{"wget", "wget", true},
+		{"coreutils", "coreutils", true},
+
+		// Build systems and tools
+		{"pkg-config", "pkg-config", true},
+		{"pkgconf", "pkgconf", true},
+		{"cmake", "cmake", true},
+		{"autoconf", "autoconf", true},
+		{"automake", "automake", true},
+		{"libtool", "libtool", true},
+
+		// Compilers
+		{"gcc", "gcc", true},
+		{"llvm", "llvm", true},
+
+		// Database libraries
+		{"gdbm", "gdbm", true},
+		{"berkeley-db", "berkeley-db", true},
+
+		// XML and config parsing
+		{"libxml2", "libxml2", true},
+		{"libxslt", "libxslt", true},
+		{"libyaml", "libyaml", true},
+		{"json-c", "json-c", true},
+
+		// Not core
 		{"node", "node", false},
-		{"wget", "wget", false},
-		{"curl", "curl", false},
+		{"htop", "htop", false},
+		{"jq", "jq", false},
 	}
 
 	for _, tt := range tests {

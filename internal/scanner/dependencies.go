@@ -8,22 +8,56 @@ import (
 // coreDependencies is a list of system-level packages that are commonly
 // dependencies of many other packages. These should typically not be pruned.
 var coreDependencies = map[string]bool{
+	// Cryptography and certificates
 	"openssl":         true,
 	"openssl@1.1":     true,
 	"openssl@3":       true,
-	"icu4c":           true,
-	"readline":        true,
-	"gettext":         true,
-	"libffi":          true,
-	"gmp":             true,
-	"pcre":            true,
-	"pcre2":           true,
 	"ca-certificates": true,
-	"zlib":            true,
-	"xz":              true,
-	"sqlite":          true,
-	"python@3.12":     true,
-	"python@3.11":     true,
+
+	// Core libraries
+	"icu4c":    true,
+	"readline": true,
+	"gettext":  true,
+	"libffi":   true,
+	"gmp":      true,
+	"pcre":     true,
+	"pcre2":    true,
+	"zlib":     true,
+	"xz":       true,
+	"sqlite":   true,
+	"ncurses":  true,
+
+	// Python versions
+	"python@3.12": true,
+	"python@3.11": true,
+
+	// Core utilities and tools
+	"coreutils": true,
+	"git":       true,
+	"curl":      true,
+	"wget":      true,
+
+	// Build systems and tools
+	"pkg-config": true,
+	"pkgconf":    true,
+	"cmake":      true,
+	"autoconf":   true,
+	"automake":   true,
+	"libtool":    true,
+
+	// Compilers
+	"gcc":  true,
+	"llvm": true,
+
+	// Database libraries
+	"gdbm":        true,
+	"berkeley-db": true,
+
+	// XML and config parsing
+	"libxml2":  true,
+	"libxslt":  true,
+	"libyaml":  true,
+	"json-c":   true,
 }
 
 // BuildDependencyGraph builds a complete dependency graph for all packages

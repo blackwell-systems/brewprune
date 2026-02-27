@@ -43,6 +43,14 @@ func (a *Analyzer) ComputeScore(pkg string) (*ConfidenceScore, error) {
 	// Total score
 	score.Score = score.UsageScore + score.DepsScore + score.AgeScore + score.TypeScore
 
+	// Apply criticality penalty: cap critical packages at 70 (medium tier max)
+	if scanner.IsCoreDependency(pkg) {
+		score.IsCritical = true
+		if score.Score > 70 {
+			score.Score = 70
+		}
+	}
+
 	// Determine tier
 	if score.Score >= 80 {
 		score.Tier = "safe"
@@ -52,8 +60,15 @@ func (a *Analyzer) ComputeScore(pkg string) (*ConfidenceScore, error) {
 		score.Tier = "risky"
 	}
 
-	// Generate reason
+	// Generate reason and explanation
 	score.Reason = a.generateReason(score, dependents, pkgInfo.HasBinary)
+	score.Explanation = a.generateExplanation(score, pkg, dependents, &struct {
+		InstalledAt time.Time
+		HasBinary   bool
+	}{
+		InstalledAt: pkgInfo.InstalledAt,
+		HasBinary:   pkgInfo.HasBinary,
+	})
 
 	return score, nil
 }
@@ -179,6 +194,87 @@ func (a *Analyzer) generateReason(score *ConfidenceScore, dependents []string, h
 		return "core system dependency, keep"
 	}
 	return "low confidence for removal"
+}
+
+// generateExplanation creates detailed component breakdown for the score.
+func (a *Analyzer) generateExplanation(score *ConfidenceScore, pkg string, dependents []string, pkgInfo *struct {
+	InstalledAt time.Time
+	HasBinary   bool
+}) ScoreExplanation {
+	explanation := ScoreExplanation{}
+
+	// Usage detail
+	lastUsed, err := a.store.GetLastUsage(pkg)
+	if err != nil || lastUsed == nil {
+		explanation.UsageDetail = "never observed execution"
+	} else {
+		daysSince := int(time.Since(*lastUsed).Hours() / 24)
+		if daysSince == 0 {
+			explanation.UsageDetail = "used today"
+		} else if daysSince == 1 {
+			explanation.UsageDetail = "last used 1 day ago"
+		} else {
+			explanation.UsageDetail = fmt.Sprintf("last used %d days ago", daysSince)
+		}
+	}
+
+	// Dependencies detail
+	numDependents := len(dependents)
+	if numDependents == 0 {
+		explanation.DepsDetail = "no dependents"
+	} else {
+		// Count used dependents
+		usedCount := 0
+		for _, dep := range dependents {
+			lastUsed, err := a.store.GetLastUsage(dep)
+			if err == nil && lastUsed != nil {
+				daysSince := int(time.Since(*lastUsed).Hours() / 24)
+				if daysSince <= 30 {
+					usedCount++
+				}
+			}
+		}
+
+		unusedCount := numDependents - usedCount
+		if usedCount == 0 {
+			if numDependents == 1 {
+				explanation.DepsDetail = "1 unused dependent"
+			} else {
+				explanation.DepsDetail = fmt.Sprintf("%d unused dependents", numDependents)
+			}
+		} else if unusedCount == 0 {
+			if numDependents == 1 {
+				explanation.DepsDetail = "1 used dependent"
+			} else {
+				explanation.DepsDetail = fmt.Sprintf("%d used dependents", numDependents)
+			}
+		} else {
+			explanation.DepsDetail = fmt.Sprintf("%d used, %d unused dependents", usedCount, unusedCount)
+		}
+	}
+
+	// Age detail
+	daysSince := int(time.Since(pkgInfo.InstalledAt).Hours() / 24)
+	if daysSince == 0 {
+		explanation.AgeDetail = "installed today"
+	} else if daysSince == 1 {
+		explanation.AgeDetail = "installed 1 day ago"
+	} else {
+		explanation.AgeDetail = fmt.Sprintf("installed %d days ago", daysSince)
+	}
+
+	// Type detail
+	if score.IsCritical {
+		explanation.TypeDetail = "foundational package (reduced confidence)"
+	} else if numDependents == 0 && pkgInfo.HasBinary {
+		explanation.TypeDetail = "leaf package with binaries"
+	} else if !pkgInfo.HasBinary {
+		explanation.TypeDetail = "library-only (low confidence)"
+	} else {
+		explanation.TypeDetail = "intermediate package"
+	}
+
+	return explanation
 }
 
 // GetPackagesByTier returns all packages with scores in the specified tier.
