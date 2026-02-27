@@ -6,7 +6,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/blackwell-systems/brewprune)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-You have 100+ Homebrew packages installed. You use 20 of them. The other 80 are taking up 15GB of disk space, but you don't know which ones are safe to remove. `brew autoremove` only handles dependency chains—it doesn't track whether you actually *use* a package. Removing things manually is scary because one wrong move could break your workflow.
+You have 100+ Homebrew packages installed. You use 20 of them. The rest can quietly add up to gigs of disk space, but you don't know which ones are safe to remove. `brew autoremove` only handles dependency chains—it doesn't track whether you actually *use* a package. Removing things manually is scary because one wrong move could break your workflow.
 
 **brewprune solves this.** It monitors what you actually use, scores packages by removal safety, and creates automatic snapshots so you can undo any removal with one command. Less guesswork. Just data-driven cleanup.
 
@@ -15,10 +15,11 @@ You have 100+ Homebrew packages installed. You use 20 of them. The other 80 are 
 - Homebrew installed
 - Formula support: full | Cask support: best-effort
 
-**Privacy:**
-- 100% local (all data in ~/.brewprune)
+## Privacy
+
+- 100% local: data stored in `~/.brewprune/` (SQLite + snapshots)
 - No telemetry, no cloud sync, no network calls
-- Only tracks FSEvents on Homebrew paths (not commands/arguments)
+- Tracks filesystem events only on Homebrew-managed paths (not commands, args, shell history, or file contents)
 
 ## Quick example
 
@@ -100,122 +101,27 @@ brewprune unused --tier safe
 
 **4. (Optional) Auto-start on login:**
 
-macOS launchd service:
 ```bash
-# Create service file
-cat > ~/Library/LaunchAgents/com.blackwell-systems.brewprune.plist << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.blackwell-systems.brewprune</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/opt/homebrew/bin/brewprune</string>
-        <string>watch</string>
-        <string>--daemon</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-</dict>
-</plist>
-EOF
-
-# Load the service
-launchctl load ~/Library/LaunchAgents/com.blackwell-systems.brewprune.plist
+# Recommended: Use brew services
+brew services start brewprune
 ```
 
-Or add to `~/.zshrc`:
+If `brew services` doesn't work, see [Daemon Mode](#daemon-mode) for manual launchd setup.
+
+## One-Minute Setup
+
 ```bash
-if ! pgrep -f "brewprune watch" > /dev/null; then
-    brewprune watch --daemon
-fi
+# 1) Index installed packages
+brewprune scan
+
+# 2) Start usage tracking (required - must stay running)
+brewprune watch --daemon
+
+# 3) Use your machine normally for 1-2 weeks, then:
+brewprune unused --tier safe
+brewprune remove --safe --dry-run  # Preview first
+brewprune remove --safe             # Actually remove
 ```
-
-## How it works
-
-**Filesystem Monitoring**
-brewprune watches Homebrew binary paths for filesystem activity consistent with execution, then records timestamps for the owning package. It uses macOS FSEvents to monitor:
-- `$(brew --prefix)/bin` and `/opt/homebrew/bin` for formula binaries
-- `/Applications` for cask app bundles
-
-When activity occurs, brewprune records a usage timestamp for the owning package.
-
-**Package Size Calculation**
-During scan, brewprune calculates actual disk usage for each package using `du -sk` on the Cellar/Caskroom directories. This enables sorting by size and shows real space savings potential.
-
-**SQLite Storage**
-All usage data lives in `~/.brewprune/brewprune.db`. No cloud sync, no network calls.
-
-**Heuristic Scoring**
-Packages are scored 0-100 based on:
-- **Usage (40 points):** Last 7d=40, 30d=30, 90d=20, 1yr=10, never=0
-- **Dependencies (30 points):** No dependents=30, 1-3 unused=20, 1-3 used=10, 4+=0
-- **Age (20 points):** >180d=20, >90d=15, >30d=10, <30d=0
-- **Type (10 points):** Leaf with binaries=10, library=5, core dependency=0
-
-**Tiers:**
-- **Safe (80-100):** High likelihood of being unused
-- **Medium (50-79):** Review before removal
-- **Risky (0-49):** Keep unless certain
-
-**This is a heuristic, not a guarantee.** Score is a heuristic based on observed patterns. Always review medium/risky packages before removal.
-
-**Automatic Snapshots**
-Before removal, brewprune creates a snapshot containing:
-- Package names and installed versions
-- Tap sources
-- Removal timestamp
-
-Snapshots enable rollback via `brewprune undo`. Exact version restoration depends on Homebrew bottle/formula availability.
-
-## Safety & Risks
-
-**What can go wrong:**
-- Remove a package you need → Undo with `brewprune undo latest` (restores if versions available)
-- Remove a library used only via imports → Check medium/risky packages carefully before removing
-- Daemon stops silently → Run `brewprune status` to check, restart if needed
-
-**What CANNOT go wrong:**
-- Core dependencies protected (openssl, git, coreutils, etc.) - capped at "medium" tier
-- Snapshots created automatically before every removal
-- No system files touched (only Homebrew packages)
-- All changes reversible via `brew install` even without snapshots
-
-**If something breaks:** `brewprune undo latest` restores packages immediately.
-
-## Timeline & Expectations
-
-**Day 1:** Install → scan → start daemon → verify with `brewprune status`
-
-**Days 2-14:** Daemon collects usage data in background (no action needed)
-
-**Day 14+:** View unused packages → review carefully → remove safe tier with `--dry-run` first
-
-**Ongoing:** Rescan after manual brew installs (`brewprune scan`), check status occasionally
-
-**Important:** First 1-2 weeks show "never used" for most packages because tracking hasn't captured your workflow patterns yet. This is normal - wait for meaningful data.
-
-## Limitations & Accuracy
-
-**What brewprune tracks:**
-- Executed binaries installed by Homebrew formulae
-- App bundle access in /Applications (as a proxy for cask usage)
-- Filesystem activity via FSEvents (not direct process execution)
-
-**What it doesn't track:**
-- Language imports (Python/Ruby/Node modules) unless a binary is executed
-- Packages used only via `import` statements
-- Background processes that don't execute binaries
-
-**Accuracy notes:**
-- First 1-2 weeks may show misleading "never used" scores (insufficient data)
-- Cask usage detection is best-effort (app bundle access does not equal guaranteed user launch)
-- Libraries without binaries will appear unused if only imported, not executed
-- Score is a **heuristic**, not a certainty—always review before removing
 
 ## Commands
 
@@ -223,7 +129,7 @@ Snapshots enable rollback via `brewprune undo`. Exact version restoration depend
 |---------|-------------|
 | `brewprune quickstart` | Interactive setup walkthrough for first-time users |
 | `brewprune doctor` | Diagnose issues and check system health |
-| `brewprune status` | Check daemon status and tracking statistics |
+| `brewprune status` | Check daemon status and tracking statistics (overall health) |
 | `brewprune scan` | Scan and index installed Homebrew packages |
 | `brewprune watch [--daemon]` | Monitor package usage via filesystem events |
 | `brewprune unused [--tier safe\|medium\|risky]` | List packages with heuristic scores |
@@ -292,6 +198,70 @@ $ brewprune watch --stop
 - `--days N` - Time window in days (default: 30)
 - `--package NAME` - Show stats for specific package
 
+## How it works
+
+**Filesystem Monitoring**
+brewprune watches Homebrew binary paths for filesystem activity consistent with execution, then records timestamps for the owning package. It uses macOS FSEvents to monitor:
+- `$(brew --prefix)/bin` and `/opt/homebrew/bin` for formula binaries
+- `/Applications` for cask app bundles
+
+When activity occurs, brewprune records a usage timestamp for the owning package.
+
+**Package Size Calculation**
+During scan, brewprune calculates actual disk usage for each package using `du -sk` on the Cellar/Caskroom directories. This enables sorting by size and shows real space savings potential.
+
+**SQLite Storage**
+All usage data lives in `~/.brewprune/brewprune.db`. No cloud sync, no network calls.
+
+**Heuristic Scoring**
+Packages are scored 0-100 based on:
+- **Usage (40 points):** Last 7d=40, 30d=30, 90d=20, 1yr=10, never=0
+- **Dependencies (30 points):** No dependents=30, 1-3 unused=20, 1-3 used=10, 4+=0
+- **Age (20 points):** >180d=20, >90d=15, >30d=10, <30d=0
+- **Type (10 points):** Leaf with binaries=10, library=5, core dependency=0
+
+**Tiers:**
+- **Safe (80-100):** High likelihood of being unused
+- **Medium (50-79):** Review before removal
+- **Risky (0-49):** Keep unless certain
+
+**Higher score = safer to remove.** Scores are best-effort and should guide review, not replace it.
+
+**Automatic Snapshots**
+Before removal, brewprune creates a snapshot containing:
+- Package names and installed versions
+- Tap sources
+- Removal timestamp
+
+Snapshots enable rollback via `brewprune undo`. If an exact version can't be fetched from Homebrew, brew will install the closest available version.
+
+## Safety & Risks
+
+**What can go wrong:**
+- Remove a package you need → Undo with `brewprune undo latest` (restores if versions available)
+- Remove a library used only via imports → Check medium/risky packages carefully before removing
+- Daemon stops silently → Run `brewprune status` to check, restart if needed
+
+**What CANNOT go wrong:**
+- Core dependencies protected (openssl, git, coreutils, etc.) - capped at "medium" tier
+- Snapshots created automatically before every removal
+- No system files touched (only Homebrew packages)
+- All changes reversible via `brew install` even without snapshots
+
+**If something breaks:** `brewprune undo latest` restores packages immediately.
+
+## Timeline & Expectations
+
+**Day 1:** Install → scan → start daemon → verify with `brewprune status`
+
+**Days 2-14:** Daemon collects usage data in background (no action needed)
+
+**Day 14+:** View unused packages → review carefully → remove safe tier with `--dry-run` first
+
+**Ongoing:** Rescan after manual brew installs (`brewprune scan`), check status occasionally
+
+**Important:** First 1-2 weeks show "never used" for most packages because tracking hasn't captured your workflow patterns yet. This is normal - wait for meaningful data.
+
 ## Daemon Mode
 
 `brewprune watch --daemon` runs monitoring in the background:
@@ -308,7 +278,7 @@ $ brewprune watch --stop
 brewprune watch --daemon
 
 # Check status
-brewprune watch  # Shows if daemon is running
+brewprune status
 
 # Stop daemon
 brewprune watch --stop
@@ -319,7 +289,33 @@ tail -f ~/.brewprune/watch.log
 
 **Permissions:** No special permissions required (doesn't need Full Disk Access)
 
-**Start on login:** Add to launchd or use `brew services` (formula includes service)
+**Start on login (manual launchd setup):**
+```bash
+# Create service file
+cat > ~/Library/LaunchAgents/com.blackwell-systems.brewprune.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.blackwell-systems.brewprune</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/brewprune</string>
+        <string>watch</string>
+        <string>--daemon</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+# Load the service
+launchctl load ~/Library/LaunchAgents/com.blackwell-systems.brewprune.plist
+```
 
 ## Troubleshooting
 
@@ -341,16 +337,23 @@ This checks:
 - **Can't find database**: Run `brewprune scan` to initialize
 - **Daemon not running**: Start with `brewprune watch --daemon`
 
-## Privacy
+## Limitations & Accuracy
 
-brewprune is completely local:
-- All data stays in `~/.brewprune/brewprune.db` (SQLite)
-- Snapshots stored in `~/.brewprune/snapshots/`
-- No network calls
-- No telemetry
-- No cloud sync
+**What brewprune tracks:**
+- Executed binaries installed by Homebrew formulae
+- App bundle access in /Applications (as a proxy for cask usage)
+- Filesystem activity via FSEvents (not direct process execution)
 
-Usage tracking only monitors filesystem activity on Homebrew binary paths. It doesn't track arguments, file contents, or browsing history.
+**What it doesn't track:**
+- Language imports (Python/Ruby/Node modules) unless a binary is executed
+- Packages used only via `import` statements
+- Background processes that don't execute binaries
+
+**Accuracy notes:**
+- First 1-2 weeks may show misleading "never used" scores (insufficient data)
+- Cask usage detection is best-effort (app bundle access does not equal guaranteed user launch)
+- Libraries without binaries will appear unused if only imported, not executed
+- Score is a heuristic, not a certainty—always review before removing
 
 ## Comparison to alternatives
 
@@ -398,11 +401,13 @@ A: Run `brewprune undo --list` to see all available snapshots with their IDs, cr
 
 **Q: Why is git/openssl/coreutils only "medium" tier even though never used?**
 
-A: brewprune protects 47 foundational packages by capping their scores at 70 (medium tier max). These packages are critical infrastructure that many other packages depend on indirectly.
+A: brewprune protects foundational packages by capping their scores at 70 (medium tier max). These packages are critical infrastructure that many other packages depend on indirectly.
+
+**Protected packages:** Core dependencies are capped at score 70 (medium tier maximum) to prevent accidental removal. Even if unused, these packages are foundational infrastructure. See full list: [dependencies.go](https://github.com/blackwell-systems/brewprune/blob/main/internal/scanner/dependencies.go)
+
+Note: `--safe` tier will NEVER include protected packages. They can only appear in `--medium` or `--risky` tiers.
 
 Protected packages include: openssl, ca-certificates, git, curl, wget, cmake, pkg-config, autoconf, automake, gcc, llvm, ncurses, readline, gettext, sqlite, zlib, and more.
-
-See the full list in code: [internal/scanner/dependencies.go](https://github.com/blackwell-systems/brewprune/blob/main/internal/scanner/dependencies.go)
 
 ## License
 
