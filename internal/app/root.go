@@ -15,31 +15,44 @@ var (
 	RootCmd = &cobra.Command{
 		Use:   "brewprune",
 		Short: "Smart Homebrew package cleanup with usage tracking",
-		Long: `brewprune tracks Homebrew package usage and provides confidence-scored
+		Long: `brewprune tracks Homebrew package usage and provides heuristic-scored
 removal recommendations with automatic snapshots for easy rollback.
+
+IMPORTANT: You must run 'brewprune watch --daemon' to track package usage.
+Without the daemon running, recommendations are based on heuristics only
+(install age, dependencies, type) - not actual usage data.
+
+Quick Start:
+  1. brewprune scan
+  2. brewprune watch --daemon  # Keep this running!
+  3. Wait 1-2 weeks for usage data
+  4. brewprune unused --tier safe
 
 Features:
   • Real-time usage tracking via FSEvents
-  • Confidence-based removal recommendations
+  • Heuristic-based removal recommendations
   • Automatic snapshot creation before removals
   • One-command rollback capability
   • Dependency-aware pruning
 
 Examples:
+  # Check daemon status
+  brewprune status
+
   # Scan installed packages
   brewprune scan
 
   # Start usage tracking
-  brewprune watch
+  brewprune watch --daemon
 
   # View usage-based recommendations
   brewprune unused
 
   # Remove unused packages safely
-  brewprune remove --tier safe
+  brewprune remove --safe
 
   # Undo last removal
-  brewprune undo`,
+  brewprune undo latest`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

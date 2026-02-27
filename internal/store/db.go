@@ -47,6 +47,11 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// DB returns the underlying database connection for advanced queries.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 // CreateSchema creates all tables and indexes.
 func (s *Store) CreateSchema() error {
 	_, err := s.db.Exec(schema)

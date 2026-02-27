@@ -83,6 +83,9 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	}
 	defer st.Close()
 
+	// Check for usage data and daemon status
+	checkUsageWarning(st)
+
 	// Create analyzer
 	a := analyzer.New(st)
 
@@ -195,4 +198,37 @@ func getLastUsed(st *store.Store, pkg string) time.Time {
 		return time.Time{}
 	}
 	return *lastUsed
+}
+
+// checkUsageWarning checks if the daemon is running and if usage data exists,
+// displaying a warning banner if no tracking is active.
+func checkUsageWarning(st *store.Store) {
+	// Check if any usage events exist
+	var eventCount int
+	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
+	if err := row.Scan(&eventCount); err != nil {
+		// If we can't query, silently continue
+		return
+	}
+
+	// If we have usage events, no warning needed
+	if eventCount > 0 {
+		return
+	}
+
+	// No usage events - show warning
+	fmt.Println()
+	fmt.Println("⚠ WARNING: No usage data available")
+	fmt.Println()
+	fmt.Println("The watch daemon has not recorded any package usage yet.")
+	fmt.Println("Recommendations are based on heuristics only (install age, dependencies, type).")
+	fmt.Println()
+	fmt.Println("To track actual usage:")
+	fmt.Println("  1. Start daemon:  brewprune watch --daemon")
+	fmt.Println("  2. Wait 1-2 weeks for meaningful data")
+	fmt.Println("  3. Re-run:        brewprune unused")
+	fmt.Println()
+	fmt.Println("Current recommendations are LOW CONFIDENCE without usage tracking.")
+	fmt.Println("─────────────────────────────────────────────────────────────────────────")
+	fmt.Println()
 }

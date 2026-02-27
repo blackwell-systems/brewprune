@@ -52,6 +52,77 @@ Restoring 3 packages from snapshot...
 Run 'brewprune scan' to update the package database.
 ```
 
+## Installation
+
+### From Homebrew (recommended)
+
+```bash
+brew tap blackwell-systems/tap
+brew install brewprune
+```
+
+### From source
+
+```bash
+go install github.com/blackwell-systems/brewprune@latest
+```
+
+## Quick Start (CRITICAL: Don't skip step 2!)
+
+**1. Scan your packages:**
+```bash
+brewprune scan
+```
+
+**2. ⚠️ START THE DAEMON (required for tracking):**
+```bash
+brewprune watch --daemon
+```
+
+**Without the daemon running, brewprune cannot track usage and all packages will show "never used".**
+
+**3. Wait 1-2 weeks** for meaningful usage data, then:
+```bash
+brewprune unused --tier safe
+```
+
+**4. (Optional) Auto-start on login:**
+
+macOS launchd service:
+```bash
+# Create service file
+cat > ~/Library/LaunchAgents/com.blackwell-systems.brewprune.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.blackwell-systems.brewprune</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/brewprune</string>
+        <string>watch</string>
+        <string>--daemon</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+# Load the service
+launchctl load ~/Library/LaunchAgents/com.blackwell-systems.brewprune.plist
+```
+
+Or add to `~/.zshrc`:
+```bash
+if ! pgrep -f "brewprune watch" > /dev/null; then
+    brewprune watch --daemon
+fi
+```
+
 ## How it works
 
 **Filesystem Monitoring**
@@ -108,6 +179,7 @@ Snapshots enable rollback via `brewprune undo`. Exact version restoration depend
 
 | Command | Description |
 |---------|-------------|
+| `brewprune status` | Check daemon status and tracking statistics |
 | `brewprune scan` | Scan and index installed Homebrew packages |
 | `brewprune watch [--daemon]` | Monitor package usage via filesystem events |
 | `brewprune unused [--tier safe\|medium\|risky]` | List packages with heuristic scores |
@@ -173,35 +245,6 @@ $ brewprune watch --stop
 **`brewprune stats` flags:**
 - `--days N` - Time window in days (default: 30)
 - `--package NAME` - Show stats for specific package
-
-## Installation
-
-### From source
-
-```bash
-go install github.com/blackwell-systems/brewprune@latest
-```
-
-### Homebrew tap (coming soon)
-
-```bash
-brew tap blackwell-systems/brewprune
-brew install brewprune
-```
-
-### First-time setup
-
-After installation, run an initial scan and start the monitoring daemon:
-
-```bash
-# Scan existing packages
-brewprune scan
-
-# Start background monitoring
-brewprune watch --daemon
-```
-
-The daemon runs in the background and tracks package usage via FSEvents. Let it run for at least 1-2 weeks before doing cleanup—more data means better heuristic scores.
 
 ## Daemon Mode
 
