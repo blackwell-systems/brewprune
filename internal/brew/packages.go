@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -91,7 +92,7 @@ func ListInstalled() ([]*Package, error) {
 			InstallType: "explicit", // Default, needs to be determined from deps
 			Tap:         formula.Tap,
 			IsCask:      false,
-			SizeBytes:   0,    // Size needs separate calculation
+			SizeBytes:   calculatePackageSize(formula.Name, false),
 			HasBinary:   true, // Assume formulae have binaries
 			BinaryPaths: []string{},
 		}
@@ -113,7 +114,7 @@ func ListInstalled() ([]*Package, error) {
 			InstallType: "explicit",
 			Tap:         cask.Tap,
 			IsCask:      true,
-			SizeBytes:   0,
+			SizeBytes:   calculatePackageSize(cask.Token, true),
 			HasBinary:   false, // Casks typically don't install to bin
 			BinaryPaths: []string{},
 		}
@@ -155,7 +156,7 @@ func GetPackageInfo(name string) (*Package, error) {
 			InstallType: "explicit",
 			Tap:         formula.Tap,
 			IsCask:      false,
-			SizeBytes:   0,
+			SizeBytes:   calculatePackageSize(formula.Name, false),
 			HasBinary:   true,
 			BinaryPaths: []string{},
 		}
@@ -177,7 +178,7 @@ func GetPackageInfo(name string) (*Package, error) {
 			InstallType: "explicit",
 			Tap:         cask.Tap,
 			IsCask:      true,
-			SizeBytes:   0,
+			SizeBytes:   calculatePackageSize(cask.Token, true),
 			HasBinary:   false,
 			BinaryPaths: []string{},
 		}
@@ -314,6 +315,52 @@ func parseDependencyTree(output string) (map[string][]string, error) {
 	}
 
 	return tree, nil
+}
+
+// calculatePackageSize calculates the disk size of a package in bytes
+// Returns 0 if size cannot be determined (non-fatal error)
+func calculatePackageSize(name string, isCask bool) int64 {
+	var path string
+
+	if isCask {
+		// Get caskroom path
+		cmd := exec.Command("brew", "--caskroom")
+		output, err := cmd.Output()
+		if err != nil {
+			return 0
+		}
+		path = strings.TrimSpace(string(output)) + "/" + name
+	} else {
+		// Get cellar path
+		cmd := exec.Command("brew", "--cellar")
+		output, err := cmd.Output()
+		if err != nil {
+			return 0
+		}
+		path = strings.TrimSpace(string(output)) + "/" + name
+	}
+
+	// Run du -sk to get size in KB
+	cmd := exec.Command("du", "-sk", path)
+	output, err := cmd.Output()
+	if err != nil {
+		// Package directory might not exist or be accessible
+		return 0
+	}
+
+	// Parse output: "1234\t/path/to/package"
+	fields := strings.Fields(string(output))
+	if len(fields) < 1 {
+		return 0
+	}
+
+	sizeKB, err := strconv.ParseInt(fields[0], 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	// Convert KB to bytes
+	return sizeKB * 1024
 }
 
 // GetBrewPrefix returns the Homebrew installation prefix
