@@ -63,7 +63,12 @@ func logExecution(cmdName string) {
 
 // findRealBinary locates the actual Homebrew binary at the stable opt prefix.
 // Tries /opt/homebrew (Apple Silicon) then /usr/local (Intel) as fallbacks.
+// Returns "" if the binary would resolve back to the shim itself (infinite exec loop guard).
 func findRealBinary(name string) string {
+	// Prevent infinite exec loop: brewprune-shim must never exec itself.
+	if name == "brewprune-shim" {
+		return ""
+	}
 	prefixes := []string{"/opt/homebrew", "/usr/local"}
 	for _, prefix := range prefixes {
 		p := filepath.Join(prefix, "bin", name)
