@@ -224,6 +224,8 @@ Snapshots enable rollback via `brewprune undo`. Exact version restoration depend
 
 **Note:** `unused` uses `--tier`, `remove` uses boolean flags `--safe/--medium/--risky`
 
+**For complete command reference with all flags, exit codes, and detailed examples, see [CLI Reference](docs/CLI.md).**
+
 ### Common workflow
 
 ```bash
