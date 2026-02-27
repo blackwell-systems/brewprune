@@ -68,8 +68,8 @@ brews:
     repository:
       owner: blackwell-systems
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    folder: Formula
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
     homepage: https://github.com/blackwell-systems/brewprune
     description: "Smart Homebrew package cleanup with usage tracking and confidence-scored removal"
     license: MIT
