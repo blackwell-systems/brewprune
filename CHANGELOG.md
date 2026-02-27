@@ -7,69 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.5] - 2026-02-27
-
-### Added
-- **PATH shim execution tracking** — `brewprune scan` now builds a Go interceptor binary (`~/.brewprune/bin/brewprune-shim`) and creates symlinks for every Homebrew command on your PATH. When you run `git`, `gh`, `jq`, etc., the shim logs the execution to `~/.brewprune/usage.log` and hands off to the real binary with zero perceptible overhead.
-- **`cmd/brewprune-shim`** — standalone binary that uses `syscall.Exec` (no fork) and O_APPEND atomic log writes
-- **`internal/shim` package** — `BuildShimBinary`, `GenerateShims` (LookPath collision-safe), `RemoveShims`, `IsShimSetup`
-- **`internal/watcher/shim_processor.go`** — reads usage.log from a tracked byte offset, resolves basenames to packages, and batch-inserts events in a single SQLite transaction every 30 seconds
-- **Crash-safe offset tracking** — offset file updated via temp-file rename after successful commit; events are never lost on crash
-- **`brewprune doctor`** now checks shim binary exists and `~/.brewprune/bin` is correctly positioned in PATH
-
-### Fixed
-- **Usage tracking was completely broken** — the previous fsnotify watcher listened for `Write`/`Chmod` events on Homebrew bin directories, which never fire on binary execution (only on file modification). Zero events were ever captured despite the daemon running. PATH shims fix this permanently.
-
-### Changed
-- `brewprune scan` shows PATH setup instructions when shim directory is not yet in PATH
-- `brewprune watch` description updated to reflect shim log processing
-- README and docs updated to remove all FSEvents references
-
-### Removed
-- `github.com/fsnotify/fsnotify` dependency (no longer needed)
-- `internal/watcher.BuildBinaryMap` and `MatchPathToPackage` (dead code, only served the broken fsnotify path)
-
-### Technical
-- `Watcher` struct simplified from 8 fields to 4 (store, stopCh, wg, batchTicker)
-- All fsnotify imports, event handlers, and tests removed; −749 lines of dead code
-- `go mod tidy` removed fsnotify from go.mod/go.sum
-
-## [0.1.4] - 2026-02-27
-
-### Added
-- **`brewprune quickstart` command**: Interactive walkthrough for first-time users (runs scan + starts daemon + shows next steps)
-- **`brewprune doctor` command**: Diagnostic tool that checks database, daemon status, and provides fix suggestions
-- **Timeline reminder in scan output**: Shows "⚠️ NEXT STEP: Start usage tracking" after scan completes
-- **Confidence summary in unused output**: Displays data quality (LOW/MEDIUM/HIGH) based on event count and tracking duration
-- **Data quality indicator in status output**: Shows NOT READY/COLLECTING/GOOD/EXCELLENT based on tracking duration
-
-### Changed
-- **Help text improvements**: Added `--dry-run` workflow examples to `remove` and `unused` commands
-- **Better onboarding**: First-time users now see clear next steps at every stage
-
-### Technical
-- Added `GetEventCount()` and `GetFirstEventTime()` helper methods to store package
-- Timeline expectations now prominent in user-facing output
-- Diagnostic checks for daemon health, database state, and usage data
-
 ## [0.1.3] - 2026-02-27
 
 ### Added
-- Package size calculation - shows actual disk usage instead of "0 B"
-- Functional `--sort size` - sorts by disk usage (largest first)
-- Functional `--sort age` - sorts by installation date (oldest first)
+- **PATH shim execution tracking** — `brewprune scan` builds a Go interceptor binary (`~/.brewprune/bin/brewprune-shim`) and creates symlinks for every Homebrew command on your PATH. When you run `git`, `gh`, `jq`, etc., the shim logs the execution to `~/.brewprune/usage.log` and hands off to the real binary with zero perceptible overhead.
+- **`brewprune quickstart` command** — interactive walkthrough for first-time users (runs scan + starts daemon + shows next steps)
+- **`brewprune doctor` command** — diagnostic tool checking database, daemon, shim binary, and PATH setup; provides specific fix commands
+- **Package size calculation** — shows actual disk usage per package instead of "0 B"
+- **Functional `--sort size`** — sorts by disk usage (largest first)
+- **Functional `--sort age`** — sorts by installation date (oldest first)
+- **Confidence summary in `unused` output** — data quality indicator (NOT READY / COLLECTING / GOOD / EXCELLENT)
+- **Timeline reminder in scan output** — shows next steps after scan completes
 
 ### Fixed
-- Size calculation now runs during scan and populates database
-- Sorting flags now work correctly (previously ignored by render function)
+- **Usage tracking was completely broken** — the previous fsnotify watcher listened for `Write`/`Chmod` events on Homebrew bin directories, which never fire on binary execution. Zero events were ever captured despite the daemon running. PATH shims fix this permanently.
+- Sorting flags now work correctly (previously ignored by the render function)
+- Size calculation now runs during scan and populates the database
 
 ### Changed
-- Removed roadmap section from README (all core features complete)
+- `brewprune scan` shows PATH setup instructions when shim directory is not yet in PATH
+- Help text: added `--dry-run` workflow examples to `remove` and `unused` commands
+- README and docs updated to accurately reflect shim-based architecture; removed all FSEvents references
+- Cask limitation clearly documented: casks are scored on heuristics only, never show usage data
+
+### Removed
+- `github.com/fsnotify/fsnotify` dependency
 
 ### Technical
-- Added `calculatePackageSize()` function using `du -sk`
-- Added `SizeBytes` and `InstalledAt` fields to `ConfidenceScore`
-- Fixed `RenderConfidenceTable()` to respect caller's sort order
+- `Watcher` struct simplified from 8 fields to 4; −749 lines of dead fsnotify code removed
+- Crash-safe offset tracking: offset file updated via temp-file rename after successful DB commit
+- `go mod tidy` removed fsnotify from go.mod/go.sum
 
 ## [0.1.2] - 2026-02-27
 
