@@ -79,7 +79,9 @@ brewprune quickstart
 
 **1. Scan your packages:**
 ```bash
+brew install brewprune
 brewprune scan
+brew services start brewprune
 ```
 
 **2. Add shims to your PATH** ⚠️ required for usage tracking:
@@ -92,8 +94,10 @@ Then open a new terminal and verify: `which git` should return `~/.brewprune/bin
 
 **3. Start the daemon:**
 ```bash
-brewprune watch --daemon
+brew services start brewprune
 ```
+
+If you installed from source rather than Homebrew, use `brewprune watch --daemon` instead.
 
 **Without both steps above, brewprune cannot track usage and all packages will show "never used".**
 
@@ -104,12 +108,9 @@ brewprune unused --tier safe
 
 **5. (Optional) Auto-start on login:**
 
-```bash
-# Recommended: Use brew services
-brew services start brewprune
-```
+This is handled automatically if you used `brew services start brewprune` above.
 
-If `brew services` doesn't work, see [Daemon Mode](#daemon-mode) for manual launchd setup.
+If you installed from source and need manual launchd setup, see [Daemon Mode](#daemon-mode).
 
 ## Commands
 

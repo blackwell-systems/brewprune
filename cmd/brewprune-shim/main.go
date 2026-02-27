@@ -14,18 +14,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
 
-// shimVersion is the version embedded at build time via ldflags:
-//
-//	-X main.shimVersion={{.Version}}
-//
-// In development builds this remains "dev".
-const shimVersion = "dev"
+// shimVersion is set at build time via -ldflags "-X main.shimVersion=x.y.z"
+var shimVersion = "dev"
 
 func main() {
 	// Determine which command was invoked via the symlink name.
@@ -55,7 +50,7 @@ func main() {
 // checkShimVersion compares this binary's embedded shimVersion against the
 // expected version stored in ~/.brewprune/shim.version (written by brewprune
 // scan). When they differ it emits a one-line warning to stderr, rate-limited
-// to once per 24 hours via ~/.brewprune/shim.warn.
+// to once per calendar day via ~/.brewprune/shim.version.warned.
 //
 // All errors are silently swallowed — the version check must never prevent
 // the user's command from running.
@@ -69,7 +64,7 @@ func checkShimVersion() {
 	versionPath := filepath.Join(homeDir, ".brewprune", "shim.version")
 	data, err := os.ReadFile(versionPath)
 	if err != nil {
-		// File absent means scan hasn't run with version support yet — no warning.
+		// File absent means scan hasn't run yet — no warning before first scan.
 		return
 	}
 	expected := strings.TrimSpace(string(data))
@@ -77,23 +72,21 @@ func checkShimVersion() {
 		return
 	}
 
-	// Versions differ — apply 24-hour rate limit before warning.
-	warnPath := filepath.Join(homeDir, ".brewprune", "shim.warn")
-	const rateLimitSecs int64 = 86400
+	// Versions differ — apply date-based rate limit before warning.
+	today := time.Now().Format("2006-01-02")
+	warnPath := filepath.Join(homeDir, ".brewprune", "shim.version.warned")
 
 	if raw, err := os.ReadFile(warnPath); err == nil {
-		if ts, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64); err == nil {
-			if time.Now().Unix()-ts < rateLimitSecs {
-				return
-			}
+		if strings.TrimSpace(string(raw)) == today {
+			return
 		}
 	}
 
 	// Emit the warning.
 	fmt.Fprintln(os.Stderr, "brewprune upgraded; run 'brewprune scan' to refresh shims (or 'brewprune doctor').")
 
-	// Update the rate-limit timestamp (best-effort).
-	_ = os.WriteFile(warnPath, []byte(strconv.FormatInt(time.Now().Unix(), 10)+"\n"), 0600)
+	// Update the rate-limit file with today's date (best-effort).
+	_ = os.WriteFile(warnPath, []byte(today+"\n"), 0600)
 }
 
 // logExecution appends a usage record to ~/.brewprune/usage.log.
