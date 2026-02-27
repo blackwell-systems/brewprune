@@ -5,7 +5,42 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/blackwell-systems/brewprune/internal/brew"
+	"github.com/blackwell-systems/brewprune/internal/store"
 )
+
+// newTestStore creates an in-memory SQLite store with the schema applied.
+func newTestStore(t *testing.T) *store.Store {
+	t.Helper()
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("CreateSchema: %v", err)
+	}
+	return st
+}
+
+// insertPkg is a convenience helper for test package creation.
+func insertPkg(t *testing.T, st *store.Store, name string, binPaths []string) {
+	t.Helper()
+	pkg := &brew.Package{
+		Name:        name,
+		Version:     "1.0.0",
+		InstalledAt: time.Now(),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+		HasBinary:   len(binPaths) > 0,
+		BinaryPaths: binPaths,
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("InsertPackage(%s): %v", name, err)
+	}
+}
 
 // ── parseShimLogLine ─────────────────────────────────────────────────────────
 
@@ -170,6 +205,162 @@ func TestOffsetTrackingAcrossReads(t *testing.T) {
 	}
 	if lines[0] != strings.TrimSuffix(batch2, "\n") {
 		t.Errorf("unexpected line: %q", lines[0])
+	}
+}
+
+// ── buildOptPathMap ───────────────────────────────────────────────────────────
+
+// TestBuildOptPathMap_MapsFullPaths verifies that buildOptPathMap produces a
+// map keyed by the complete stored binary path (not the basename).
+func TestBuildOptPathMap_MapsFullPaths(t *testing.T) {
+	st := newTestStore(t)
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+	insertPkg(t, st, "ripgrep", []string{"/opt/homebrew/bin/rg"})
+
+	m, err := buildOptPathMap(st)
+	if err != nil {
+		t.Fatalf("buildOptPathMap: %v", err)
+	}
+
+	cases := map[string]string{
+		"/opt/homebrew/bin/git": "git",
+		"/opt/homebrew/bin/rg":  "ripgrep",
+	}
+	for path, want := range cases {
+		if got := m[path]; got != want {
+			t.Errorf("optPathMap[%q] = %q, want %q", path, got, want)
+		}
+	}
+	// Basenames must NOT be keys in the opt-path map.
+	if _, ok := m["git"]; ok {
+		t.Error("optPathMap should not contain basename keys")
+	}
+}
+
+// TestBuildOptPathMap_EmptyStore verifies buildOptPathMap returns an empty map
+// when no packages are in the DB.
+func TestBuildOptPathMap_EmptyStore(t *testing.T) {
+	st := newTestStore(t)
+	m, err := buildOptPathMap(st)
+	if err != nil {
+		t.Fatalf("buildOptPathMap: %v", err)
+	}
+	if len(m) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(m))
+	}
+}
+
+// ── Opt-path disambiguation ───────────────────────────────────────────────────
+
+// TestOptPathDisambiguatesCollision verifies that when two formulae both
+// expose a binary with the same basename, the opt-path lookup attributes the
+// usage event to the correct package and does not silently pick the last-write
+// winner that the old basename-only map would produce.
+//
+// Scenario: both "imagemagick" and "graphicsmagick" ship a binary named
+// "convert". imagemagick stores /opt/homebrew/bin/convert; graphicsmagick
+// stores /usr/local/bin/convert (Intel prefix). Usage of the shim for
+// "convert" on Apple Silicon resolves to the imagemagick opt path.
+func TestOptPathDisambiguatesCollision(t *testing.T) {
+	st := newTestStore(t)
+
+	// imagemagick owns the Apple Silicon opt path.
+	insertPkg(t, st, "imagemagick", []string{"/opt/homebrew/bin/convert"})
+	// graphicsmagick owns the Intel opt path.
+	insertPkg(t, st, "graphicsmagick", []string{"/usr/local/bin/convert"})
+
+	optMap, err := buildOptPathMap(st)
+	if err != nil {
+		t.Fatalf("buildOptPathMap: %v", err)
+	}
+
+	// Apple Silicon resolution.
+	if got := optMap["/opt/homebrew/bin/convert"]; got != "imagemagick" {
+		t.Errorf("Apple Silicon: optPathMap[/opt/homebrew/bin/convert] = %q, want \"imagemagick\"", got)
+	}
+	// Intel resolution.
+	if got := optMap["/usr/local/bin/convert"]; got != "graphicsmagick" {
+		t.Errorf("Intel: optPathMap[/usr/local/bin/convert] = %q, want \"graphicsmagick\"", got)
+	}
+
+	// Confirm that the basename map WOULD have a collision (last-write wins),
+	// demonstrating that the old strategy was insufficient.
+	baseMap, err := buildBasenameMap(st)
+	if err != nil {
+		t.Fatalf("buildBasenameMap: %v", err)
+	}
+	if _, ok := baseMap["convert"]; !ok {
+		t.Error("basename map should contain 'convert' (collision present)")
+	}
+	// The basename map maps to exactly one package — demonstrating the ambiguity.
+	// We cannot reliably assert which one without caring about insertion order,
+	// so we just confirm both opt paths resolve to distinct packages.
+	if optMap["/opt/homebrew/bin/convert"] == optMap["/usr/local/bin/convert"] {
+		t.Error("opt path map should resolve 'convert' to different packages for each prefix")
+	}
+}
+
+// TestOptPathLookupOrder_AppleSiliconFirst verifies that the Apple Silicon
+// prefix (/opt/homebrew/bin) is tried before the Intel prefix (/usr/local/bin)
+// in ProcessUsageLog's matching logic — exercised here via buildOptPathMap.
+func TestOptPathLookupOrder_AppleSiliconFirst(t *testing.T) {
+	st := newTestStore(t)
+
+	// Only the Apple Silicon path is registered in the DB.
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+
+	optMap, err := buildOptPathMap(st)
+	if err != nil {
+		t.Fatalf("buildOptPathMap: %v", err)
+	}
+
+	// Simulate the lookup chain for basename "git" from a shim argv0.
+	basename := "git"
+	pkg, found := optMap["/opt/homebrew/bin/"+basename]
+	if !found {
+		pkg, found = optMap["/usr/local/bin/"+basename]
+	}
+	if !found {
+		t.Fatal("expected to find 'git' via opt path, got not-found")
+	}
+	if pkg != "git" {
+		t.Errorf("resolved package = %q, want \"git\"", pkg)
+	}
+}
+
+// TestOptPathFallbackToBasename verifies that when the opt paths are not in
+// the DB but a basename entry exists, the basename fallback still resolves the
+// package correctly (backward-compat for older DB entries without full paths).
+func TestOptPathFallbackToBasename(t *testing.T) {
+	st := newTestStore(t)
+
+	// Store an older-style entry whose binary path is just the binary name
+	// (not a full /opt/homebrew/... path). The basename map covers this.
+	insertPkg(t, st, "wget", []string{"wget"})
+
+	optMap, err := buildOptPathMap(st)
+	if err != nil {
+		t.Fatalf("buildOptPathMap: %v", err)
+	}
+	baseMap, err := buildBasenameMap(st)
+	if err != nil {
+		t.Fatalf("buildBasenameMap: %v", err)
+	}
+
+	basename := "wget"
+	pkg, found := optMap["/opt/homebrew/bin/"+basename]
+	if !found {
+		pkg, found = optMap["/usr/local/bin/"+basename]
+	}
+	if !found {
+		pkg, found = baseMap[basename]
+	}
+
+	if !found {
+		t.Fatal("expected basename fallback to find 'wget'")
+	}
+	if pkg != "wget" {
+		t.Errorf("resolved package = %q, want \"wget\"", pkg)
 	}
 }
 

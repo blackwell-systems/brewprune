@@ -50,10 +50,16 @@ func ProcessUsageLog(st *store.Store) error {
 		return fmt.Errorf("shim_processor: read offset: %w", err)
 	}
 
-	// Build basename → package name lookup from stored packages.
+	// Build basename → package name lookup from stored packages (fallback).
 	binaryMap, err := buildBasenameMap(st)
 	if err != nil {
 		return fmt.Errorf("shim_processor: build binary map: %w", err)
+	}
+
+	// Build full opt path → package name lookup (preferred, avoids basename collisions).
+	optPathMap, err := buildOptPathMap(st)
+	if err != nil {
+		return fmt.Errorf("shim_processor: build opt path map: %w", err)
 	}
 
 	// Open log and seek to last known position.
@@ -95,7 +101,17 @@ func ProcessUsageLog(st *store.Store) error {
 		}
 
 		basename := filepath.Base(argv0)
-		pkg, found := binaryMap[basename]
+
+		// Try full opt path first to avoid basename collisions between formulae.
+		// Apple Silicon Homebrew installs to /opt/homebrew/bin; Intel to /usr/local/bin.
+		pkg, found := optPathMap["/opt/homebrew/bin/"+basename]
+		if !found {
+			pkg, found = optPathMap["/usr/local/bin/"+basename]
+		}
+		if !found {
+			// Fall back to basename-only match for any remaining cases.
+			pkg, found = binaryMap[basename]
+		}
 		if !found {
 			continue // Not a managed Homebrew binary.
 		}
@@ -172,6 +188,27 @@ func buildBasenameMap(st *store.Store) (map[string]string, error) {
 		// BinaryPaths wasn't populated but the main binary matches the name).
 		if _, exists := m[pkg.Name]; !exists {
 			m[pkg.Name] = pkg.Name
+		}
+	}
+	return m, nil
+}
+
+// buildOptPathMap builds a map of full opt binary path → package name from
+// all packages stored in the database. This is the preferred lookup because it
+// disambiguates formulae that ship binaries sharing the same basename (e.g.
+// two packages both providing a "convert" binary).
+//
+// Example: {"/opt/homebrew/bin/git": "git", "/opt/homebrew/bin/rg": "ripgrep"}
+func buildOptPathMap(st *store.Store) (map[string]string, error) {
+	packages, err := st.ListPackages()
+	if err != nil {
+		return nil, fmt.Errorf("list packages: %w", err)
+	}
+
+	m := make(map[string]string, len(packages)*2)
+	for _, pkg := range packages {
+		for _, binPath := range pkg.BinaryPaths {
+			m[binPath] = pkg.Name
 		}
 	}
 	return m, nil
