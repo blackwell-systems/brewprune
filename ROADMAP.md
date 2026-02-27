@@ -19,81 +19,6 @@ The goal is for brewprune to feel like a missing feature of Homebrew, not a sepa
 
 ---
 
-## High priority
-
-### `brew services` integration
-Make `brew services start brewprune` the primary path. Add a service `do` stanza to the formula:
-```bash
-brew services start brewprune
-brew services stop brewprune
-brew services restart brewprune
-```
-Update Quick Start and `brewprune quickstart` so the blessed workflow becomes:
-```bash
-brew install brewprune
-brewprune scan
-brew services start brewprune
-```
-`brewprune watch --daemon` stays as a fallback for source installs. Drop the launchd plist from the primary docs path (keep in Daemon Mode as reference only).
-
-**Why:** people already trust `brew services` for daemon lifecycle. Removes the entire "daemon" mental model for most users.
-
----
-
-### Shim upgrade staleness fix (two-pronged)
-When users run `brew upgrade brewprune`, the shim binary at `~/.brewprune/bin/brewprune-shim` becomes stale — it's a copy of the old binary. Tracking silently breaks until the user remembers to rescan. This is the most "not brew-native" failure mode.
-
-**Primary fix — formula `post_install` hook:**
-After every brew install or upgrade, run `brewprune scan --refresh-shims` (fast path, no full rescan) to rebuild the shim binary and add any new symlinks.
-
-**Belt-and-suspenders — shim version check:**
-Embed a build version in the shim binary. On startup, compare against a version file at `~/.brewprune/shim.version`. If mismatch, log a rate-limited warning once:
-```
-brewprune upgraded; run 'brewprune scan' to refresh shims (or 'brewprune doctor').
-```
-This catches source installs and any case where the formula hook didn't run.
-
-**Why:** "I upgraded and it silently stopped tracking" is the first-user failure mode that kills trust.
-
----
-
-### `brewprune quickstart` as the one blessed workflow
-`quickstart` should handle the full setup end-to-end — no separate docs steps required:
-1. Run `brewprune scan`
-2. Verify `~/.brewprune/bin` is in PATH (write to the correct shell config if not)
-3. Start the service (`brew services start brewprune` if available, else `brewprune watch --daemon`)
-4. Run a self-test and confirm "tracking verified" before exiting
-
-First users should be able to run `brewprune quickstart` and have a fully working setup with zero separate steps.
-
----
-
-### `brewprune doctor` end-to-end self-test
-`doctor` currently checks static state (binary exists, daemon running, PATH order). It does not prove the pipeline actually works.
-
-Add a `brewprune _shimtest` internal command that:
-1. Runs a known shimmed binary (or a no-op built-in)
-2. Waits one daemon poll cycle (≤30s)
-3. Confirms the event appears in the database
-4. Reports pass/fail with timing
-
-Surface this in `brewprune doctor` as a live pipeline check. Also add unit tests asserting:
-- shim never execs itself (`findRealBinary("brewprune-shim") == ""`)
-- real path resolution never resolves into `~/.brewprune/bin`
-
-**Why:** would have caught the exec loop before it shipped. Cuts "why is nothing being tracked" issues entirely.
-
----
-
-### Exec path disambiguation in daemon
-`buildBasenameMap` maps `filepath.Base(binPath) → pkg.Name`. If two formulae ship the same binary name (e.g. `convert` from ImageMagick and another package), last-write wins silently.
-
-The shim already logs the full path (`/Users/.../.brewprune/bin/git`). The real binary resolves to `/opt/homebrew/bin/git`. Use the opt path for matching instead of basename alone.
-
-**Why:** correctness issue, not polish. Silent mis-attribution of usage events skews scores.
-
----
-
 ## Medium priority
 
 ### Brew-aware stale detection
@@ -109,16 +34,6 @@ New formulae detected since last scan. Run 'brewprune scan' to update shims.
 Wrap `brew` in a zsh function or use `~/.config/homebrew/brew-wrap` to trigger `brewprune scan --refresh-shims` automatically after installs/upgrades. Opt-in only.
 
 **Why:** "I installed something and forgot to scan" is the most common way tracking silently degrades.
-
----
-
-### Incremental scan (`--refresh-shims`)
-`brewprune scan` re-indexes all packages every time (~6s). Add `brewprune scan --refresh-shims` that:
-1. Diffs current `brew list` against the DB
-2. Only adds/removes symlinks for changed packages
-3. Skips the full dep tree rebuild if nothing structural changed
-
-Required before formula `post_install` hook can be fast enough to run on every upgrade.
 
 ---
 
@@ -167,15 +82,3 @@ Use headings that match the brew documentation mental model:
 Reframe the "daemon requirement" as "Enable tracking" — same truth, brew-native phrasing.
 
 ---
-
-## Already done
-
-- PATH shims replacing fsnotify (v0.1.3)
-- Shim binary bundled in Homebrew formula (v0.1.4)
-- Exec loop guard: `findRealBinary` returns `""` for `brewprune-shim` (v0.1.5)
-- `IsCritical` flag + 47 protected packages capped at score 70
-- `brewprune explain` for per-package score breakdown
-- `brewprune doctor` for static health checks
-- `brewprune quickstart` interactive setup
-- Crash-safe offset tracking (temp-file rename)
-- Automatic snapshots + `brewprune undo`
