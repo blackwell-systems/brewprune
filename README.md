@@ -13,7 +13,7 @@ You have 100+ Homebrew packages installed. You use 20 of them. The rest can quie
 **Requirements:**
 - macOS 12+ (Apple Silicon or Intel)
 - Homebrew installed
-- Formula support: full | Cask support: best-effort
+- Formula support: full (usage tracked via PATH shims) | Cask support: heuristic-only (no usage tracking)
 
 ## Privacy
 
@@ -338,20 +338,21 @@ This checks:
 ## Limitations & Accuracy
 
 **What brewprune tracks:**
-- Executed binaries installed by Homebrew formulae
-- App bundle access in /Applications (as a proxy for cask usage)
-- Direct binary execution via PATH shims (exact, not a proxy)
+- CLI tool executions — any Homebrew formula binary you run from a terminal (exact, via PATH shims)
 
 **What it doesn't track:**
-- Language imports (Python/Ruby/Node modules) unless a binary is executed
-- Packages used only via `import` statements
-- Background processes that don't execute binaries
+- **Casks** — GUI apps installed via `brew install --cask` have no CLI binary to shim; they will always show as "never used" regardless of how often you open them
+- Binaries invoked by full absolute path (e.g. `/opt/homebrew/bin/git`) — shim is bypassed
+- Binaries run from IDE terminals or scripts with a different PATH that doesn't include `~/.brewprune/bin`
+- Language imports (Python/Ruby/Node modules) unless a binary is also executed
+- Background daemons and launchd services that exec Homebrew binaries without going through your shell PATH
 
 **Accuracy notes:**
 - First 1-2 weeks may show misleading "never used" scores (insufficient data)
-- Cask usage detection is best-effort (app bundle access does not equal guaranteed user launch)
+- Casks will always score low — treat them as heuristic-only, not usage-based
 - Libraries without binaries will appear unused if only imported, not executed
-- Score is a heuristic, not a certainty—always review before removing
+- Score is a heuristic, not a certainty — always review before removing
+- Newly installed packages aren't shimmed until the next `brewprune scan`
 
 ## Comparison to alternatives
 
@@ -389,7 +390,7 @@ A: brewprune records package name + timestamp when Homebrew-managed executables 
 It only knows "this binary/app was accessed at this time."
 
 **Q: Does this work with Homebrew Cask?**
-A: Yes, with best-effort accuracy. brewprune monitors both Homebrew bin directories (formulae) and `/Applications` (casks). Cask usage detection is based on app bundle access, which is a proxy for user launch.
+A: Partially. Cask scoring is heuristic-only (age, dependencies, type) — brewprune has no way to intercept GUI app launches via PATH shims, since casks don't install CLI binaries. Casks will always show "never used" regardless of how often you open them. Treat cask recommendations with extra caution and review manually before removing.
 
 **Q: What if I use a package via a script?**
 A: As long as the script executes the binary directly, the shim will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage—be careful with `--medium` and `--risky` in this case.
