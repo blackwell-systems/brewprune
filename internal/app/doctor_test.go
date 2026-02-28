@@ -1,11 +1,16 @@
 package app
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/blackwell-systems/brewprune/internal/brew"
+	"github.com/blackwell-systems/brewprune/internal/store"
 )
 
 // TestRunDoctor_WarningOnlyExitsCode2 verifies that when the doctor command
@@ -91,5 +96,110 @@ func TestRunDoctor_CriticalIssueReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "diagnostics failed") {
 		t.Errorf("expected error to contain 'diagnostics failed', got: %v", err)
+	}
+}
+
+// captureStdout replaces os.Stdout with a pipe during f(), then restores it
+// and returns all bytes written to stdout.
+func captureStdout(t *testing.T, f func()) string {
+	t.Helper()
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = origStdout }()
+
+	f()
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return buf.String()
+}
+
+// TestRunDoctor_ActionLabelNotFix verifies that the doctor output never contains
+// the string "Fix:" — all action hints must use "Action:" instead.
+func TestRunDoctor_ActionLabelNotFix(t *testing.T) {
+	oldDBPath := dbPath
+	// Point at a missing DB so doctor prints its "not found" output (which
+	// previously contained "Fix:").
+	dbPath = "/dev/null/no/such/path/test.db"
+	defer func() { dbPath = oldDBPath }()
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — expected to fail
+	})
+
+	if strings.Contains(out, "Fix:") {
+		t.Errorf("doctor output must not contain 'Fix:' — found it in:\n%s", out)
+	}
+}
+
+// TestRunDoctor_PipelineTestShowsProgress verifies that when all critical checks
+// pass, doctor shows a progress indication ("Running pipeline test...") before
+// reporting the pipeline result.
+//
+// This test sets up a minimal but complete environment: a temp home with a real
+// database (containing one package) and a stub shim binary, so that checks 1–6
+// all pass and check 8 (the pipeline test) is reached.  The pipeline test will
+// fail (the stub shim won't actually record events), but the progress line must
+// still appear in the output before the failure message.
+func TestRunDoctor_PipelineTestShowsProgress(t *testing.T) {
+	// Create a temp home directory that the shim package will use for its
+	// default path (~/.brewprune/bin).
+	tmpHome := t.TempDir()
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("MkdirAll shimDir: %v", err)
+	}
+
+	// Create a stub shim binary (empty executable) so check 6 passes.
+	shimBin := filepath.Join(shimDir, "brewprune-shim")
+	if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatalf("WriteFile shimBin: %v", err)
+	}
+
+	// Create a real database with one package so checks 2 & 3 pass.
+	tmpDB := filepath.Join(tmpHome, "test.db")
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("CreateSchema: %v", err)
+	}
+	pkg := &brew.Package{
+		Name:        "testpkg",
+		Version:     "1.0",
+		InstalledAt: time.Now(),
+		InstallType: "explicit",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		st.Close()
+		t.Fatalf("InsertPackage: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath and HOME so getDBPath() and GetShimDir() both
+	// resolve into our temp directory.
+	oldDBPath := dbPath
+	dbPath = tmpDB
+	defer func() { dbPath = oldDBPath }()
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure is expected
+	})
+
+	// The spinner must have emitted the progress line (non-TTY path prints
+	// the message once with a trailing newline).
+	if !strings.Contains(out, "Running pipeline test...") {
+		t.Errorf("expected doctor output to contain 'Running pipeline test...', got:\n%s", out)
 	}
 }

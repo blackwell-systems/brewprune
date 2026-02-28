@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/blackwell-systems/brewprune/internal/watcher"
@@ -47,7 +48,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		criticalIssues++
 	} else if _, err := os.Stat(resolvedDBPath); os.IsNotExist(err) {
 		fmt.Println("✗ Database not found at:", resolvedDBPath)
-		fmt.Println("  Fix: Run 'brewprune scan' to create database")
+		fmt.Println("  Action: Run 'brewprune scan' to create database")
 		criticalIssues++
 	} else {
 		fmt.Println("✓ Database found:", resolvedDBPath)
@@ -70,7 +71,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				criticalIssues++
 			} else if len(packages) == 0 {
 				fmt.Println("✗ No packages in database")
-				fmt.Println("  Fix: Run 'brewprune scan'")
+				fmt.Println("  Action: Run 'brewprune scan'")
 				criticalIssues++
 			} else {
 				fmt.Printf("✓ %d packages tracked\n", len(packages))
@@ -99,7 +100,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		warningIssues++
 	} else if _, err := os.Stat(pidFile); os.IsNotExist(err) {
 		fmt.Println("⚠ Daemon not running (no PID file)")
-		fmt.Println("  Fix: Run 'brewprune watch --daemon'")
+		fmt.Println("  Action: Run 'brewprune watch --daemon'")
 		warningIssues++
 	} else {
 		running, err := watcher.IsDaemonRunning(pidFile)
@@ -108,7 +109,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			warningIssues++
 		} else if !running {
 			fmt.Println("⚠ Daemon not running (stale PID file)")
-			fmt.Println("  Fix: Run 'brewprune watch --daemon'")
+			fmt.Println("  Action: Run 'brewprune watch --daemon'")
 			warningIssues++
 		} else {
 			// Get PID if daemon is running
@@ -132,7 +133,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		shimBin := shimDir + "/brewprune-shim"
 		if _, err := os.Stat(shimBin); os.IsNotExist(err) {
 			fmt.Println("✗ Shim binary not found — usage tracking disabled")
-			fmt.Println("  Fix: Run 'brewprune scan' to build it")
+			fmt.Println("  Action: Run 'brewprune scan' to build it")
 			criticalIssues++
 		} else {
 			fmt.Println("✓ Shim binary found:", shimBin)
@@ -140,7 +141,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			// Check 7: Shim directory in PATH — warning only
 			if ok, reason := shim.IsShimSetup(); !ok {
 				fmt.Println("⚠ Shim directory not in PATH — executions won't be intercepted")
-				fmt.Printf("  Fix: %s\n", reason)
+				fmt.Printf("  Action: %s\n", reason)
 				warningIssues++
 			} else {
 				// Count symlinks in shim dir
@@ -169,15 +170,16 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			criticalIssues++
 		} else {
 			defer db2.Close()
+			spinner := output.NewSpinner("Running pipeline test...")
 			pipelineErr := RunShimTest(db2, 35*time.Second)
 			pipelineElapsed := time.Since(pipelineStart).Round(time.Millisecond)
 			if pipelineErr != nil {
-				fmt.Printf("✗ Pipeline test: fail (%v)\n", pipelineElapsed)
+				spinner.StopWithMessage(fmt.Sprintf("✗ Pipeline test: fail (%v)", pipelineElapsed))
 				fmt.Printf("  %v\n", pipelineErr)
-				fmt.Println("  Fix: Run 'brewprune scan' to rebuild shims and restart the daemon")
+				fmt.Println("  Action: Run 'brewprune scan' to rebuild shims and restart the daemon")
 				criticalIssues++
 			} else {
-				fmt.Printf("✓ Pipeline test: pass (%v)\n", pipelineElapsed)
+				spinner.StopWithMessage(fmt.Sprintf("✓ Pipeline test: pass (%v)", pipelineElapsed))
 			}
 		}
 	}

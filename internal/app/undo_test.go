@@ -2,8 +2,8 @@ package app
 
 import (
 	"bytes"
-	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -78,16 +78,27 @@ func TestUndoCommandRegistration(t *testing.T) {
 }
 
 func TestUndoUsageExamples(t *testing.T) {
-	// Verify the command has examples in the long description
+	// Verify the command has a long description
 	if undoCmd.Long == "" {
 		t.Error("undoCmd.Long is empty")
 	}
 
-	// Check for key keywords in the long description
-	keywords := []string{"snapshot", "restore", "latest", "list"}
-	for _, keyword := range keywords {
+	// Check for key keywords in the long description (flags/examples moved to Example field)
+	longKeywords := []string{"snapshot", "restore", "latest"}
+	for _, keyword := range longKeywords {
 		if !contains(undoCmd.Long, keyword) {
 			t.Errorf("undoCmd.Long missing keyword %q", keyword)
+		}
+	}
+
+	// Check that Example field contains examples
+	if undoCmd.Example == "" {
+		t.Error("undoCmd.Example is empty")
+	}
+	exampleKeywords := []string{"--list", "latest", "undo"}
+	for _, keyword := range exampleKeywords {
+		if !contains(undoCmd.Example, keyword) {
+			t.Errorf("undoCmd.Example missing keyword %q", keyword)
 		}
 	}
 }
@@ -162,59 +173,141 @@ func TestUndoSnapshotIDParsing(t *testing.T) {
 
 // TestRunUndo_LatestNoSnapshotsFriendlyMessage verifies that when
 // `brewprune undo latest` is invoked and there are no snapshots, the command
-// prints a friendly multi-line message and returns nil (no error).
+// prints an "Error:"-prefixed message to stderr.
+//
+// Since runUndo calls os.Exit(1) in this path, this test uses the subprocess
+// pattern to avoid terminating the test process.
 func TestRunUndo_LatestNoSnapshotsFriendlyMessage(t *testing.T) {
-	// Use a temp file DB with the full schema so ListSnapshots returns an
-	// empty slice (not an error due to missing table).
-	tmpDir := t.TempDir()
-	tmpDB := tmpDir + "/undo_test.db"
+	if os.Getenv("BREWPRUNE_TEST_UNDO_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDir := t.TempDir()
+		tmpDB := tmpDir + "/undo_test.db"
 
-	st, stErr := store.New(tmpDB)
-	if stErr != nil {
-		t.Fatalf("failed to create store: %v", stErr)
-	}
-	if schemaErr := st.CreateSchema(); schemaErr != nil {
-		st.Close()
-		t.Fatalf("failed to create schema: %v", schemaErr)
-	}
-	st.Close()
-
-	oldDBPath := dbPath
-	dbPath = tmpDB
-	defer func() { dbPath = oldDBPath }()
-
-	// Capture stdout.
-	origStdout := os.Stdout
-	r, w, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatalf("os.Pipe: %v", pipeErr)
-	}
-	os.Stdout = w
-
-	cmd := &cobra.Command{}
-	runErr := runUndo(cmd, []string{"latest"})
-
-	w.Close()
-	os.Stdout = origStdout
-
-	var buf bytes.Buffer
-	if _, copyErr := io.Copy(&buf, r); copyErr != nil {
-		t.Fatalf("failed to read captured output: %v", copyErr)
-	}
-	output := buf.String()
-
-	if runErr != nil {
-		t.Errorf("expected runUndo to return nil when no snapshots, got: %v", runErr)
-	}
-
-	expectedPhrases := []string{
-		"No snapshots available",
-		"brewprune remove",
-	}
-	for _, phrase := range expectedPhrases {
-		if !strings.Contains(output, phrase) {
-			t.Errorf("expected output to contain %q, got:\n%s", phrase, output)
+		st, stErr := store.New(tmpDB)
+		if stErr != nil {
+			os.Exit(2)
 		}
+		if schemaErr := st.CreateSchema(); schemaErr != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		// This will call os.Exit(1) internally when no snapshots found.
+		runUndo(cmd, []string{"latest"}) //nolint:errcheck
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunUndo_LatestNoSnapshotsFriendlyMessage", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_UNDO_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
+	err := cmd.Run()
+
+	stderrOutput := stderrBuf.String()
+
+	// Expect exit code 1
+	if err == nil {
+		t.Error("expected subprocess to exit non-zero, got exit 0")
+	}
+
+	// Verify "Error:" prefix appears in stderr
+	if !strings.Contains(stderrOutput, "Error:") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "Error:", stderrOutput)
+	}
+
+	// Verify helpful message appears in stderr
+	if !strings.Contains(stderrOutput, "brewprune remove") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "brewprune remove", stderrOutput)
+	}
+}
+
+// TestRunUndo_LatestNoSnapshots_ExitsNonZero verifies that `undo latest` with
+// no snapshots exits with code 1 and prints an "Error:"-prefixed message to
+// stderr. Uses subprocess pattern because runUndo calls os.Exit(1).
+func TestRunUndo_LatestNoSnapshots_ExitsNonZero(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_UNDO_EXITCODE_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDir := t.TempDir()
+		tmpDB := tmpDir + "/undo_exitcode_test.db"
+
+		st, stErr := store.New(tmpDB)
+		if stErr != nil {
+			os.Exit(2)
+		}
+		if schemaErr := st.CreateSchema(); schemaErr != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		runUndo(cmd, []string{"latest"}) //nolint:errcheck
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunUndo_LatestNoSnapshots_ExitsNonZero", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_UNDO_EXITCODE_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
+	err := cmd.Run()
+	stderrOutput := stderrBuf.String()
+
+	if err == nil {
+		t.Fatal("expected subprocess to exit non-zero, got exit 0")
+	}
+
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("unexpected error type: %v", err)
+	}
+	if exitErr.ExitCode() != 1 {
+		t.Errorf("expected exit code 1, got %d", exitErr.ExitCode())
+	}
+
+	if !strings.Contains(stderrOutput, "Error:") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "Error:", stderrOutput)
+	}
+}
+
+// TestUndoHelp_UsageComesBeforeExamples verifies that in the rendered help
+// output, "Usage:" appears before "Examples:" — confirming standard cobra
+// section ordering after the Long/Example restructure.
+func TestUndoHelp_UsageComesBeforeExamples(t *testing.T) {
+	// Capture help output from the command.
+	var buf bytes.Buffer
+	undoCmd.SetOut(&buf)
+	undoCmd.SetErr(&buf)
+	undoCmd.SetArgs([]string{"--help"})
+
+	// Execute help — cobra handles --help by printing and returning nil.
+	_ = undoCmd.Help()
+
+	help := buf.String()
+
+	usageIdx := strings.Index(help, "Usage:")
+	examplesIdx := strings.Index(help, "Examples:")
+
+	if usageIdx == -1 {
+		t.Error("help output missing \"Usage:\" section")
+	}
+	if examplesIdx == -1 {
+		t.Error("help output missing \"Examples:\" section")
+	}
+	if usageIdx != -1 && examplesIdx != -1 && usageIdx >= examplesIdx {
+		t.Errorf("expected \"Usage:\" (index %d) to appear before \"Examples:\" (index %d) in help output:\n%s",
+			usageIdx, examplesIdx, help)
 	}
 }
 

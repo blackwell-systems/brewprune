@@ -28,14 +28,8 @@ and can be used to rollback changes.
 
 Arguments:
   snapshot-id  The numeric ID of the snapshot to restore
-  latest       Restore the most recent snapshot
-
-Flags:
-  --list       List all available snapshots
-  --yes        Skip confirmation prompt
-
-Examples:
-  brewprune undo --list           # List all snapshots
+  latest       Restore the most recent snapshot`,
+	Example: `  brewprune undo --list           # List all snapshots
   brewprune undo latest           # Restore latest snapshot
   brewprune undo 42               # Restore snapshot ID 42
   brewprune undo 42 --yes         # Restore without confirmation`,
@@ -86,12 +80,12 @@ func runUndo(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to list snapshots: %w", listErr)
 		}
 
-		// [UNDO-1] Friendly message when no snapshots exist instead of an error.
+		// [UNDO-1] Error message when no snapshots exist; exit non-zero.
 		if len(snaps) == 0 {
-			fmt.Println("No snapshots available.")
-			fmt.Println("\nSnapshots are automatically created before package removal.")
-			fmt.Println("Use 'brewprune remove' to remove packages and create snapshots.")
-			return nil
+			fmt.Fprintln(os.Stderr, "Error: no snapshots available.")
+			fmt.Fprintln(os.Stderr, "\nSnapshots are automatically created before package removal.")
+			fmt.Fprintln(os.Stderr, "Use 'brewprune remove' to remove packages and create snapshots.")
+			os.Exit(1)
 		}
 
 		// Snapshots are ordered by creation time (newest first)

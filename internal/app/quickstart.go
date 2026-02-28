@@ -3,9 +3,11 @@ package app
 import (
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/shell"
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
@@ -68,12 +70,9 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	// ── Step 3: Start the service ─────────────────────────────────────────────
 	fmt.Println("Step 3/4: Starting usage tracking service")
 	if brewPath, lookErr := exec.LookPath("brew"); lookErr == nil {
-		fmt.Printf("  brew found at %s — running: brew services start brewprune\n", brewPath)
-		serviceCmd := exec.Command("brew", "services", "start", "brewprune") //nolint:gosec
-		serviceCmd.Stdout = nil
-		serviceCmd.Stderr = nil
-		if serviceErr := serviceCmd.Run(); serviceErr != nil {
-			fmt.Printf("  ⚠ brew services start failed (%v) — falling back to brewprune watch --daemon\n", serviceErr)
+		if runtime.GOOS == "linux" {
+			// brew services is not reliable on Linux; skip directly to daemon
+			fmt.Println("  brew found but using daemon mode (brew services not supported on Linux)")
 			if daemonErr := startWatchDaemonFallback(cmd, args); daemonErr != nil {
 				if strings.Contains(daemonErr.Error(), "already running") {
 					fmt.Println("  ✓ Daemon already running")
@@ -85,7 +84,26 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 				fmt.Println("  ✓ Usage tracking daemon started (watch --daemon)")
 			}
 		} else {
-			fmt.Println("  ✓ brewprune service started via brew services")
+			// macOS: try brew services first
+			fmt.Printf("  brew found at %s — running: brew services start brewprune\n", brewPath)
+			serviceCmd := exec.Command("brew", "services", "start", "brewprune") //nolint:gosec
+			serviceCmd.Stdout = nil
+			serviceCmd.Stderr = nil
+			if serviceErr := serviceCmd.Run(); serviceErr != nil {
+				fmt.Println("  brew services unavailable — using daemon mode")
+				if daemonErr := startWatchDaemonFallback(cmd, args); daemonErr != nil {
+					if strings.Contains(daemonErr.Error(), "already running") {
+						fmt.Println("  ✓ Daemon already running")
+					} else {
+						fmt.Printf("  ⚠ Could not start daemon: %v\n", daemonErr)
+						fmt.Println("  Run 'brewprune watch --daemon' manually after setup.")
+					}
+				} else {
+					fmt.Println("  ✓ Usage tracking daemon started (watch --daemon)")
+				}
+			} else {
+				fmt.Println("  ✓ brewprune service started via brew services")
+			}
 		}
 	} else {
 		fmt.Println("  brew not found in PATH — starting: brewprune watch --daemon")
@@ -115,13 +133,13 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 			fmt.Println("  Run 'brewprune doctor' for diagnostics")
 		} else {
 			defer db.Close()
-			fmt.Println("  Waiting up to 35s for a usage event to appear in the database...")
+			spinner := output.NewSpinner("Verifying shim → daemon → database pipeline (up to 35s)...")
 			testErr := RunShimTest(db, 35*time.Second)
 			if testErr != nil {
-				fmt.Printf("  ⚠ Self-test did not confirm tracking: %v\n", testErr)
+				spinner.StopWithMessage(fmt.Sprintf("  ⚠ Self-test did not confirm tracking: %v", testErr))
 				fmt.Println("  Run 'brewprune doctor' for diagnostics")
 			} else {
-				fmt.Println("  ✓ Tracking verified — brewprune is working")
+				spinner.StopWithMessage("  ✓ Tracking verified — brewprune is working")
 			}
 		}
 	}
@@ -138,6 +156,9 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Check status anytime: brewprune status")
 	fmt.Println("Run diagnostics:      brewprune doctor")
+	fmt.Println()
+	fmt.Println("Note: If doctor reports 'PATH missing', restart your shell or run:")
+	fmt.Println("  source ~/.profile  (or ~/.zshrc / ~/.bashrc depending on your shell)")
 
 	return nil
 }

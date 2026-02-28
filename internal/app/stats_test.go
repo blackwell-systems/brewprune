@@ -30,7 +30,7 @@ func TestStatsCommand_Registration(t *testing.T) {
 
 func TestStatsCommand_Flags(t *testing.T) {
 	// Test that all expected flags are defined
-	flags := []string{"days", "package"}
+	flags := []string{"days", "package", "all"}
 
 	for _, flagName := range flags {
 		flag := statsCmd.Flags().Lookup(flagName)
@@ -428,5 +428,207 @@ func TestShowPackageStats_ColorLogic(t *testing.T) {
 					tt.freq, tt.expectedColor, tt.colorName, got)
 			}
 		})
+	}
+}
+
+// TestShowUsageTrends_HidesZeroUsageByDefault verifies that with statsAll=false
+// (the default), packages with 0 TotalRuns are not shown and the "hidden" hint
+// is printed.
+func TestShowUsageTrends_HidesZeroUsageByDefault(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+
+	pkgs := []*brew.Package{
+		{Name: "used-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "unused-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	event := &store.UsageEvent{
+		Package:    "used-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/used-pkg",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = false
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "used-pkg") {
+		t.Errorf("expected 'used-pkg' in output, got:\n%s", out)
+	}
+
+	if strings.Contains(out, "unused-pkg") {
+		t.Errorf("expected 'unused-pkg' to be hidden, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "hidden") {
+		t.Errorf("expected hidden-packages hint in output, got:\n%s", out)
+	}
+}
+
+// TestShowUsageTrends_ShowAllFlag verifies that with statsAll=true, all packages
+// including those with 0 usage appear in the output.
+func TestShowUsageTrends_ShowAllFlag(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+
+	pkgs := []*brew.Package{
+		{Name: "used-pkg2", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "unused-pkg2", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	event := &store.UsageEvent{
+		Package:    "used-pkg2",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/used-pkg2",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = true
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "used-pkg2") {
+		t.Errorf("expected 'used-pkg2' in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "unused-pkg2") {
+		t.Errorf("expected 'unused-pkg2' in output with --all, got:\n%s", out)
+	}
+}
+
+// TestShowPackageStats_ZeroUsage_ShowsExplainHint verifies that when a package
+// has 0 TotalUses the output contains a pointer to 'brewprune explain'.
+func TestShowPackageStats_ZeroUsage_ShowsExplainHint(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	pkg := &brew.Package{
+		Name:        "zero-use-pkg",
+		Version:     "1.0.0",
+		InstalledAt: time.Now().AddDate(0, 0, -30),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showPackageStats(a, "zero-use-pkg")
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showPackageStats returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "brewprune explain") {
+		t.Errorf("expected 'brewprune explain' hint in output for zero-usage package, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "zero-use-pkg") {
+		t.Errorf("expected package name in explain hint, got:\n%s", out)
 	}
 }

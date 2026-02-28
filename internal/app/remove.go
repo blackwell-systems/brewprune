@@ -31,10 +31,15 @@ var removeCmd = &cobra.Command{
 	Short: "Remove unused Homebrew packages",
 	Long: `Remove unused Homebrew packages based on confidence tiers or explicit list.
 
-If no packages are specified, removes packages based on tier flags:
-  --safe:   Remove only safe-tier packages (high confidence, no impact)
-  --medium: Remove safe and medium-tier packages
-  --risky:  Remove all unused packages (requires confirmation)
+If no packages are specified, removes packages based on tier:
+  --tier safe     Remove only safe-tier packages (high confidence, no impact)
+  --tier medium   Remove safe and medium-tier packages
+  --tier risky    Remove all unused packages (requires confirmation)
+
+Tier shortcut flags (equivalent to --tier):
+  --safe    same as --tier safe
+  --medium  same as --tier medium
+  --risky   same as --tier risky
 
 If packages are specified, validates and removes those specific packages.
 
@@ -66,7 +71,7 @@ func init() {
 	removeCmd.Flags().BoolVar(&removeFlagDryRun, "dry-run", false, "Show what would be removed without removing")
 	removeCmd.Flags().BoolVar(&removeFlagYes, "yes", false, "Skip confirmation prompts")
 	removeCmd.Flags().BoolVar(&removeFlagNoSnapshot, "no-snapshot", false, "Skip automatic snapshot creation (dangerous)")
-	removeCmd.Flags().StringVar(&removeTierFlag, "tier", "", "Remove packages of specified tier: safe, medium, risky")
+	removeCmd.Flags().StringVar(&removeTierFlag, "tier", "", "Remove packages of specified tier: safe, medium, risky (shortcut: --safe, --medium, --risky)")
 
 	RootCmd.AddCommand(removeCmd)
 }
@@ -111,7 +116,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		for _, pkg := range packagesToRemove {
 			pkgInfo, err := st.GetPackage(pkg)
 			if err != nil {
-				return fmt.Errorf("package %s not found: %w", pkg, err)
+				return fmt.Errorf("package %q not found", pkg)
 			}
 			totalSize += pkgInfo.SizeBytes
 		}

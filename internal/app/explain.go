@@ -55,12 +55,13 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	a := analyzer.New(st)
 
 	// Check if package exists
-	// [EXPLAIN-1] Print directly to stderr and return nil so main.go's error
-	// handler is never reached, guaranteeing exactly one print.
+	// [EXPLAIN-1] Print directly to stderr and call os.Exit(1) so main.go's
+	// error handler is never reached (guaranteeing exactly one print) AND the
+	// exit code is non-zero for the error condition.
 	_, err = st.GetPackage(packageName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: package not found: %s\nRun 'brewprune scan' to update package database\n", packageName)
-		return nil
+		os.Exit(1)
 	}
 
 	// Compute score
@@ -115,32 +116,36 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 
 	// Detailed Breakdown Table
 	fmt.Println("\nDetailed Breakdown:")
-	fmt.Println("┌─────────────────────┬─────────┬──────────────────────────────────────┐")
-	fmt.Println("│ Component           │ Points  │ Detail                               │")
-	fmt.Println("├─────────────────────┼─────────┼──────────────────────────────────────┤")
-	fmt.Printf("│ Usage               │ %2d/40   │ %-36s │\n",
-		score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 36))
-	fmt.Printf("│ Dependencies        │ %2d/30   │ %-36s │\n",
-		score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 36))
-	fmt.Printf("│ Age                 │ %2d/20   │ %-36s │\n",
-		score.AgeScore, truncateDetail(score.Explanation.AgeDetail, 36))
-	fmt.Printf("│ Type                │ %2d/10   │ %-36s │\n",
-		score.TypeScore, truncateDetail(score.Explanation.TypeDetail, 36))
+	fmt.Println("┌─────────────────────┬─────────┬────────────────────────────────────────────────────┐")
+	fmt.Println("│ Component           │  Score  │ Detail                                             │")
+	fmt.Println("├─────────────────────┼─────────┼────────────────────────────────────────────────────┤")
+	fmt.Printf("│ Usage               │ %2d/40   │ %-50s │\n",
+		score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 50))
+	fmt.Printf("│ Dependencies        │ %2d/30   │ %-50s │\n",
+		score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 50))
+	fmt.Printf("│ Age                 │ %2d/20   │ %-50s │\n",
+		score.AgeScore, truncateDetail(score.Explanation.AgeDetail, 50))
+	fmt.Printf("│ Type                │ %2d/10   │ %-50s │\n",
+		score.TypeScore, truncateDetail(score.Explanation.TypeDetail, 50))
 
 	if score.IsCritical {
-		fmt.Println("│ Criticality Penalty │   -30   │ core dependency (capped at 70)       │")
+		fmt.Println("│ Criticality Penalty │   -30   │ core dependency (capped at 70)                     │")
 	}
 
-	fmt.Println("├─────────────────────┼─────────┼──────────────────────────────────────┤")
+	fmt.Println("├─────────────────────┼─────────┼────────────────────────────────────────────────────┤")
 	// [EXPLAIN-3] Compute padding on plain string first, then wrap with color
 	// to avoid ANSI codes inflating the fmt width count.
-	tierLabel := truncateDetail(strings.ToUpper(score.Tier)+" tier", 36)
-	paddedLabel := fmt.Sprintf("%-36s", tierLabel)
+	tierLabel := truncateDetail(strings.ToUpper(score.Tier)+" tier", 50)
+	paddedLabel := fmt.Sprintf("%-50s", tierLabel)
 	fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%s%s │\n",
 		colorBold, colorReset,
 		tierColor, score.Score, colorReset,
 		tierColor, paddedLabel, colorReset)
-	fmt.Println("└─────────────────────┴─────────┴──────────────────────────────────────┘")
+	fmt.Println("└─────────────────────┴─────────┴────────────────────────────────────────────────────┘")
+
+	fmt.Println()
+	fmt.Println("Note: Higher removal score = more confident to remove.")
+	fmt.Println("      Usage: 0/40 means recently used (lower = keep this package).")
 
 	// Why this tier
 	fmt.Printf("\n%sWhy %s:%s %s\n", colorBold, strings.ToUpper(score.Tier), colorReset, score.Reason)

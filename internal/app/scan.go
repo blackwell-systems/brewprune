@@ -9,6 +9,7 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/scanner"
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
+	"github.com/blackwell-systems/brewprune/internal/watcher"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
@@ -221,18 +222,32 @@ func runScan(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Printf("Scan complete: %d packages found (%s total)\n", len(packages), formatSize(totalSize))
 
-		// Show PATH setup instructions if shims were created but shimDir not in PATH.
+		// Show next-step guidance based on daemon state.
+		pidFile, pidErr := getDefaultPIDFile()
+		daemonAlreadyRunning := false
+		if pidErr == nil {
+			if running, runErr := watcher.IsDaemonRunning(pidFile); runErr == nil && running {
+				daemonAlreadyRunning = true
+			}
+		}
+
 		if shimCount > 0 {
 			if ok, reason := shim.IsShimSetup(); !ok {
 				fmt.Printf("\n⚠ Usage tracking requires one more step:\n  %s\n", reason)
 				fmt.Println("  Then restart your shell and run: brewprune watch --daemon")
+			} else if daemonAlreadyRunning {
+				fmt.Println("\n✓ Daemon is running — usage tracking is active.")
 			} else {
 				fmt.Println("\n⚠ NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
 				fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
 			}
 		} else {
-			fmt.Println("\n⚠ NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
-			fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
+			if daemonAlreadyRunning {
+				fmt.Println("\n✓ Daemon is running — usage tracking is active.")
+			} else {
+				fmt.Println("\n⚠ NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
+				fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
+			}
 		}
 		fmt.Println()
 

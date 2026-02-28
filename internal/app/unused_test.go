@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -308,6 +309,53 @@ func TestRunUnused_CasksNoCasksInstalledMessage(t *testing.T) {
 		} else {
 			// correct path: "No casks match the specified criteria (3 cask(s) installed)."
 		}
+	}
+}
+
+func TestSortScores_AgeWithTieBreak(t *testing.T) {
+	// All packages have identical InstalledAt times; result must be alphabetical.
+	sameTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	scores := []*analyzer.ConfidenceScore{
+		{Package: "zebra", Score: 50, Tier: "safe", InstalledAt: sameTime},
+		{Package: "apple", Score: 70, Tier: "safe", InstalledAt: sameTime},
+		{Package: "mango", Score: 60, Tier: "safe", InstalledAt: sameTime},
+	}
+
+	sortScores(scores, "age")
+
+	expected := []string{"apple", "mango", "zebra"}
+	for i, want := range expected {
+		if scores[i].Package != want {
+			t.Errorf("position %d: got %s, want %s", i, scores[i].Package, want)
+		}
+	}
+}
+
+func TestSortScores_ScoreWithTieBreak(t *testing.T) {
+	// All packages have identical scores; result must be alphabetical.
+	scores := []*analyzer.ConfidenceScore{
+		{Package: "zebra", Score: 75, Tier: "medium"},
+		{Package: "apple", Score: 75, Tier: "medium"},
+		{Package: "mango", Score: 75, Tier: "medium"},
+	}
+
+	sortScores(scores, "score")
+
+	expected := []string{"apple", "mango", "zebra"}
+	for i, want := range expected {
+		if scores[i].Package != want {
+			t.Errorf("position %d: got %s, want %s", i, scores[i].Package, want)
+		}
+	}
+}
+
+func TestMinScoreFlagDescription(t *testing.T) {
+	flag := unusedCmd.Flag("min-score")
+	if flag == nil {
+		t.Fatal("min-score flag not found")
+	}
+	if !strings.Contains(flag.Usage, "explain") {
+		t.Errorf("min-score flag Usage does not contain 'explain': %q", flag.Usage)
 	}
 }
 

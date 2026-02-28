@@ -95,10 +95,10 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  0,
 				},
 			},
-			contains: []string{"node", "6 MB", "0", "never", "\u2014", "✓ safe"},
+			contains: []string{"node", "6 MB", "85/100", "0", "never", "\u2014", "✓ safe"},
 		},
 		{
-			name: "risky score shows keep",
+			name: "risky score shows risky",
 			scores: []ConfidenceScore{
 				{
 					Package:   "openssl@3",
@@ -110,10 +110,10 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  14,
 				},
 			},
-			contains: []string{"openssl@3", "79 MB", "14 packages", "keep"},
+			contains: []string{"openssl@3", "79 MB", "30/100", "14 packages", "⚠ risky"},
 		},
 		{
-			name: "critical score shows keep",
+			name: "critical score shows risky",
 			scores: []ConfidenceScore{
 				{
 					Package:    "git",
@@ -126,7 +126,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 					IsCritical: true,
 				},
 			},
-			contains: []string{"git", "63 MB", "8", "5 packages", "keep"},
+			contains: []string{"git", "63 MB", "40/100", "8", "5 packages", "⚠ risky"},
 		},
 		{
 			name: "medium score",
@@ -167,8 +167,8 @@ func TestRenderConfidenceTable(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"ripgrep", "6 MB", "\u2014", "✓ safe",
-				"openssl@3", "79 MB", "14 packages", "keep",
+				"ripgrep", "90/100", "6 MB", "\u2014", "✓ safe",
+				"openssl@3", "30/100", "79 MB", "14 packages", "⚠ risky",
 			},
 		},
 	}
@@ -477,6 +477,74 @@ func TestTruncate(t *testing.T) {
 				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestRenderConfidenceTable_ScoreColumnPresent verifies the Score column appears
+// in the header and that row scores are formatted as N/100.
+func TestRenderConfidenceTable_ScoreColumnPresent(t *testing.T) {
+	scores := []ConfidenceScore{
+		{
+			Package:   "wget",
+			Score:     80,
+			Tier:      "safe",
+			LastUsed:  time.Time{},
+			SizeBytes: 1048576,
+			Uses7d:    2,
+			DepCount:  0,
+		},
+	}
+
+	result := RenderConfidenceTable(scores)
+
+	if !strings.Contains(result, "Score") {
+		t.Errorf("expected 'Score' column header in output, got:\n%s", result)
+	}
+	if !strings.Contains(result, "80/100") {
+		t.Errorf("expected score formatted as '80/100' in output, got:\n%s", result)
+	}
+}
+
+// TestRenderConfidenceTable_RiskyLabel verifies that a risky-tier package
+// renders as "⚠ risky" (not "✗ keep").
+func TestRenderConfidenceTable_RiskyLabel(t *testing.T) {
+	scores := []ConfidenceScore{
+		{
+			Package:   "openssl@3",
+			Score:     25,
+			Tier:      "risky",
+			LastUsed:  time.Now().Add(-48 * time.Hour),
+			SizeBytes: 82837504,
+			Uses7d:    0,
+			DepCount:  12,
+		},
+	}
+
+	result := RenderConfidenceTable(scores)
+
+	if !strings.Contains(result, "⚠ risky") {
+		t.Errorf("expected '⚠ risky' label for risky tier, got:\n%s", result)
+	}
+	if strings.Contains(result, "✗ keep") {
+		t.Errorf("expected '✗ keep' to be gone, but still present in output:\n%s", result)
+	}
+}
+
+// TestFormatTierLabel_Risky verifies formatTierLabel("risky", false) returns "⚠ risky".
+func TestFormatTierLabel_Risky(t *testing.T) {
+	got := formatTierLabel("risky", false)
+	want := "⚠ risky"
+	if got != want {
+		t.Errorf("formatTierLabel(%q, false) = %q, want %q", "risky", got, want)
+	}
+}
+
+// TestFormatTierLabel_Critical verifies formatTierLabel("risky", true) returns "⚠ risky".
+func TestFormatTierLabel_Critical(t *testing.T) {
+	got := formatTierLabel("risky", true)
+	want := "⚠ risky"
+	if got != want {
+		t.Errorf("formatTierLabel(%q, true) = %q, want %q", "risky", got, want)
 	}
 }
 

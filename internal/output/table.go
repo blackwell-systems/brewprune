@@ -98,17 +98,18 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s\n",
-		"Package", "Size", "Uses (7d)", "Last Used", "Depended On", "Status"))
-	sb.WriteString(strings.Repeat("─", 80))
+	sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
+		"Package", "Size", "Score", "Uses (7d)", "Last Used", "Depended On", "Status"))
+	sb.WriteString(strings.Repeat("─", 88))
 	sb.WriteString("\n")
 
 	// Rows
 	for _, score := range scores {
 		size := formatSize(score.SizeBytes)
 		depStr := formatDepCount(score.DepCount)
+		scoreStr := fmt.Sprintf("%d/100", score.Score)
 
-		// For risky/critical packages, show "keep" instead of tier name
+		// For risky/critical packages, show "⚠ risky" instead of tier name
 		tierLabel := formatTierLabel(score.Tier, score.IsCritical)
 		tierColor := getTierColor(score.Tier)
 
@@ -124,9 +125,10 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 		}
 
 		if IsColorEnabled() {
-			sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s%s%s\n",
+			sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s%s%s\n",
 				truncate(score.Package, 16),
 				size,
+				scoreStr,
 				usesStr,
 				lastUsed,
 				depStr,
@@ -134,9 +136,10 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 				tierLabel,
 				colorReset))
 		} else {
-			sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s\n",
+			sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
 				truncate(score.Package, 16),
 				size,
+				scoreStr,
 				usesStr,
 				lastUsed,
 				depStr,
@@ -159,7 +162,7 @@ func formatDepCount(count int) string {
 }
 
 // formatTierLabel returns the display label for a tier in the table.
-// Risky or critical packages show a cross-mark keep indicator.
+// Risky or critical packages show a warning indicator.
 // Safe packages show "✓ safe", medium packages show "~ review".
 func formatTierLabel(tier string, isCritical bool) string {
 	switch strings.ToLower(tier) {
@@ -168,7 +171,7 @@ func formatTierLabel(tier string, isCritical bool) string {
 	case "medium":
 		return "~ review"
 	default: // risky or critical
-		return "✗ keep"
+		return "⚠ risky"
 	}
 }
 

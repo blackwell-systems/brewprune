@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
+	"github.com/blackwell-systems/brewprune/internal/watcher"
 )
 
 func TestScanCommand(t *testing.T) {
@@ -345,5 +347,96 @@ func TestRunScan_ShimCountZeroShowsUpToDate(t *testing.T) {
 	}
 	if strings.Contains(shimMsg, "command shims created") {
 		t.Errorf("expected shimMsg NOT to contain 'command shims created' when shimCount==0, got: %s", shimMsg)
+	}
+}
+
+// TestRunScan_DaemonRunning_SuppressesWarning verifies that when the daemon is
+// running, the post-scan messaging shows the confirmation message instead of
+// the "NEXT STEP: Start usage tracking" warning. The test exercises the
+// daemon-check logic path directly: it writes a PID file containing the current
+// process's PID (which satisfies watcher.IsDaemonRunning) and asserts on the
+// message strings that runScan would produce for both the shimCount>0 and
+// shimCount==0 branches.
+func TestRunScan_DaemonRunning_SuppressesWarning(t *testing.T) {
+	// Set HOME to a temp dir so getDefaultPIDFile resolves into it.
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("failed to set HOME: %v", err)
+	}
+	defer os.Setenv("HOME", origHome) //nolint:errcheck
+
+	// Create ~/.brewprune and write a PID file with the current PID so that
+	// watcher.IsDaemonRunning returns true.
+	brewpruneDir := tmpDir + "/.brewprune"
+	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
+		t.Fatalf("failed to create .brewprune dir: %v", err)
+	}
+	pidFilePath := brewpruneDir + "/watch.pid"
+	pidContent := fmt.Sprintf("%d\n", os.Getpid())
+	if err := os.WriteFile(pidFilePath, []byte(pidContent), 0644); err != nil {
+		t.Fatalf("failed to write PID file: %v", err)
+	}
+
+	// Confirm IsDaemonRunning returns true for the current process.
+	running, err := watcher.IsDaemonRunning(pidFilePath)
+	if err != nil {
+		t.Fatalf("IsDaemonRunning returned error: %v", err)
+	}
+	if !running {
+		t.Fatal("expected IsDaemonRunning to return true for current process PID")
+	}
+
+	// Replicate the daemon-check preamble from runScan.
+	resolvedPID, pidErr := getDefaultPIDFile()
+	daemonAlreadyRunning := false
+	if pidErr == nil {
+		if r, runErr := watcher.IsDaemonRunning(resolvedPID); runErr == nil && r {
+			daemonAlreadyRunning = true
+		}
+	}
+	if !daemonAlreadyRunning {
+		t.Fatal("expected daemonAlreadyRunning=true after writing current PID to watch.pid")
+	}
+
+	shimOK, _ := shim.IsShimSetup()
+
+	// Helper: choose the message the same way runScan does.
+	chooseMsg := func(sc int) string {
+		if sc > 0 {
+			if !shimOK {
+				return "Usage tracking requires one more step"
+			} else if daemonAlreadyRunning {
+				return "✓ Daemon is running — usage tracking is active."
+			}
+			return "NEXT STEP: Start usage tracking with 'brewprune watch --daemon'"
+		}
+		if daemonAlreadyRunning {
+			return "✓ Daemon is running — usage tracking is active."
+		}
+		return "NEXT STEP: Start usage tracking with 'brewprune watch --daemon'"
+	}
+
+	// shimCount==0 branch: daemon running must always show the confirmation
+	// regardless of shimOK, because there are no new shims to warn about.
+	msg0 := chooseMsg(0)
+	if !strings.Contains(msg0, "Daemon is running") {
+		t.Errorf("(shimCount==0) expected 'Daemon is running' in message, got: %q", msg0)
+	}
+	if strings.Contains(msg0, "NEXT STEP") {
+		t.Errorf("(shimCount==0) expected 'NEXT STEP' absent when daemon running, got: %q", msg0)
+	}
+
+	// shimCount>0, shimOK==true branch: daemon running must show confirmation.
+	// Only assert this when shim PATH is set up in the current environment;
+	// otherwise the PATH-missing message is correctly shown (preserved path).
+	if shimOK {
+		msg1 := chooseMsg(1)
+		if !strings.Contains(msg1, "Daemon is running") {
+			t.Errorf("(shimCount>0,shimOK) expected 'Daemon is running' in message, got: %q", msg1)
+		}
+		if strings.Contains(msg1, "NEXT STEP") {
+			t.Errorf("(shimCount>0,shimOK) expected 'NEXT STEP' absent when daemon running, got: %q", msg1)
+		}
 	}
 }

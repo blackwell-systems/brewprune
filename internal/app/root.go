@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -23,6 +24,9 @@ Without the daemon running, recommendations are based on heuristics only
 (install age, dependencies, type) - not actual usage data.
 
 Quick Start:
+  brewprune quickstart         # Recommended: automated setup in one command
+
+  Or manually:
   1. brewprune scan
   2. brewprune watch --daemon  # Keep this running!
   3. Wait 1-2 weeks for usage data
@@ -56,20 +60,7 @@ Examples:
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dbPath, _ := getDBPath()
-			if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-				fmt.Println("brewprune: Homebrew package cleanup with usage tracking")
-				fmt.Println()
-				fmt.Println("Run 'brewprune quickstart' to get started.")
-				fmt.Println("Run 'brewprune --help' for the full reference.")
-			} else {
-				fmt.Println("brewprune: Homebrew package cleanup with usage tracking")
-				fmt.Println()
-				fmt.Println("Tip: Run 'brewprune status' to check tracking status.")
-				fmt.Println("     Run 'brewprune unused' to view recommendations.")
-				fmt.Println("     Run 'brewprune --help' for all commands.")
-			}
-			return nil
+			return cmd.Help()
 		},
 	}
 )
@@ -89,7 +80,13 @@ func init() {
 
 // Execute runs the root command
 func Execute() error {
-	return RootCmd.Execute()
+	err := RootCmd.Execute()
+	if err != nil {
+		if strings.Contains(err.Error(), "unknown command") {
+			fmt.Fprintf(os.Stderr, "Run 'brewprune --help' for a list of available commands.\n")
+		}
+	}
+	return err
 }
 
 // getDBPath returns the database path, using the flag value or default

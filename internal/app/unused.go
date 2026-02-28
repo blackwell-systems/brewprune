@@ -70,7 +70,7 @@ shown automatically with a warning banner.`,
 
 func init() {
 	unusedCmd.Flags().StringVar(&unusedTier, "tier", "", "Filter by tier: safe, medium, risky")
-	unusedCmd.Flags().IntVar(&unusedMinScore, "min-score", 0, "Minimum confidence score (0-100)")
+	unusedCmd.Flags().IntVar(&unusedMinScore, "min-score", 0, "Minimum confidence score (0-100). Use 'brewprune explain <package>' to see a package's score.")
 	unusedCmd.Flags().StringVar(&unusedSort, "sort", "score", "Sort by: score, size, age")
 	unusedCmd.Flags().BoolVarP(&unusedVerbose, "verbose", "v", false, "Show detailed explanation for each package")
 	unusedCmd.Flags().BoolVar(&unusedAll, "all", false, "Show all tiers including risky")
@@ -299,16 +299,33 @@ func runUnused(cmd *cobra.Command, args []string) error {
 func sortScores(scores []*analyzer.ConfidenceScore, sortBy string) {
 	switch sortBy {
 	case "score":
-		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].Score > scores[j].Score
+		sort.SliceStable(scores, func(i, j int) bool {
+			if scores[i].Score != scores[j].Score {
+				return scores[i].Score > scores[j].Score
+			}
+			return scores[i].Package < scores[j].Package // stable alpha fallback
 		})
 	case "size":
-		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].SizeBytes > scores[j].SizeBytes // Largest first
+		sort.SliceStable(scores, func(i, j int) bool {
+			if scores[i].SizeBytes != scores[j].SizeBytes {
+				return scores[i].SizeBytes > scores[j].SizeBytes // Largest first
+			}
+			return scores[i].Package < scores[j].Package // stable alpha fallback
 		})
 	case "age":
-		sort.Slice(scores, func(i, j int) bool {
-			return scores[i].InstalledAt.Before(scores[j].InstalledAt) // Oldest first
+		sort.SliceStable(scores, func(i, j int) bool {
+			if !scores[i].InstalledAt.Equal(scores[j].InstalledAt) {
+				return scores[i].InstalledAt.Before(scores[j].InstalledAt) // Oldest first
+			}
+			// Secondary: tier order (safe → medium → risky)
+			tierOrder := map[string]int{"safe": 0, "medium": 1, "risky": 2}
+			ti := tierOrder[scores[i].Tier]
+			tj := tierOrder[scores[j].Tier]
+			if ti != tj {
+				return ti < tj
+			}
+			// Tertiary: alphabetical
+			return scores[i].Package < scores[j].Package
 		})
 	}
 }

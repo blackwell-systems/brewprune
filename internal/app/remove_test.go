@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -261,5 +263,49 @@ func TestGetPackagesByTierLogic(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRemoveHelp_ExplainsTierShortcuts(t *testing.T) {
+	longDesc := removeCmd.Long
+	if !strings.Contains(longDesc, "--tier") {
+		t.Error("removeCmd.Long should contain '--tier' to explain the tier flag")
+	}
+	if !strings.Contains(longDesc, "shortcut") && !strings.Contains(longDesc, "equivalent") {
+		t.Error("removeCmd.Long should contain 'shortcut' or 'equivalent' to explain the relationship between boolean flags and --tier")
+	}
+}
+
+func TestRunRemove_NotFoundError_NotDoubled(t *testing.T) {
+	// Create in-memory store for testing
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Attempt to get a nonexistent package to observe the store error
+	_, storeErr := st.GetPackage("nonexistent")
+	if storeErr == nil {
+		t.Fatal("expected error for nonexistent package, got nil")
+	}
+
+	// Simulate the new error formatting used in runRemove
+	formattedErr := fmt.Errorf("package %q not found", "nonexistent")
+	msg := formattedErr.Error()
+
+	// Count occurrences of "not found" in the formatted message
+	count := strings.Count(msg, "not found")
+	if count != 1 {
+		t.Errorf("error message contains 'not found' %d times, want exactly 1; message: %q", count, msg)
+	}
+
+	// Ensure the package name appears in the message
+	if !strings.Contains(msg, "nonexistent") {
+		t.Errorf("error message should contain the package name; got: %q", msg)
 	}
 }

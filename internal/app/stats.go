@@ -16,6 +16,7 @@ import (
 var (
 	statsDays    int
 	statsPackage string
+	statsAll     bool
 )
 
 var statsCmd = &cobra.Command{
@@ -49,6 +50,7 @@ Usage frequency is classified as:
 func init() {
 	statsCmd.Flags().IntVar(&statsDays, "days", 30, "Time window in days")
 	statsCmd.Flags().StringVar(&statsPackage, "package", "", "Show stats for specific package")
+	statsCmd.Flags().BoolVar(&statsAll, "all", false, "Show all packages including those with no usage")
 
 	// Register with root command
 	RootCmd.AddCommand(statsCmd)
@@ -145,6 +147,11 @@ func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 	fmt.Printf("First Seen: %s\n", formatTime(stats.FirstSeen))
 	fmt.Printf("Frequency: %s\n", colorFreq(stats.Frequency))
 
+	if stats.TotalUses == 0 {
+		fmt.Println()
+		fmt.Printf("Tip: Run 'brewprune explain %s' for removal recommendation.\n", pkg)
+	}
+
 	return nil
 }
 
@@ -185,13 +192,39 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 		}
 	}
 
-	// Render table
-	table := output.RenderUsageTable(outputStats)
+	// Filter zero-usage packages unless --all is set
+	var filteredStats map[string]output.UsageStats
+	hiddenCount := 0
+	if !statsAll {
+		filteredStats = make(map[string]output.UsageStats)
+		for pkg, s := range outputStats {
+			if s.TotalRuns > 0 {
+				filteredStats[pkg] = s
+			} else {
+				hiddenCount++
+			}
+		}
+	} else {
+		filteredStats = outputStats
+	}
+
+	if len(filteredStats) == 0 {
+		if hiddenCount > 0 {
+			fmt.Printf("No usage recorded yet (%d packages with 0 runs). Run 'brewprune watch --daemon' to start tracking.\n", hiddenCount)
+		} else {
+			fmt.Println("No usage data found. Run 'brewprune watch' to collect usage data.")
+		}
+		return nil
+	}
+
+	table := output.RenderUsageTable(filteredStats)
 	fmt.Print(table)
 
-	// Show summary
 	fmt.Printf("\nSummary: %d packages used in last %d days (out of %d total)\n",
 		usedCount, days, len(trends))
+	if hiddenCount > 0 && !statsAll {
+		fmt.Printf("(%d packages with no recorded usage hidden — use --all to show)\n", hiddenCount)
+	}
 
 	return nil
 }

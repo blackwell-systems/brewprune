@@ -130,6 +130,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		pathStatus = "PATH missing ⚠"
 	}
 	fmt.Printf(label+"%s · %d commands · %s\n", "Shims:", shimStatus, shimCount, pathStatus)
+	if !pathOK && totalEvents > 0 {
+		fmt.Printf("              %s\n", "Note: events are from setup self-test, not real shim interception.")
+		fmt.Printf("              %s\n", "Real tracking starts when PATH is fixed and shims are in front of Homebrew.")
+	}
 
 	// Last scan line (use DB mtime as proxy)
 	dbMtime := "unknown"
