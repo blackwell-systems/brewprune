@@ -104,7 +104,7 @@ func runUndo(cmd *cobra.Command, args []string) error {
 	// Get snapshot details
 	snapshot, err := st.GetSnapshot(snapshotID)
 	if err != nil {
-		return fmt.Errorf("snapshot %d not found: %w", snapshotID, err)
+		return fmt.Errorf("snapshot %d not found\n\nRun 'brewprune undo --list' to see available snapshots", snapshotID)
 	}
 
 	// Get snapshot packages

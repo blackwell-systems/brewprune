@@ -362,6 +362,69 @@ func TestUndoNoArgsExitsNonZero(t *testing.T) {
 	}
 }
 
+// TestUndoInvalidSnapshotID verifies that when an invalid snapshot ID is
+// provided, the error message is not duplicated and includes a helpful
+// suggestion to use `undo --list`.
+func TestUndoInvalidSnapshotID(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_UNDO_INVALID_ID_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDir := t.TempDir()
+		tmpDB := tmpDir + "/undo_invalid_id_test.db"
+
+		st, stErr := store.New(tmpDB)
+		if stErr != nil {
+			os.Exit(2)
+		}
+		if schemaErr := st.CreateSchema(); schemaErr != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		err := runUndo(cmd, []string{"999"})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestUndoInvalidSnapshotID", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_UNDO_INVALID_ID_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
+	err := cmd.Run()
+	stderrOutput := stderrBuf.String()
+
+	// Expect exit code 1 (error case)
+	if err == nil {
+		t.Fatal("expected subprocess to exit non-zero, got exit 0")
+	}
+
+	// Verify error message is not duplicated
+	// Count occurrences of "snapshot 999 not found"
+	count := strings.Count(stderrOutput, "snapshot 999 not found")
+	if count > 1 {
+		t.Errorf("error message duplicated %d times, expected once. Output:\n%s", count, stderrOutput)
+	}
+
+	// Verify helpful suggestion appears in stderr
+	if !strings.Contains(stderrOutput, "undo --list") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "undo --list", stderrOutput)
+	}
+
+	// Verify it mentions "see available snapshots"
+	if !strings.Contains(stderrOutput, "available snapshots") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "available snapshots", stderrOutput)
+	}
+}
+
 // TestUndoLatestSuggestsList verifies that when `brewprune undo latest` is
 // invoked with no snapshots available, the error message suggests using
 // `undo --list` to see all available snapshots.

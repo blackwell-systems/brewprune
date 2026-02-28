@@ -218,6 +218,16 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Print tier summary header
 	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "" || showRiskyImplicit, caskCount))
+
+	// Add clarifying text when min-score filter is active
+	if unusedMinScore > 0 {
+		totalBeforeMinScore := len(allScores)
+		if !unusedCasks {
+			totalBeforeMinScore -= caskCount
+		}
+		fmt.Printf("Showing %d of %d packages (score >= %d)\n", len(scores), totalBeforeMinScore, unusedMinScore)
+	}
+
 	fmt.Println()
 
 	if len(scores) == 0 {
@@ -312,16 +322,30 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	} else {
 		// Convert to output format for standard table
 		sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+
+		// Check if tracking has been active for less than 1 day
+		firstEventTime, _ := st.GetFirstEventTime()
+		trackingLessThanOneDay := !firstEventTime.IsZero() && time.Since(firstEventTime) < 24*time.Hour
+
 		outputScores := make([]output.ConfidenceScore, len(scores))
 		for i, s := range scores {
 			uses7d, _ := st.GetUsageEventCountSince(s.Package, sevenDaysAgo)
 			depCount, _ := st.GetReverseDependencyCount(s.Package)
 
+			lastUsed := getLastUsed(st, s.Package)
+			// If tracking < 1 day and package has no usage, mark as not-yet-tracked
+			// instead of "never" (which is misleading on fresh installs)
+			if trackingLessThanOneDay && lastUsed.IsZero() {
+				// Use a sentinel time value to signal "not enough tracking data"
+				// This will be rendered as "—" by the output package
+				lastUsed = time.Unix(1, 0) // Special marker for "no tracking data yet"
+			}
+
 			outputScores[i] = output.ConfidenceScore{
 				Package:    s.Package,
 				Score:      s.Score,
 				Tier:       s.Tier,
-				LastUsed:   getLastUsed(st, s.Package),
+				LastUsed:   lastUsed,
 				Reason:     s.Reason,
 				SizeBytes:  s.SizeBytes,
 				Uses7d:     uses7d,
@@ -485,14 +509,22 @@ func showConfidenceAssessment(st *store.Store) error {
 
 	fmt.Println()
 
+	// ANSI color codes for confidence levels
+	const (
+		colorRed    = "\033[31m"
+		colorYellow = "\033[33m"
+		colorGreen  = "\033[32m"
+		colorReset  = "\033[0m"
+	)
+
 	if eventCount == 0 {
-		fmt.Println("Confidence: LOW (0 usage events recorded, tracking since: never)")
+		fmt.Printf("Confidence: %sLOW%s (0 usage events recorded, tracking since: never)\n", colorRed, colorReset)
 		fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
 	} else if daysSinceTracking < 7 {
-		fmt.Printf("Confidence: MEDIUM (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+		fmt.Printf("Confidence: %sMEDIUM%s (%d events, tracking for %d days)\n", colorYellow, colorReset, eventCount, daysSinceTracking)
 		fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
 	} else {
-		fmt.Printf("Confidence: HIGH (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+		fmt.Printf("Confidence: %sHIGH%s (%d events, tracking for %d days)\n", colorGreen, colorReset, eventCount, daysSinceTracking)
 	}
 
 	return nil

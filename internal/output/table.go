@@ -154,13 +154,13 @@ func formatDepCount(count int) string {
 
 // formatTierLabel returns the display label for a tier in the table.
 // Risky or critical packages show a warning indicator.
-// Safe packages show "✓ safe", medium packages show "~ review".
+// Safe packages show "✓ safe", medium packages show "~ medium".
 func formatTierLabel(tier string, isCritical bool) string {
 	switch strings.ToLower(tier) {
 	case "safe":
 		return "✓ safe"
 	case "medium":
-		return "~ review"
+		return "~ medium"
 	default: // risky or critical
 		return "⚠ risky"
 	}
@@ -345,6 +345,12 @@ func formatSize(bytes int64) string {
 func formatRelativeTime(t time.Time) string {
 	if t.IsZero() {
 		return "never"
+	}
+
+	// Special marker: Unix timestamp 1 = "not enough tracking data yet"
+	// This is used when tracking has been active for < 1 day
+	if t.Unix() == 1 {
+		return "—"
 	}
 
 	now := time.Now()

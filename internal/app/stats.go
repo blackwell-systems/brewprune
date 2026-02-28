@@ -232,6 +232,11 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 		fmt.Printf("(%d packages with no recorded usage hidden — use --all to show)\n", hiddenCount)
 	}
 
+	// Show pagination tip when --all is used and output is to a TTY
+	if statsAll && isatty.IsTerminal(os.Stdout.Fd()) && len(filteredStats) >= 40 {
+		fmt.Println("\nTip: pipe to less for easier scrolling: brewprune stats --all | less")
+	}
+
 	return nil
 }
 

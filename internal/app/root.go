@@ -12,7 +12,12 @@ var (
 	dbPath      string
 	versionFlag bool
 
-	// Version information (set via ldflags during build)
+	// Version information. These default values ("dev", "unknown") are expected
+	// for local development builds using `go build`. Production releases set
+	// these via -ldflags during the build process (e.g., in goreleaser):
+	//   -X github.com/user/brewprune/internal/app.Version=1.2.3
+	//   -X github.com/user/brewprune/internal/app.GitCommit=abc123
+	//   -X github.com/user/brewprune/internal/app.BuildDate=2024-01-15
 	Version   = "dev"
 	GitCommit = "unknown"
 	BuildDate = "unknown"

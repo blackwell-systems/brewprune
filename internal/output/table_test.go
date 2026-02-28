@@ -141,7 +141,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  0,
 				},
 			},
-			contains: []string{"jq", "1 MB", "1", "\u2014", "~ review"},
+			contains: []string{"jq", "1 MB", "1", "\u2014", "~ medium"},
 		},
 		{
 			name: "multiple scores with new columns",

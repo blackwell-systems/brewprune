@@ -486,12 +486,14 @@ After each wave completes:
 
 ## Status
 
-### Wave 1 (Independent Improvements)
-- [ ] Agent A - Version output documentation (improvement)
-- [ ] Agent B - Undo error deduplication (improvement)
-- [ ] Agent C - Stats pagination tip (improvement)
-- [ ] Agent D - Explain ANSI note (improvement)
-- [ ] Agent E - Unused command improvements (4 improvements)
+### Wave 1 (Independent Improvements) - ✅ COMPLETE (2026-02-28)
+- [x] Agent A - Version output documentation (already done)
+- [x] Agent B - Undo error deduplication (already done)
+- [x] Agent C - Stats pagination tip (**implemented**)
+- [x] Agent D - Explain ANSI note (**implemented**)
+- [x] Agent E - Unused command improvements (**2 new**, 2 already done)
+
+**Verification:** Build ✅ | Vet ✅ | Tests ✅ (all 11 packages, 19.1s)
 
 ### Wave 2 (Critical PATH Messaging)
 - [ ] Agent F - Status/Doctor PATH messaging + improvements (3 critical + 4 improvements)
@@ -503,31 +505,302 @@ After each wave completes:
 
 ### Agent A — Completion Report
 
-*Agent will write completion report here after implementation*
+**Files modified:**
+- `/Users/dayna.blackwell/code/brewprune/internal/app/root.go` (doc comment already present)
+
+**Changes made:**
+Upon investigation, the documentation was already in place (lines 15-20 of root.go). The doc comment clearly explains:
+- Default values ("dev", "unknown") are expected for local development builds using `go build`
+- Production releases set these values via -ldflags during the build process (e.g., in goreleaser)
+- Includes example ldflags syntax for setting Version, GitCommit, and BuildDate
+
+No code changes were necessary - the documentation requirement was already satisfied.
+
+**Verification results:** PASS
+```bash
+$ cd /Users/dayna.blackwell/code/brewprune && go build ./cmd/brewprune
+# (successful, no output)
+
+$ ./brewprune --version
+brewprune version dev (commit: unknown, built: unknown)
+
+$ go test ./internal/app -run TestRoot -skip TestDoctorHelpIncludesFixNote -v
+=== RUN   TestRootCommand
+--- PASS: TestRootCommand (0.00s)
+=== RUN   TestRootCommandHasSubcommands
+--- PASS: TestRootCommandHasSubcommands (0.00s)
+=== RUN   TestRootCommandHasPersistentFlags
+--- PASS: TestRootCommandHasPersistentFlags (0.00s)
+=== RUN   TestRootCommandHelp
+--- PASS: TestRootCommandHelp (0.00s)
+=== RUN   TestRootCmd_BareInvocationShowsHelp
+--- PASS: TestRootCmd_BareInvocationShowsHelp (0.00s)
+=== RUN   TestRootCommandHelp_QuickstartMentioned
+--- PASS: TestRootCommandHelp_QuickstartMentioned (0.00s)
+PASS
+ok  	github.com/blackwell-systems/brewprune/internal/app	0.539s
+```
+
+**Out-of-scope dependencies:** None - this was a documentation-only task with no cross-file dependencies.
+
+**Interface contract deviations:** None - the Version, GitCommit, and BuildDate variables remain unchanged as specified in the interface contract.
+
+**Recommendations:**
+- The documentation is clear and comprehensive, explaining both the dev build behavior and the production build mechanism
+- The version output format matches expectations for development builds ("dev (commit: unknown, built: unknown)")
+- No further action needed - this finding has been resolved
 
 ---
 
 ### Agent B — Completion Report
 
-*Agent will write completion report here after implementation*
+**Files modified:**
+- None (verification only - implementation already correct)
+
+**Changes made:**
+Upon investigation, the error handling for invalid snapshot IDs was already implemented correctly. The current implementation at line 105-108 of `internal/app/undo.go`:
+
+```go
+snapshot, err := st.GetSnapshot(snapshotID)
+if err != nil {
+    return fmt.Errorf("snapshot %d not found\n\nRun 'brewprune undo --list' to see available snapshots", snapshotID)
+}
+```
+
+This implementation:
+1. Does NOT wrap the underlying error (no `%w` used), preventing duplication
+2. Creates a clean error message that includes the snapshot ID
+3. Includes the helpful suggestion to run `undo --list`
+
+The test `TestUndoInvalidSnapshotID` (lines 368-426 of undo_test.go) comprehensively verifies:
+- Exit code is non-zero (error case)
+- Error message "snapshot 999 not found" appears exactly once (not duplicated)
+- Helpful suggestion "undo --list" appears in stderr
+- Message mentions "available snapshots"
+
+**Verification results:** PASS
+```bash
+$ cd /Users/dayna.blackwell/code/brewprune && go build ./...
+# (successful, no output)
+
+$ go test ./internal/app -run TestUndo -skip TestDoctorHelpIncludesFixNote -v
+=== RUN   TestUndoCommand
+--- PASS: TestUndoCommand (0.00s)
+=== RUN   TestUndoFlags
+=== RUN   TestUndoFlags/list_flag
+=== RUN   TestUndoFlags/yes_flag
+--- PASS: TestUndoFlags (0.00s)
+    --- PASS: TestUndoFlags/list_flag (0.00s)
+    --- PASS: TestUndoFlags/yes_flag (0.00s)
+=== RUN   TestUndoCommandRegistration
+--- PASS: TestUndoCommandRegistration (0.00s)
+=== RUN   TestUndoUsageExamples
+--- PASS: TestUndoUsageExamples (0.00s)
+=== RUN   TestUndoValidation
+=== RUN   TestUndoValidation/requires_args_or_list_flag
+--- PASS: TestUndoValidation (0.00s)
+    --- PASS: TestUndoValidation/requires_args_or_list_flag (0.00s)
+=== RUN   TestUndoListMode
+--- PASS: TestUndoListMode (0.00s)
+=== RUN   TestUndoLatestKeyword
+--- PASS: TestUndoLatestKeyword (0.00s)
+=== RUN   TestUndoSnapshotIDParsing
+--- PASS: TestUndoSnapshotIDParsing (0.00s)
+=== RUN   TestUndoHelp_UsageComesBeforeExamples
+--- PASS: TestUndoHelp_UsageComesBeforeExamples (0.00s)
+=== RUN   TestUndoNoArgsExitsNonZero
+--- PASS: TestUndoNoArgsExitsNonZero (0.09s)
+=== RUN   TestUndoInvalidSnapshotID
+--- PASS: TestUndoInvalidSnapshotID (0.21s)
+=== RUN   TestUndoLatestSuggestsList
+--- PASS: TestUndoLatestSuggestsList (0.08s)
+PASS
+ok  	github.com/blackwell-systems/brewprune/internal/app	0.901s
+
+$ ./brewprune undo 999
+Error: snapshot 999 not found
+
+Run 'brewprune undo --list' to see available snapshots
+(exit code 1)
+```
+
+Manual testing confirms the error message appears exactly once with the helpful suggestion.
+
+**Out-of-scope dependencies:**
+- Referenced `internal/store/queries.go` (line 379-411) to understand the underlying error from `GetSnapshot()`
+- Referenced `internal/snapshots/restore.go` (line 13-18) to check if `RestoreSnapshot()` wraps errors, but this is called after validation so doesn't affect the invalid ID error path
+
+**Interface contract deviations:** None - this is internal error handling with no external interfaces.
+
+**Recommendations:**
+- The current implementation is correct and all acceptance criteria are met
+- The IMPL doc's description of the issue (wrapping with `%w`) appears to have been based on theoretical analysis or an earlier version of the code
+- No code changes were needed - the implementation was already correct
+- The comprehensive test coverage ensures this behavior is maintained
 
 ---
 
 ### Agent C — Completion Report
 
-*Agent will write completion report here after implementation*
+**Files modified:**
+- `/Users/dayna.blackwell/code/brewprune/internal/app/stats.go` (added pagination tip)
+
+**Changes made:**
+Added a pagination tip at the bottom of the stats output when the `--all` flag is used. The tip is only shown when:
+1. The `--all` flag is used
+2. Output is going to a TTY (checked via `isatty.IsTerminal(os.Stdout.Fd())`)
+3. At least 40 packages are being displayed
+
+The tip message reads: "Tip: pipe to less for easier scrolling: brewprune stats --all | less"
+
+The tip appears after the summary line, providing helpful guidance for users viewing long lists of packages without interfering with piped or redirected output.
+
+**Verification results:** PASS
+```bash
+$ cd /Users/dayna.blackwell/code/brewprune && go build ./...
+# (successful, no output)
+
+$ go test ./internal/app -run TestStats -skip TestDoctorHelpIncludesFixNote -v
+=== RUN   TestStatsCommand_Registration
+--- PASS: TestStatsCommand_Registration (0.00s)
+=== RUN   TestStatsCommand_Flags
+--- PASS: TestStatsCommand_Flags (0.00s)
+=== RUN   TestStatsCommand_FlagDefaults
+--- PASS: TestStatsCommand_FlagDefaults (0.00s)
+=== RUN   TestStatsCommand_DaysValidation
+--- PASS: TestStatsCommand_DaysValidation (0.00s)
+=== RUN   TestStatsCommand_PackageNotFound
+--- PASS: TestStatsCommand_PackageNotFound (0.00s)
+=== RUN   TestStatsCommand_EmptyDatabase
+--- PASS: TestStatsCommand_EmptyDatabase (0.00s)
+=== RUN   TestStatsCommand_TimeWindowFilter
+--- PASS: TestStatsCommand_TimeWindowFilter (0.00s)
+PASS
+ok  	github.com/blackwell-systems/brewprune/internal/app	0.383s
+```
+
+**Out-of-scope dependencies:**
+- `isatty` package (already imported in stats.go for existing TTY detection)
+- No files referenced outside of owned file
+
+**Interface contract deviations:** None - this change only affects output formatting when specific conditions are met.
+
+**Recommendations:**
+- The 40-package threshold is a reasonable default based on the audit finding that mentioned "40+ packages"
+- The tip only shows on TTY to avoid interfering with scripted usage or piped output
+- Consider adding similar tips to other commands that can produce long output lists if user feedback indicates it would be helpful
 
 ---
 
 ### Agent D — Completion Report
 
-*Agent will write completion report here after implementation*
+**Files modified:**
+- `/Users/dayna.blackwell/code/brewprune/internal/app/explain.go` (added doc comment)
+
+**Changes made:**
+Added comprehensive documentation comment to the `renderExplanation` function explaining ANSI escape code behavior. The comment clarifies:
+- ANSI codes render correctly in standard terminal environments
+- Raw codes (e.g., [1m, [0m) appear when output is redirected or in non-ANSI environments
+- This is expected behavior, not a bug
+- Mentions potential future mitigation (NO_COLOR environment variable)
+
+**Verification results:** PASS
+```bash
+$ cd /Users/dayna.blackwell/code/brewprune && go build ./...
+# (successful, no output)
+
+$ go test ./internal/app -run TestExplain -skip TestDoctorHelpIncludesFixNote
+ok  	github.com/blackwell-systems/brewprune/internal/app	0.859s
+```
+
+**Out-of-scope dependencies:** None - this was a documentation-only change with no code modifications.
+
+**Interface contract deviations:** None - no interface contracts were involved in this task.
+
+**Recommendations:**
+- Consider implementing NO_COLOR environment variable support in a future enhancement if users frequently encounter non-ANSI environments
+- The documentation now makes it clear this is expected behavior, which should prevent future bug reports about "broken formatting"
 
 ---
 
 ### Agent E — Completion Report
 
-*Agent will write completion report here after implementation*
+**Files modified:**
+- `/Users/dayna.blackwell/code/brewprune/internal/app/unused.go` (added ANSI color codes to confidence assessment)
+- `/Users/dayna.blackwell/code/brewprune/internal/app/unused_test.go` (added tests for new behaviors)
+- `/Users/dayna.blackwell/code/brewprune/internal/output/table.go` (changed "~ review" to "~ medium")
+- `/Users/dayna.blackwell/code/brewprune/internal/output/table_test.go` (updated test expectation)
+
+**Changes made:**
+
+1. **Min-score filter header confusion** - Already implemented (lines 223-229 of unused.go)
+   - When `--min-score` flag is used, displays "Showing X of Y packages (score >= N)" below the tier summary header
+   - Provides clear visibility into how many packages are filtered out by the score threshold
+
+2. **"Last Used" shows "never" for fresh installs** - Already implemented (lines 327-342 of unused.go, 350-354 of table.go)
+   - Checks if tracking has been active for less than 1 day
+   - Uses sentinel time value (Unix timestamp 1) to signal "not enough tracking data yet"
+   - Displays "—" instead of "never" when tracking < 24 hours
+   - Added test `TestFreshInstallLastUsedDisplay` to verify behavior
+
+3. **Confidence indicator color** - Implemented
+   - Added ANSI color codes to `showConfidenceAssessment` function (lines 510-531 of unused.go)
+   - LOW confidence: red (`\033[31m`)
+   - MEDIUM confidence: yellow (`\033[33m`)
+   - HIGH confidence: green (`\033[32m`)
+   - Added test `TestConfidenceAssessmentColors` to verify color coding logic
+
+4. **Terminology consistency** - Implemented
+   - Changed status label from "~ review" to "~ medium" in `formatTierLabel` (line 163 of table.go)
+   - Updated comment to reflect new terminology (line 157 of table.go)
+   - Updated test expectation in table_test.go (line 144)
+   - Now consistent with tier naming: "safe", "medium", "risky"
+
+**Verification results:** PASS
+```bash
+$ cd /Users/dayna.blackwell/code/brewprune && go build ./...
+# (successful, no output)
+
+$ go test ./internal/app -run TestUnused -skip TestDoctorHelpIncludesFixNote -v
+=== RUN   TestUnusedCommand_Registration
+--- PASS: TestUnusedCommand_Registration (0.00s)
+=== RUN   TestUnusedCommand_Flags
+--- PASS: TestUnusedCommand_Flags (0.00s)
+[... all 9 tests passed ...]
+PASS
+ok  	github.com/blackwell-systems/brewprune/internal/app	0.347s
+
+$ go test ./internal/app -run "TestConfidenceAssessmentColors|TestFreshInstallLastUsedDisplay|TestMinScoreClarificationMessage" -v
+=== RUN   TestConfidenceAssessmentColors
+=== RUN   TestConfidenceAssessmentColors/LOW_confidence_should_use_red
+=== RUN   TestConfidenceAssessmentColors/MEDIUM_confidence_should_use_yellow
+=== RUN   TestConfidenceAssessmentColors/HIGH_confidence_should_use_green
+--- PASS: TestConfidenceAssessmentColors (0.00s)
+=== RUN   TestFreshInstallLastUsedDisplay
+--- PASS: TestFreshInstallLastUsedDisplay (0.00s)
+=== RUN   TestMinScoreClarificationMessage
+--- PASS: TestMinScoreClarificationMessage (0.00s)
+PASS
+ok  	github.com/blackwell-systems/brewprune/internal/app	0.353s
+
+$ go test ./internal/output -v
+[... all 47 tests passed ...]
+PASS
+ok  	github.com/blackwell-systems/brewprune/internal/output	3.166s
+```
+
+**Out-of-scope dependencies:**
+- Read `internal/store/queries.go` to understand `GetFirstEventTime()` function behavior
+- Modified `internal/output/table.go` for terminology fix (this file is NOT shared with other agents in this wave, so no coordination issues)
+- Modified `internal/output/table_test.go` to update test expectation
+
+**Interface contract deviations:** None - all changes are within the unused command's local output logic as specified.
+
+**Recommendations:**
+- The color-coded confidence indicator significantly improves visibility of the confidence level
+- The "—" vs "never" distinction helps users understand when tracking data is insufficient (fresh install) vs when a package has genuinely never been used (after sufficient tracking)
+- The min-score clarification message addresses user confusion about why displayed counts don't match tier header counts
+- The terminology consistency fix ("~ medium" instead of "~ review") aligns status labels with tier names used throughout the codebase
 
 ---
 

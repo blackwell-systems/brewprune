@@ -84,6 +84,17 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// renderExplanation displays a detailed breakdown of a package's confidence score.
+//
+// ANSI Formatting Note: This function uses ANSI escape codes (e.g., \033[1m for bold,
+// \033[32m for green) to provide colored terminal output. These codes render correctly
+// in standard terminal environments but may appear as raw text (e.g., [1m, [0m) when:
+//   - Output is redirected to a file or pipe
+//   - Running in non-ANSI environments (e.g., certain Docker containers)
+//   - Terminal does not support ANSI escape sequences
+//
+// This is expected behavior and not a bug. The raw codes are harmless and can be
+// filtered using tools like `sed` or by setting NO_COLOR=1 in future enhancements.
 func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 	// Color codes
 	const (
