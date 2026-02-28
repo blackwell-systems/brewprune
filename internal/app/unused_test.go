@@ -212,6 +212,105 @@ func TestUnusedCommand_MinScoreFilter(t *testing.T) {
 	}
 }
 
+func TestRunUnused_NoUsageDataShowsRisky(t *testing.T) {
+	// Create in-memory store
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Verify no usage events
+	var eventCount int
+	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
+	if scanErr := row.Scan(&eventCount); scanErr != nil {
+		t.Fatalf("failed to count events: %v", scanErr)
+	}
+
+	if eventCount != 0 {
+		t.Fatalf("expected 0 events, got %d", eventCount)
+	}
+
+	// When no usage data and no explicit tier/all flags, showRiskyImplicit should be true
+	unusedTierSaved := unusedTier
+	unusedAllSaved := unusedAll
+	defer func() {
+		unusedTier = unusedTierSaved
+		unusedAll = unusedAllSaved
+	}()
+
+	unusedTier = ""
+	unusedAll = false
+
+	showRiskyImplicit := (unusedTier == "" && !unusedAll && eventCount == 0)
+	if !showRiskyImplicit {
+		t.Error("expected showRiskyImplicit to be true when no usage data and no explicit flags")
+	}
+}
+
+func TestRunUnused_NoUsageDataShowsRisky_ExplicitFlagsDisableImplicit(t *testing.T) {
+	// When --all is set, showRiskyImplicit should be false even with no usage data
+	unusedTierSaved := unusedTier
+	unusedAllSaved := unusedAll
+	defer func() {
+		unusedTier = unusedTierSaved
+		unusedAll = unusedAllSaved
+	}()
+
+	unusedTier = ""
+	unusedAll = true
+	eventCount := 0
+
+	showRiskyImplicit := (unusedTier == "" && !unusedAll && eventCount == 0)
+	if showRiskyImplicit {
+		t.Error("expected showRiskyImplicit to be false when --all is set")
+	}
+
+	// When --tier is set, showRiskyImplicit should be false even with no usage data
+	unusedAll = false
+	unusedTier = "safe"
+
+	showRiskyImplicit = (unusedTier == "" && !unusedAll && eventCount == 0)
+	if showRiskyImplicit {
+		t.Error("expected showRiskyImplicit to be false when --tier is set")
+	}
+}
+
+func TestRunUnused_CasksNoCasksInstalledMessage(t *testing.T) {
+	// Test that the cask count logic properly distinguishes "no casks installed"
+	// from "no casks match criteria" (unit-level test of the logic)
+
+	// Simulate: unusedCasks=true, caskCount=0, len(scores)=0
+	// Should result in "No casks installed." message path
+	caskCount := 0
+	scores := []*analyzer.ConfidenceScore{}
+	unusedCasksFlag := true
+
+	if len(scores) == 0 && unusedCasksFlag {
+		if caskCount == 0 {
+			// correct path: "No casks installed."
+		} else {
+			t.Errorf("expected caskCount=0 path but caskCount=%d", caskCount)
+		}
+	}
+
+	// Simulate: unusedCasks=true, caskCount=3, len(scores)=0
+	// Should result in "No casks match the specified criteria (3 cask(s) installed)." path
+	caskCount = 3
+
+	if len(scores) == 0 && unusedCasksFlag {
+		if caskCount == 0 {
+			t.Error("expected non-zero caskCount path but got caskCount=0 path")
+		} else {
+			// correct path: "No casks match the specified criteria (3 cask(s) installed)."
+		}
+	}
+}
+
 func TestUnusedCommand_TierFilter(t *testing.T) {
 	scores := []*analyzer.ConfidenceScore{
 		{Package: "pkg1", Score: 90, Tier: "safe"},

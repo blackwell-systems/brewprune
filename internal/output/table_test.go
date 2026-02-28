@@ -32,7 +32,8 @@ func TestRenderPackageTable(t *testing.T) {
 					InstalledAt: now.Add(-24 * time.Hour),
 				},
 			},
-			contains: []string{"node", "16.20.2", "2.0 GB", "1 day ago"},
+			// Version column removed — pkg.Version is never populated from Homebrew metadata
+			contains: []string{"node", "2.0 GB", "1 day ago"},
 		},
 		{
 			name: "multiple packages sorted by name",
@@ -50,7 +51,8 @@ func TestRenderPackageTable(t *testing.T) {
 					InstalledAt: now.Add(-24 * time.Hour),
 				},
 			},
-			contains: []string{"node", "zsh", "16.20.2", "5.9", "2.0 GB", "1 MB"},
+			// Version column removed — pkg.Version is never populated from Homebrew metadata
+			contains: []string{"node", "zsh", "2.0 GB", "1 MB"},
 		},
 	}
 
@@ -93,7 +95,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  0,
 				},
 			},
-			contains: []string{"node", "6 MB", "0", "never", "\u2014", "SAFE"},
+			contains: []string{"node", "6 MB", "0", "never", "\u2014", "✓ safe"},
 		},
 		{
 			name: "risky score shows keep",
@@ -139,7 +141,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  0,
 				},
 			},
-			contains: []string{"jq", "1 MB", "1", "\u2014", "MEDIUM"},
+			contains: []string{"jq", "1 MB", "1", "\u2014", "~ review"},
 		},
 		{
 			name: "multiple scores with new columns",
@@ -165,7 +167,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"ripgrep", "6 MB", "\u2014", "SAFE",
+				"ripgrep", "6 MB", "\u2014", "✓ safe",
 				"openssl@3", "79 MB", "14 packages", "keep",
 			},
 		},
@@ -642,5 +644,100 @@ func TestFormatDepCount_Zero(t *testing.T) {
 	got := formatDepCount(0)
 	if got != "\u2014" {
 		t.Errorf("formatDepCount(0) = %q, want %q", got, "\u2014")
+	}
+}
+
+// TestIsColorEnabled_NoColor verifies that IsColorEnabled returns false when
+// the NO_COLOR environment variable is set.
+func TestIsColorEnabled_NoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	if IsColorEnabled() {
+		t.Error("IsColorEnabled() = true with NO_COLOR=1, want false")
+	}
+}
+
+// TestIsColorEnabled_NonTTY verifies that IsColorEnabled returns false when
+// stdout is not a terminal (e.g. during testing where stdout is a pipe/buffer).
+func TestIsColorEnabled_NonTTY(t *testing.T) {
+	// In a standard test run stdout is not a TTY, so IsColorEnabled must be false
+	// (assuming NO_COLOR is not already set, but we clear it to be safe).
+	t.Setenv("NO_COLOR", "")
+	// os.Stdout during go test is a pipe, not a TTY.
+	if IsColorEnabled() {
+		t.Skip("stdout appears to be a TTY — skipping non-TTY assertion (running in interactive terminal?)")
+	}
+}
+
+// TestRenderPackageTable_NoVersionColumn verifies that the "Version" column
+// header is not present in RenderPackageTable output.
+func TestRenderPackageTable_NoVersionColumn(t *testing.T) {
+	packages := []*brew.Package{
+		{
+			Name:      "wget",
+			Version:   "1.21.4",
+			SizeBytes: 1048576,
+		},
+	}
+	result := RenderPackageTable(packages)
+	if strings.Contains(result, "Version") {
+		t.Errorf("RenderPackageTable() should not contain 'Version' column header, got:\n%s", result)
+	}
+	if strings.Contains(result, "1.21.4") {
+		t.Errorf("RenderPackageTable() should not contain version string '1.21.4', got:\n%s", result)
+	}
+}
+
+// TestRenderUsageTable_SortedByRunsThenLastUsed verifies that packages with
+// equal TotalRuns are ordered by LastUsed descending, with zero times last.
+func TestRenderUsageTable_SortedByRunsThenLastUsed(t *testing.T) {
+	now := time.Now()
+	stats := map[string]UsageStats{
+		"alpha": {
+			TotalRuns: 10,
+			LastUsed:  now.Add(-1 * time.Hour),
+			Frequency: "daily",
+			Trend:     "stable",
+		},
+		"beta": {
+			TotalRuns: 10,
+			LastUsed:  now.Add(-24 * time.Hour),
+			Frequency: "daily",
+			Trend:     "stable",
+		},
+		"gamma": {
+			TotalRuns: 10,
+			LastUsed:  time.Time{}, // zero — should sort last among equal-run entries
+			Frequency: "rarely",
+			Trend:     "stable",
+		},
+		"delta": {
+			TotalRuns: 20,
+			LastUsed:  now.Add(-2 * time.Hour),
+			Frequency: "daily",
+			Trend:     "up",
+		},
+	}
+
+	result := RenderUsageTable(stats)
+
+	// delta (20 runs) must appear before alpha/beta/gamma (10 runs each)
+	idxDelta := strings.Index(result, "delta")
+	idxAlpha := strings.Index(result, "alpha")
+	idxBeta := strings.Index(result, "beta")
+	idxGamma := strings.Index(result, "gamma")
+
+	if idxDelta == -1 || idxAlpha == -1 || idxBeta == -1 || idxGamma == -1 {
+		t.Fatalf("Expected all packages in output, got:\n%s", result)
+	}
+	if idxDelta > idxAlpha {
+		t.Errorf("delta (20 runs) should appear before alpha (10 runs), got:\n%s", result)
+	}
+	// alpha (1h ago) must appear before beta (24h ago)
+	if idxAlpha > idxBeta {
+		t.Errorf("alpha (1h ago) should appear before beta (24h ago) when equal runs, got:\n%s", result)
+	}
+	// beta (24h ago) must appear before gamma (zero time)
+	if idxBeta > idxGamma {
+		t.Errorf("beta (24h ago) should appear before gamma (never) when equal runs, got:\n%s", result)
 	}
 }

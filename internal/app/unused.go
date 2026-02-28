@@ -40,7 +40,12 @@ Packages are classified into tiers:
   - medium (50-79): Review before removal
   - risky (0-49): Keep unless certain
 
-Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental removal.`,
+Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental removal.
+
+Note: --tier shows only that specific tier regardless of --all. For example,
+'brewprune unused --tier risky' shows all risky packages without needing --all.
+When no --tier or --all flag is set and no usage data exists, the risky tier is
+shown automatically with a warning banner.`,
 	Example: `  # Show all unused packages
   brewprune unused
 
@@ -104,6 +109,12 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Check for usage data and daemon status
 	checkUsageWarning(st)
+
+	// Determine if we should implicitly show risky packages (no usage data, no explicit flags)
+	var eventCount int
+	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
+	row.Scan(&eventCount)
+	showRiskyImplicit := (unusedTier == "" && !unusedAll && eventCount == 0)
 
 	// Create analyzer
 	a := analyzer.New(st)
@@ -181,18 +192,35 @@ func runUnused(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		// When --all is not set and no explicit --tier, hide risky packages
-		if !unusedAll && unusedTier == "" && s.Tier == "risky" {
+		// unless we're implicitly showing them due to no usage data
+		if !unusedAll && unusedTier == "" && s.Tier == "risky" && !showRiskyImplicit {
 			continue
 		}
 		scores = append(scores, s)
 	}
 
+	// If no usage data and no explicit flags, print prominent banner
+	if showRiskyImplicit {
+		fmt.Println("⚠ No usage data yet — showing all packages (risky tier included).")
+		fmt.Println("  Run 'brewprune watch --daemon' and wait 1-2 weeks for better recommendations.")
+		fmt.Println("  Use 'brewprune unused --all' to always show all tiers.")
+		fmt.Println()
+	}
+
 	// Print tier summary header
-	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "", caskCount))
+	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "" || showRiskyImplicit, caskCount))
 	fmt.Println()
 
 	if len(scores) == 0 {
-		fmt.Println("No packages match the specified criteria.")
+		if unusedCasks {
+			if caskCount == 0 {
+				fmt.Println("No casks installed.")
+			} else {
+				fmt.Printf("No casks match the specified criteria (%d cask(s) installed).\n", caskCount)
+			}
+		} else {
+			fmt.Println("No packages match the specified criteria.")
+		}
 		return nil
 	}
 

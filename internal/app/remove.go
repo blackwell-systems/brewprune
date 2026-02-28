@@ -23,6 +23,7 @@ var (
 	removeFlagDryRun     bool
 	removeFlagYes        bool
 	removeFlagNoSnapshot bool
+	removeTierFlag       string
 )
 
 var removeCmd = &cobra.Command{
@@ -65,6 +66,7 @@ func init() {
 	removeCmd.Flags().BoolVar(&removeFlagDryRun, "dry-run", false, "Show what would be removed without removing")
 	removeCmd.Flags().BoolVar(&removeFlagYes, "yes", false, "Skip confirmation prompts")
 	removeCmd.Flags().BoolVar(&removeFlagNoSnapshot, "no-snapshot", false, "Skip automatic snapshot creation (dangerous)")
+	removeCmd.Flags().StringVar(&removeTierFlag, "tier", "", "Remove packages of specified tier: safe, medium, risky")
 
 	RootCmd.AddCommand(removeCmd)
 }
@@ -129,9 +131,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Use recommendation based on tier flags
-		tier := determineTier()
+		tier, tierErr := determineTier()
+		if tierErr != nil {
+			return tierErr
+		}
 		if tier == "" {
-			return fmt.Errorf("no tier specified: use --safe, --medium, or --risky")
+			return fmt.Errorf("no tier specified. Use --safe, --medium, or --risky. Add --dry-run to preview changes first.")
 		}
 
 		scores, err := getPackagesByTier(anlzr, tier)
@@ -265,17 +270,26 @@ func runRemove(cmd *cobra.Command, args []string) error {
 }
 
 // determineTier returns the highest tier based on flags.
-func determineTier() string {
+// --tier takes precedence over the boolean tier flags.
+func determineTier() (string, error) {
+	if removeTierFlag != "" {
+		switch removeTierFlag {
+		case "safe", "medium", "risky":
+			return removeTierFlag, nil
+		default:
+			return "", fmt.Errorf("invalid tier %q: must be safe, medium, or risky", removeTierFlag)
+		}
+	}
 	if removeFlagRisky {
-		return "risky"
+		return "risky", nil
 	}
 	if removeFlagMedium {
-		return "medium"
+		return "medium", nil
 	}
 	if removeFlagSafe {
-		return "safe"
+		return "safe", nil
 	}
-	return ""
+	return "", nil
 }
 
 // getPackagesByTier returns packages for the specified tier and all lower tiers.
@@ -340,7 +354,7 @@ func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore
 			Package:    score.Package,
 			Score:      score.Score,
 			Tier:       score.Tier,
-			LastUsed:   getNeverTime(),
+			LastUsed:   getLastUsed(st, score.Package),
 			Reason:     score.Reason,
 			SizeBytes:  score.SizeBytes,
 			Uses7d:     uses7d,

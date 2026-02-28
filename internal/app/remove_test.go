@@ -2,7 +2,10 @@ package app
 
 import (
 	"testing"
+	"time"
 
+	"github.com/blackwell-systems/brewprune/internal/brew"
+	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -77,9 +80,13 @@ func TestDetermineTier(t *testing.T) {
 			removeFlagSafe = tt.safe
 			removeFlagMedium = tt.medium
 			removeFlagRisky = tt.risky
+			removeTierFlag = ""
 
-			result := determineTier()
+			result, err := determineTier()
 
+			if err != nil {
+				t.Errorf("determineTier() unexpected error: %v", err)
+			}
 			if result != tt.expected {
 				t.Errorf("determineTier() = %q, want %q", result, tt.expected)
 			}
@@ -90,6 +97,50 @@ func TestDetermineTier(t *testing.T) {
 	removeFlagSafe = false
 	removeFlagMedium = false
 	removeFlagRisky = false
+	removeTierFlag = ""
+}
+
+func TestDetermineTier_TierFlag(t *testing.T) {
+	tests := []struct {
+		name      string
+		tierFlag  string
+		wantTier  string
+		wantError bool
+	}{
+		{"tier safe", "safe", "safe", false},
+		{"tier medium", "medium", "medium", false},
+		{"tier risky", "risky", "risky", false},
+		{"tier invalid", "invalid", "", true},
+		{"tier empty", "", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset boolean flags
+			removeFlagSafe = false
+			removeFlagMedium = false
+			removeFlagRisky = false
+			removeTierFlag = tt.tierFlag
+
+			result, err := determineTier()
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("determineTier() expected error for tier %q, got none", tt.tierFlag)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("determineTier() unexpected error: %v", err)
+			}
+			if result != tt.wantTier {
+				t.Errorf("determineTier() = %q, want %q", result, tt.wantTier)
+			}
+		})
+	}
+
+	// Reset flags
+	removeTierFlag = ""
 }
 
 func TestRemoveCommandRegistration(t *testing.T) {
@@ -120,11 +171,64 @@ func TestRemoveValidation(t *testing.T) {
 	t.Run("no tier and no packages", func(t *testing.T) {
 		// This would fail in actual execution
 		// Testing the determineTier function is sufficient
-		tier := determineTier()
+		removeTierFlag = ""
+		tier, err := determineTier()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
 		if tier != "" {
 			t.Errorf("expected empty tier, got %q", tier)
 		}
 	})
+}
+
+func TestDisplayConfidenceScores_LastUsedNotNever(t *testing.T) {
+	// Create in-memory store for testing
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Insert a test package
+	pkg := &brew.Package{
+		Name:        "test-pkg",
+		Version:     "1.0.0",
+		InstalledAt: time.Now().AddDate(0, 0, -30),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Insert a usage event
+	now := time.Now()
+	event := &store.UsageEvent{
+		Package:    "test-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/test",
+		Timestamp:  now,
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	// Verify getLastUsed returns a non-zero time for this package
+	lastUsed := getLastUsed(st, "test-pkg")
+	if lastUsed.IsZero() {
+		t.Error("expected non-zero LastUsed time for package with usage data, got zero time (never)")
+	}
+
+	// Verify the time is approximately correct
+	diff := lastUsed.Sub(now)
+	if diff < -time.Second || diff > time.Second {
+		t.Errorf("LastUsed time mismatch: got %v, want approximately %v", lastUsed, now)
+	}
 }
 
 func TestGetPackagesByTierLogic(t *testing.T) {

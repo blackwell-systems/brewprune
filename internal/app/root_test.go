@@ -170,3 +170,57 @@ func TestExecute(t *testing.T) {
 	// Note: Functions are never nil in Go, so we just check it's callable
 	_ = Execute
 }
+
+func TestRootCmd_BareInvocationPrintsHint(t *testing.T) {
+	// Verify that RootCmd has a RunE set for bare invocation (no subcommand)
+	// rather than falling back to printing full help text.
+	if RootCmd.RunE == nil {
+		t.Fatal("expected RootCmd.RunE to be set for bare invocation hint")
+	}
+
+	// Verify that SuggestionsMinimumDistance is set (ROOT-2)
+	if RootCmd.SuggestionsMinimumDistance != 2 {
+		t.Errorf("SuggestionsMinimumDistance = %d, want 2", RootCmd.SuggestionsMinimumDistance)
+	}
+
+	// Verify SilenceUsage and SilenceErrors are set
+	if !RootCmd.SilenceUsage {
+		t.Error("expected SilenceUsage to be true")
+	}
+	if !RootCmd.SilenceErrors {
+		t.Error("expected SilenceErrors to be true")
+	}
+
+	// Verify Long description is still set (used by --help)
+	if RootCmd.Long == "" {
+		t.Error("expected Long description to still be set for --help")
+	}
+	if !strings.Contains(RootCmd.Long, "Quick Start") {
+		t.Error("expected Long description to contain 'Quick Start' section")
+	}
+
+	// Invoke RunE directly to verify it returns no error and doesn't panic
+	// Use a non-existent DB path to test the "no DB" branch
+	tmpDir := t.TempDir()
+	nonexistentDB := tmpDir + "/nonexistent.db"
+
+	oldDBPath := dbPath
+	dbPath = nonexistentDB
+	defer func() { dbPath = oldDBPath }()
+
+	// Redirect stdout to suppress output during test
+	oldStdout := os.Stdout
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("failed to open devnull: %v", err)
+	}
+	os.Stdout = devNull
+	defer func() {
+		os.Stdout = oldStdout
+		devNull.Close()
+	}()
+
+	if err := RootCmd.RunE(RootCmd, []string{}); err != nil {
+		t.Errorf("RootCmd.RunE() returned unexpected error: %v", err)
+	}
+}

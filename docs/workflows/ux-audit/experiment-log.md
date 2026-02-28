@@ -82,13 +82,25 @@ Wave 2 ── Agent C: output/table.go, output/progress.go
 
 ### Phase 3 — Wave 1
 
-- **Status:** Running (2 parallel agents)
-- **Agent A:** scan.go, quickstart.go, watch.go, status.go
-- **Agent B:** explain.go, doctor.go, stats.go, undo.go
+- **Status:** Complete ✓
+- **Commit:** `3a613eb`
+- **Agent A:** scan.go, quickstart.go, watch.go, status.go — 86 tool uses, ~6.9 min
+- **Agent B:** explain.go, doctor.go, stats.go, undo.go — 110 tool uses, ~10.5 min
+
+**Post-merge verification:** All tests passed clean. No inter-agent conflicts.
+
+**Observation:** Agent A reported finding Agent B's files modified in its worktree and restoring them to HEAD. Worktree isolation appears incomplete — both agents may have been working against the same filesystem. Did not cause test failures but worth investigating in the pattern.
+
+**Contract changes for Wave 2:**
+- `watch.go`: `startWatchDaemon` now returns `nil` when already running (was error)
+- `doctor.go`: warning-only path calls `os.Exit(2)` — untestable without subprocess pattern
+- `isatty` is now a direct dep in `stats.go` and `scan.go`
 
 ### Phase 4 — Wave 2
 
-*(pending Wave 1)*
+- **Status:** Running (2 parallel agents)
+- **Agent C:** output/table.go, output/progress.go
+- **Agent D:** unused.go, remove.go, root.go
 
 ---
 

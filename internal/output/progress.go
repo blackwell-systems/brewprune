@@ -7,7 +7,22 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mattn/go-isatty"
 )
+
+// writerIsTTY returns true if the given writer exposes an Fd() method
+// (e.g. *os.File) and that fd is a terminal. Falls back to false for
+// plain io.Writer values such as *bytes.Buffer.
+func writerIsTTY(w io.Writer) bool {
+	type fder interface {
+		Fd() uintptr
+	}
+	if f, ok := w.(fder); ok {
+		return isatty.IsTerminal(f.Fd())
+	}
+	return false
+}
 
 // ProgressBar displays a progress bar with percentage and description.
 // Example: [=========>          ] 45% Installing packages...
@@ -81,9 +96,21 @@ func (p *ProgressBar) Finish() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	alreadyDone := p.current == p.total
 	p.current = p.total
-	p.render()
-	fmt.Fprintln(p.writer) // Move to next line
+
+	if writerIsTTY(p.writer) {
+		// TTY: render() uses \r (no newline), so always re-render and then newline.
+		p.render()
+		fmt.Fprintln(p.writer)
+	} else {
+		// Non-TTY: render() emits a newline only when current==total.
+		// If we were already at total (e.g. last Increment already emitted),
+		// skip the re-render to avoid a duplicate 100% line.
+		if !alreadyDone {
+			p.render()
+		}
+	}
 }
 
 // render draws the progress bar (must be called with lock held).
@@ -115,8 +142,15 @@ func (p *ProgressBar) render() {
 
 	bar.WriteString("]")
 
-	// Clear line and print progress
-	fmt.Fprintf(p.writer, "\r%s %3d%% %s", bar.String(), percentage, p.description)
+	if writerIsTTY(p.writer) {
+		// TTY: overwrite the current line using carriage return
+		fmt.Fprintf(p.writer, "\r%s %3d%% %s", bar.String(), percentage, p.description)
+	} else {
+		// Non-TTY: only emit output on completion to avoid duplicate lines
+		if p.current == p.total {
+			fmt.Fprintf(p.writer, "%s %3d%% %s\n", bar.String(), percentage, p.description)
+		}
+	}
 }
 
 // Spinner displays an animated spinner with a message.
@@ -132,6 +166,8 @@ type Spinner struct {
 }
 
 // NewSpinner creates a new spinner with a message.
+// If stdout is not a TTY, the animation goroutine is skipped and the
+// message is printed once so that log output is not cluttered.
 func NewSpinner(message string) *Spinner {
 	s := &Spinner{
 		message: message,
@@ -152,6 +188,8 @@ func (s *Spinner) SetWriter(w io.Writer) {
 }
 
 // Start begins the spinner animation.
+// On a non-TTY writer the animation goroutine is not started; the message
+// is printed once instead so that non-interactive output stays clean.
 func (s *Spinner) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -161,6 +199,13 @@ func (s *Spinner) Start() {
 	}
 
 	s.running = true
+
+	if !writerIsTTY(s.writer) {
+		// Non-TTY: print message once and return; no goroutine needed.
+		fmt.Fprintf(s.writer, "%s...\n", s.message)
+		return
+	}
+
 	s.ticker = time.NewTicker(100 * time.Millisecond)
 
 	go func() {
@@ -199,8 +244,10 @@ func (s *Spinner) Stop() {
 	}
 	close(s.done)
 
-	// Clear the line
-	fmt.Fprintf(s.writer, "\r%s\r", strings.Repeat(" ", len(s.message)+4))
+	// Clear the line only on a TTY — on non-TTY the \r does not overwrite.
+	if writerIsTTY(s.writer) {
+		fmt.Fprintf(s.writer, "\r%s\r", strings.Repeat(" ", len(s.message)+4))
+	}
 }
 
 // UpdateMessage updates the spinner message while it's running.

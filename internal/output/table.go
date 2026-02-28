@@ -12,9 +12,12 @@ package output
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mattn/go-isatty"
 
 	"github.com/blackwell-systems/brewprune/internal/brew"
 	"github.com/blackwell-systems/brewprune/internal/store"
@@ -28,6 +31,15 @@ const (
 	colorRed    = "\033[31m"
 	colorGray   = "\033[90m"
 )
+
+// IsColorEnabled returns true if ANSI color codes should be emitted.
+// It checks that os.Stdout is a TTY and that the NO_COLOR env var is not set.
+func IsColorEnabled() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	return isatty.IsTerminal(os.Stdout.Fd())
+}
 
 // RenderPackageTable renders a table of packages with their details.
 func RenderPackageTable(packages []*brew.Package) string {
@@ -44,10 +56,10 @@ func RenderPackageTable(packages []*brew.Package) string {
 
 	var sb strings.Builder
 
-	// Header
-	sb.WriteString(fmt.Sprintf("%-20s %-12s %-8s %-13s %-13s\n",
-		"Package", "Version", "Size", "Installed", "Last Used"))
-	sb.WriteString(strings.Repeat("─", 80))
+	// Header — Version column removed (pkg.Version is never populated from Homebrew metadata)
+	sb.WriteString(fmt.Sprintf("%-20s %-8s %-13s %-13s\n",
+		"Package", "Size", "Installed", "Last Used"))
+	sb.WriteString(strings.Repeat("─", 60))
 	sb.WriteString("\n")
 
 	// Rows
@@ -56,15 +68,23 @@ func RenderPackageTable(packages []*brew.Package) string {
 		installed := formatRelativeTime(pkg.InstalledAt)
 		lastUsed := "never" // Default, will be overridden by analyzer data
 
-		sb.WriteString(fmt.Sprintf("%-20s %-12s %-8s %-13s %-13s\n",
+		sb.WriteString(fmt.Sprintf("%-20s %-8s %-13s %-13s\n",
 			truncate(pkg.Name, 20),
-			truncate(pkg.Version, 12),
 			size,
 			installed,
 			lastUsed))
 	}
 
 	return sb.String()
+}
+
+// colorize wraps text in the given ANSI color code if color is enabled,
+// otherwise returns the plain text.
+func colorize(color, text string) string {
+	if IsColorEnabled() {
+		return color + text + colorReset
+	}
+	return text
 }
 
 // RenderConfidenceTable renders a table of packages with confidence scores.
@@ -103,15 +123,25 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 			lastUsed = formatRelativeTime(score.LastUsed)
 		}
 
-		sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s%s%s\n",
-			truncate(score.Package, 16),
-			size,
-			usesStr,
-			lastUsed,
-			depStr,
-			tierColor,
-			tierLabel,
-			colorReset))
+		if IsColorEnabled() {
+			sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s%s%s\n",
+				truncate(score.Package, 16),
+				size,
+				usesStr,
+				lastUsed,
+				depStr,
+				tierColor,
+				tierLabel,
+				colorReset))
+		} else {
+			sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s\n",
+				truncate(score.Package, 16),
+				size,
+				usesStr,
+				lastUsed,
+				depStr,
+				tierLabel))
+		}
 	}
 
 	return sb.String()
@@ -130,11 +160,16 @@ func formatDepCount(count int) string {
 
 // formatTierLabel returns the display label for a tier in the table.
 // Risky or critical packages show a cross-mark keep indicator.
+// Safe packages show "✓ safe", medium packages show "~ review".
 func formatTierLabel(tier string, isCritical bool) string {
-	if isCritical || strings.ToLower(tier) == "risky" {
-		return "\u2717 keep"
+	switch strings.ToLower(tier) {
+	case "safe":
+		return "✓ safe"
+	case "medium":
+		return "~ review"
+	default: // risky or critical
+		return "✗ keep"
 	}
-	return strings.ToUpper(tier)
 }
 
 // VerboseScore contains detailed score information for verbose output.
@@ -175,7 +210,11 @@ func RenderConfidenceTableVerbose(scores []VerboseScore) string {
 		tierStr := formatTier(score.Tier)
 		tierColor := getTierColor(score.Tier)
 		sb.WriteString(fmt.Sprintf("Package: %s\n", score.Package))
-		sb.WriteString(fmt.Sprintf("Score:   %s%d%s (%s)\n", tierColor, score.Score, colorReset, tierStr))
+		if IsColorEnabled() {
+			sb.WriteString(fmt.Sprintf("Score:   %s%d%s (%s)\n", tierColor, score.Score, colorReset, tierStr))
+		} else {
+			sb.WriteString(fmt.Sprintf("Score:   %d (%s)\n", score.Score, tierStr))
+		}
 
 		// Breakdown section
 		sb.WriteString("\nBreakdown:\n")
@@ -213,9 +252,17 @@ func RenderUsageTable(stats map[string]UsageStats) string {
 		entries = append(entries, entry{pkg: pkg, stats: s})
 	}
 
-	// Sort by total runs descending
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].stats.TotalRuns > entries[j].stats.TotalRuns
+	// Sort by total runs descending, then by LastUsed descending (zero times sorted to bottom)
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].stats.TotalRuns != entries[j].stats.TotalRuns {
+			return entries[i].stats.TotalRuns > entries[j].stats.TotalRuns
+		}
+		iZero := entries[i].stats.LastUsed.IsZero()
+		jZero := entries[j].stats.LastUsed.IsZero()
+		if iZero != jZero {
+			return jZero
+		}
+		return entries[i].stats.LastUsed.After(entries[j].stats.LastUsed)
 	})
 
 	var sb strings.Builder
@@ -429,24 +476,44 @@ func RenderTierSummary(safe, medium, risky TierStats, showAll bool, caskCount in
 	var sb strings.Builder
 
 	// Safe tier
-	sb.WriteString(fmt.Sprintf("%sSAFE%s: %d packages (%s)",
-		colorGreen, colorReset, safe.Count, formatSize(safe.SizeBytes)))
+	if IsColorEnabled() {
+		sb.WriteString(fmt.Sprintf("%sSAFE%s: %d packages (%s)",
+			colorGreen, colorReset, safe.Count, formatSize(safe.SizeBytes)))
+	} else {
+		sb.WriteString(fmt.Sprintf("SAFE: %d packages (%s)",
+			safe.Count, formatSize(safe.SizeBytes)))
+	}
 
 	sb.WriteString(" \u00b7 ")
 
 	// Medium tier
-	sb.WriteString(fmt.Sprintf("%sMEDIUM%s: %d (%s)",
-		colorYellow, colorReset, medium.Count, formatSize(medium.SizeBytes)))
+	if IsColorEnabled() {
+		sb.WriteString(fmt.Sprintf("%sMEDIUM%s: %d (%s)",
+			colorYellow, colorReset, medium.Count, formatSize(medium.SizeBytes)))
+	} else {
+		sb.WriteString(fmt.Sprintf("MEDIUM: %d (%s)",
+			medium.Count, formatSize(medium.SizeBytes)))
+	}
 
 	sb.WriteString(" \u00b7 ")
 
 	// Risky tier
 	if showAll {
-		sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (%s)",
-			colorRed, colorReset, risky.Count, formatSize(risky.SizeBytes)))
+		if IsColorEnabled() {
+			sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (%s)",
+				colorRed, colorReset, risky.Count, formatSize(risky.SizeBytes)))
+		} else {
+			sb.WriteString(fmt.Sprintf("RISKY: %d (%s)",
+				risky.Count, formatSize(risky.SizeBytes)))
+		}
 	} else {
-		sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (hidden, use --all)",
-			colorRed, colorReset, risky.Count))
+		if IsColorEnabled() {
+			sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (hidden, use --all)",
+				colorRed, colorReset, risky.Count))
+		} else {
+			sb.WriteString(fmt.Sprintf("RISKY: %d (hidden, use --all)",
+				risky.Count))
+		}
 	}
 
 	if caskCount > 0 {
