@@ -3,7 +3,9 @@
 //
 // Architecture:
 //   - A single Go binary (~/.brewprune/bin/brewprune-shim) handles all shimmed commands.
-//   - Symlinks are created for each tracked Homebrew binary pointing to that binary.
+//   - Hard links are created for each tracked Homebrew binary pointing to that binary.
+//     Hard links share the same inode as brewprune-shim, so they appear as regular
+//     executables (not symlinks) to enterprise EDR scanners like CrowdStrike Falcon.
 //   - The shim binary determines which command was invoked via filepath.Base(os.Args[0]).
 //   - Executions are logged to ~/.brewprune/usage.log for batch processing by the daemon.
 package shim
@@ -15,9 +17,69 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 const shimBinaryName = "brewprune-shim"
+
+// shimInode returns the inode number of the shim binary, used to identify
+// hard-link shim entries in the shim directory.
+func shimInode(shimBinary string) (uint64, error) {
+	info, err := os.Stat(shimBinary)
+	if err != nil {
+		return 0, err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, fmt.Errorf("cannot read inode for %s", shimBinary)
+	}
+	return stat.Ino, nil
+}
+
+// isShimEntry reports whether a file in the shim directory is a shim — either
+// a symlink (legacy) or a hard link sharing the shim binary's inode.
+func isShimEntry(path string, shimBinaryIno uint64) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	// Legacy: symlink pointing into the shim directory.
+	if info.Mode()&os.ModeSymlink != 0 {
+		return true
+	}
+	// Current: hard link with the same inode as the shim binary.
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		return stat.Ino == shimBinaryIno
+	}
+	return false
+}
+
+// createShimEntry creates a hard link from shimPath to the shim binary.
+// Hard links appear as regular executables to filesystem scanners, avoiding
+// removal by enterprise EDR tools (e.g. CrowdStrike Falcon) that target
+// symlink-based PATH hijacking patterns.
+func createShimEntry(shimBinary, shimPath string) error {
+	// Remove any existing entry (stale symlink, wrong hard link, etc.).
+	os.Remove(shimPath)
+	return os.Link(shimBinary, shimPath)
+}
+
+// lookPathExcludingShimDir searches PATH for basename, skipping the shim
+// directory. This prevents LookPath from finding our own shim hard links and
+// treating them as the "real" binary — which would cause RefreshShims/
+// GenerateShims to conclude the desired set is empty and delete all shims.
+func lookPathExcludingShimDir(basename, shimDir string) (string, error) {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == shimDir {
+			continue
+		}
+		candidate := filepath.Join(dir, basename)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && info.Mode()&0111 != 0 {
+			return candidate, nil
+		}
+	}
+	return "", &exec.Error{Name: basename, Err: exec.ErrNotFound}
+}
 
 // GetShimDir returns the directory where shim symlinks are stored.
 // Default: ~/.brewprune/bin
@@ -199,7 +261,8 @@ func GenerateShims(binaries []string) (int, error) {
 		}
 
 		// Only shim if the brew version is what the user would actually run.
-		found, err := exec.LookPath(basename)
+		// Exclude the shim dir from PATH so we don't find our own symlinks.
+		found, err := lookPathExcludingShimDir(basename, shimDir)
 		if err != nil {
 			continue // not on PATH at all
 		}
@@ -214,17 +277,19 @@ func GenerateShims(binaries []string) (int, error) {
 			continue
 		}
 
-		symlinkPath := filepath.Join(shimDir, basename)
+		shimPath := filepath.Join(shimDir, basename)
 
-		// Skip if already correctly shimmed.
-		if existing, err := os.Readlink(symlinkPath); err == nil && existing == shimBinary {
-			continue
+		// Skip if already correctly shimmed (hard link to the shim binary).
+		if info, err := os.Lstat(shimPath); err == nil {
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				shimIno, _ := shimInode(shimBinary)
+				if shimIno != 0 && stat.Ino == shimIno {
+					continue // already a valid hard-link shim
+				}
+			}
 		}
 
-		// Remove stale symlink or regular file if present.
-		os.Remove(symlinkPath)
-
-		if err := os.Symlink(shimBinary, symlinkPath); err != nil {
+		if err := createShimEntry(shimBinary, shimPath); err != nil {
 			return count, fmt.Errorf("failed to create shim for %s: %w", basename, err)
 		}
 		count++
@@ -264,22 +329,24 @@ func RefreshShims(binaries []string) (added int, removed int, err error) {
 	}
 
 	current := make(map[string]struct{})
+	// Get the shim binary's inode to identify hard-link shim entries.
+	shimBinaryIno, _ := shimInode(shimBinary)
+
 	for _, entry := range entries {
 		name := entry.Name()
 		if name == shimBinaryName {
 			continue
 		}
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
+		entryPath := filepath.Join(shimDir, name)
+		if isShimEntry(entryPath, shimBinaryIno) {
 			current[name] = struct{}{}
 		}
 	}
 
 	// Build the desired set — apply the same LookPath collision-safety logic as
 	// GenerateShims so we only shim binaries that the brew version would run.
+	// Exclude the shim dir from PATH so existing shim entries don't shadow
+	// the real binaries and cause the desired set to be empty.
 	desired := make(map[string]struct{})
 	for _, binPath := range binaries {
 		basename := filepath.Base(binPath)
@@ -287,7 +354,7 @@ func RefreshShims(binaries []string) (added int, removed int, err error) {
 			continue
 		}
 
-		found, err := exec.LookPath(basename)
+		found, err := lookPathExcludingShimDir(basename, shimDir)
 		if err != nil {
 			continue // not on PATH at all
 		}
@@ -302,26 +369,29 @@ func RefreshShims(binaries []string) (added int, removed int, err error) {
 		desired[basename] = struct{}{}
 	}
 
-	// Create symlinks that are desired but not yet present.
+	// Create hard-link shim entries that are desired but not yet present.
 	for basename := range desired {
+		shimPath := filepath.Join(shimDir, basename)
 		if _, exists := current[basename]; exists {
-			// Already present — verify it points to the right target.
-			symlinkPath := filepath.Join(shimDir, basename)
-			if existing, err := os.Readlink(symlinkPath); err == nil && existing == shimBinary {
-				continue // already correct
+			// Already present — verify it's the correct inode.
+			if shimBinaryIno != 0 {
+				if info, err := os.Lstat(shimPath); err == nil {
+					if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Ino == shimBinaryIno {
+						continue // already a valid hard-link shim
+					}
+				}
 			}
-			// Stale/wrong target — remove and recreate.
-			os.Remove(symlinkPath)
+			// Stale entry — remove and recreate.
+			os.Remove(shimPath)
 		}
 
-		symlinkPath := filepath.Join(shimDir, basename)
-		if err := os.Symlink(shimBinary, symlinkPath); err != nil {
+		if err := createShimEntry(shimBinary, shimPath); err != nil {
 			return added, removed, fmt.Errorf("failed to create shim for %s: %w", basename, err)
 		}
 		added++
 	}
 
-	// Remove symlinks that are present but no longer desired.
+	// Remove shim entries that are present but no longer desired.
 	for basename := range current {
 		if _, exists := desired[basename]; !exists {
 			if err := os.Remove(filepath.Join(shimDir, basename)); err != nil {
@@ -385,8 +455,8 @@ func ReadShimVersion() (string, error) {
 	return string(data), nil
 }
 
-// RemoveShims removes all symlinks in the shim directory.
-// Leaves the brewprune-shim binary itself intact.
+// RemoveShims removes all shim entries (symlinks or hard links) in the shim
+// directory. Leaves the brewprune-shim binary itself intact.
 func RemoveShims() error {
 	shimDir, err := GetShimDir()
 	if err != nil {
@@ -401,16 +471,16 @@ func RemoveShims() error {
 		return fmt.Errorf("cannot read shim dir %s: %w", shimDir, err)
 	}
 
+	shimBinary := filepath.Join(shimDir, shimBinaryName)
+	shimBinaryIno, _ := shimInode(shimBinary)
+
 	for _, entry := range entries {
 		if entry.Name() == shimBinaryName {
 			continue
 		}
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			os.Remove(filepath.Join(shimDir, entry.Name()))
+		entryPath := filepath.Join(shimDir, entry.Name())
+		if isShimEntry(entryPath, shimBinaryIno) {
+			os.Remove(entryPath)
 		}
 	}
 

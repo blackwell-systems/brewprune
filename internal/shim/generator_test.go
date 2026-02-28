@@ -180,7 +180,7 @@ func TestRefreshShims_NoShimBinary(t *testing.T) {
 	}
 }
 
-func TestRefreshShims_AddsNewSymlinks(t *testing.T) {
+func TestRefreshShims_AddsNewShims(t *testing.T) {
 	shimDir, brewBinPath := setupRefreshShimsEnv(t, "mytool")
 
 	added, removed, err := RefreshShims([]string{brewBinPath})
@@ -194,15 +194,15 @@ func TestRefreshShims_AddsNewSymlinks(t *testing.T) {
 		t.Errorf("RefreshShims() removed = %d, want 0", removed)
 	}
 
-	// Verify the symlink was created and points to the shim binary.
+	// Verify the hard link was created: its inode must match the shim binary.
 	shimBin := filepath.Join(shimDir, shimBinaryName)
-	symlinkPath := filepath.Join(shimDir, "mytool")
-	target, err := os.Readlink(symlinkPath)
+	shimPath := filepath.Join(shimDir, "mytool")
+	shimBinaryIno, err := shimInode(shimBin)
 	if err != nil {
-		t.Fatalf("symlink not created: %v", err)
+		t.Fatalf("shimInode: %v", err)
 	}
-	if target != shimBin {
-		t.Errorf("symlink target = %q, want %q", target, shimBin)
+	if !isShimEntry(shimPath, shimBinaryIno) {
+		t.Errorf("shim entry %q was not created as a hard link to %q", shimPath, shimBin)
 	}
 }
 
@@ -260,6 +260,48 @@ func TestRefreshShims_RemovesStaleSymlinks(t *testing.T) {
 	symlinkPath := filepath.Join(shimDir, "mytool")
 	if _, err := os.Lstat(symlinkPath); !os.IsNotExist(err) {
 		t.Errorf("stale symlink was not removed")
+	}
+}
+
+// TestRefreshShims_ShimDirInPATH is a regression test for the bug where
+// RefreshShims deleted all shims when ~/.brewprune/bin was already in PATH.
+// With the shim dir in PATH, exec.LookPath would resolve each binary to the
+// shim entry instead of the real Homebrew binary, making the desired set
+// empty and causing all shims to be deleted as "stale".
+func TestRefreshShims_ShimDirInPATH(t *testing.T) {
+	shimDir, brewBinPath := setupRefreshShimsEnv(t, "mytool")
+
+	// Pre-create a legacy symlink for mytool to simulate state from an older
+	// version of brewprune that used symlinks instead of hard links.
+	shimBin := filepath.Join(shimDir, shimBinaryName)
+	shimPath := filepath.Join(shimDir, "mytool")
+	if err := os.Symlink(shimBin, shimPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Put the shim dir FIRST in PATH (simulating the user's interactive shell
+	// where ~/.brewprune/bin precedes /opt/homebrew/bin).
+	originalPath := os.Getenv("PATH")
+	brewBinDir := filepath.Dir(brewBinPath)
+	os.Setenv("PATH", shimDir+":"+brewBinDir+":/usr/bin:/bin")
+	t.Cleanup(func() { os.Setenv("PATH", originalPath) })
+
+	// RefreshShims must NOT remove the shim. It will upgrade the legacy
+	// symlink to a hard link (added=1), but the critical invariant is that
+	// removed=0: no shim is deleted because the desired set is empty.
+	added, removed, err := RefreshShims([]string{brewBinPath})
+	if err != nil {
+		t.Fatalf("RefreshShims() error: %v", err)
+	}
+	_ = added // may be 1 (symlink upgraded to hard link) or 0 (already a hard link)
+	if removed != 0 {
+		t.Errorf("removed = %d, want 0 (shim dir in PATH must not purge shims)", removed)
+	}
+
+	// Confirm a shim entry is still present (hard link or symlink).
+	shimBinaryIno, _ := shimInode(shimBin)
+	if !isShimEntry(shimPath, shimBinaryIno) {
+		t.Error("shim entry was incorrectly deleted when shim dir was in PATH")
 	}
 }
 

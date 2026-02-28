@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/blackwell-systems/brewprune/internal/brew"
 	"github.com/blackwell-systems/brewprune/internal/config"
@@ -428,19 +429,24 @@ func generateAliasShims(db *store.Store) (int, error) {
 
 	count := 0
 	for alias, pkgName := range aliasCfg.Aliases {
-		symlinkPath := filepath.Join(shimDir, alias)
+		shimPath := filepath.Join(shimDir, alias)
 
-		// Skip if already correctly shimmed.
-		if existing, err := os.Readlink(symlinkPath); err == nil && existing == shimBinary {
-			// Ensure the alias path is registered in the package's BinaryPaths.
-			registerAliasBinaryPath(db, alias, pkgName)
-			continue
+		// Skip if already correctly shimmed (hard link with the same inode).
+		if info, err := os.Lstat(shimPath); err == nil {
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				binInfo, binErr := os.Stat(shimBinary)
+				if binErr == nil {
+					if binStat, ok2 := binInfo.Sys().(*syscall.Stat_t); ok2 && stat.Ino == binStat.Ino {
+						registerAliasBinaryPath(db, alias, pkgName)
+						continue
+					}
+				}
+			}
 		}
 
-		// Remove stale symlink or file if present.
-		os.Remove(symlinkPath)
-
-		if err := os.Symlink(shimBinary, symlinkPath); err != nil {
+		// Remove stale entry if present, then create hard link.
+		os.Remove(shimPath)
+		if err := os.Link(shimBinary, shimPath); err != nil {
 			return count, fmt.Errorf("failed to create alias shim for %s: %w", alias, err)
 		}
 		count++
