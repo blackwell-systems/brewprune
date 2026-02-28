@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // EnsurePathEntry checks whether dir is on PATH and, if not, appends the
@@ -47,6 +48,16 @@ func EnsurePathEntry(dir string) (added bool, configFile string, err error) {
 	// Ensure the parent directory exists (needed for fish conf.d path).
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return false, "", fmt.Errorf("cannot create config directory %s: %w", filepath.Dir(configPath), err)
+	}
+
+	// Check if the entry already exists in the config file
+	existingContent, readErr := os.ReadFile(configPath)
+	if readErr == nil {
+		// File exists, check if brewprune shims marker is present
+		if strings.Contains(string(existingContent), "# brewprune shims") {
+			// Already configured
+			return false, configPath, nil
+		}
 	}
 
 	// Build the export line to append.

@@ -4,13 +4,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	dbPath string
+	dbPath     string
+	versionFlag bool
+
+	// Version information (set via ldflags during build)
+	Version   = "dev"
+	GitCommit = "unknown"
+	BuildDate = "unknown"
 
 	// RootCmd is the root command for brewprune
 	RootCmd = &cobra.Command{
@@ -58,8 +63,14 @@ Examples:
   # Undo last removal
   brewprune undo latest`,
 		SilenceUsage:  true,
-		SilenceErrors: true,
+		SilenceErrors: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if --version flag was explicitly set
+			if versionFlag {
+				fmt.Printf("brewprune version %s (commit: %s, built: %s)\n", Version, GitCommit, BuildDate)
+				return nil
+			}
+
 			// Check if --help flag was explicitly set
 			// If so, show help and exit 0 (success)
 			helpFlag := cmd.Flags().Lookup("help")
@@ -67,10 +78,9 @@ Examples:
 				return cmd.Help()
 			}
 
-			// Bare invocation without args should exit 1
-			// Show help but return error to signal failure
-			_ = cmd.Help()
-			return fmt.Errorf("no command specified")
+			// Bare invocation without args: show help and exit 0
+			// Users expect help display to be successful
+			return cmd.Help()
 		},
 	}
 )
@@ -78,6 +88,7 @@ Examples:
 func init() {
 	// Global flags
 	RootCmd.PersistentFlags().StringVar(&dbPath, "db", "", "database path (default: ~/.brewprune/brewprune.db)")
+	RootCmd.Flags().BoolVarP(&versionFlag, "version", "v", false, "show version information")
 
 	// Enable cobra's built-in suggestion feature for unknown subcommands
 	RootCmd.SuggestionsMinimumDistance = 2
@@ -90,23 +101,7 @@ func init() {
 
 // Execute runs the root command
 func Execute() error {
-	err := RootCmd.Execute()
-	if err != nil {
-		// For unknown commands, print error first, then hint
-		if strings.Contains(err.Error(), "unknown command") {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-			fmt.Fprintf(os.Stderr, "Run 'brewprune --help' for a list of available commands.\n")
-			return err
-		}
-		// For "no command specified" error (bare invocation), suppress the error message
-		// since we already showed help text
-		if strings.Contains(err.Error(), "no command specified") {
-			return err
-		}
-		// For all other errors, print them normally
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-	}
-	return err
+	return RootCmd.Execute()
 }
 
 // getDBPath returns the database path, using the flag value or default

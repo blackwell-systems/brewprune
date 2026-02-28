@@ -1,8 +1,10 @@
-# brewprune Cold-Start UX Audit
+# brewprune Cold-Start UX Audit — Round 4
 
 **Date:** 2026-02-28
-**Environment:** Docker container `bp-audit3`, brewprune installed at `/home/linuxbrew/.linuxbrew/bin/brewprune`
-**Auditor role:** New user, first encounter with the tool
+**Environment:** Docker container `bp-audit4`, brewprune installed at `/home/linuxbrew/.linuxbrew/bin/brewprune`
+**Packages:** 40 Homebrew formulae (acl, bat, brotli, bzip2, ca-certificates, curl, cyrus-sasl, expat, fd, gettext, git, jq, keyutils, krb5, libedit, libevent, libgit2, libidn2, libnghttp2, libnghttp3, libngtcp2, libssh2, libunistring, libxcrypt, libxml2, lz4, ncurses, oniguruma, openldap, openssl@3, pcre2, readline, ripgrep, sqlite, tmux, utf8proc, util-linux, xz, zlib-ng-compat, zstd)
+
+**Method:** Two independent audit agents ran 50+ commands across 9 areas. Findings merged and verified.
 
 ---
 
@@ -10,310 +12,378 @@
 
 | Severity        | Count |
 |-----------------|-------|
-| UX-critical     | 4     |
-| UX-improvement  | 9     |
-| UX-polish       | 6     |
-| **Total**       | **19** |
+| UX-critical     | 7     |
+| UX-improvement  | 16    |
+| UX-polish       | 15    |
+| **Total**       | **38**|
 
 ---
 
 ## Area 1: Discovery
 
-### [DISCOVERY] `brewprune` with no args exits 0
-- **Severity:** UX-improvement
-- **What happens:** Running `brewprune` with no arguments prints the help text and exits with code `0`. Most CLI tools exit non-zero when invoked with no meaningful input, to signal "nothing was done."
-- **Expected:** Exit code `1` (or at minimum, a nudge like "run `brewprune quickstart` to get started") so that scripts can detect accidental bare invocations.
-- **Repro:** `docker exec bp-audit3 brewprune; echo $?` — prints help, exits `0`
-
----
-
-### [DISCOVERY] `doctor --help` omits the `--fix` flag that users will try
+### [DISCOVERY] Missing --version flag
 - **Severity:** UX-critical
-- **What happens:** The `doctor --help` output lists only `-h/--help`. There is no `--fix` flag implemented, yet user intuition from tools like `npm doctor --fix` leads users to try `brewprune doctor --fix`, which returns `Error: unknown flag: --fix` with exit code `1`.
-- **Expected:** Either implement `--fix` (which could auto-write the PATH export to the shell config, restart the daemon, etc.) or explicitly note in help text that doctor is read-only and link to `quickstart` for remediation.
-- **Repro:** `docker exec bp-audit3 brewprune doctor --fix` — `Error: unknown flag: --fix`
+- **What happens:** `brewprune --version` returns "Error: unknown flag: --version" with exit code 1
+- **Expected:** Standard CLI tools support `--version` to show version information. Critical discovery feature for users checking their installed version.
+- **Repro:** `docker exec bp-audit4 brewprune --version`
 
----
+### [DISCOVERY] Error messages print 4 times
+- **Severity:** UX-critical
+- **What happens:** Every error appears 4 times (2 complete duplicates of error + help hint). Example: `brewprune blorp` prints "Error: unknown command" 4 times.
+- **Expected:** Each error should appear once.
+- **Root cause:** Triple error handling: Cobra prints despite `SilenceErrors: true`, `Execute()` prints at `root.go:97`, and `main()` prints at `main.go:12`
+- **Repro:** `docker exec bp-audit4 brewprune blorp`
 
-### [DISCOVERY] Unknown subcommand error message has awkward word order
+### [DISCOVERY] Help display exits with code 1
+- **Severity:** UX-improvement
+- **What happens:** Running `brewprune` with no arguments shows help but exits with code 1, suggesting an error occurred
+- **Expected:** Displaying help should exit with code 0 (success). Exit code 1 should be reserved for actual errors. This matters for scripting and CI/CD integration.
+- **Repro:** `docker exec bp-audit4 sh -c 'brewprune; echo "Exit code: $?"'`
+
+### [DISCOVERY] Doctor --fix flag documented but not implemented
+- **Severity:** UX-improvement
+- **What happens:** `brewprune doctor --fix` returns "Error: unknown flag: --fix", but doctor --help mentions "--fix flag is not yet implemented"
+- **Expected:** Either implement the flag or don't document it. Documenting unimplemented features creates confusion. Or show: "The --fix flag is not yet available. Run 'brewprune quickstart' to fix setup issues automatically."
+- **Repro:** `docker exec bp-audit4 brewprune doctor --fix`
+
+### [DISCOVERY] Help text for --safe shortcut flag not prominent
 - **Severity:** UX-polish
-- **What happens:** `brewprune blorp` outputs:
-  ```
-  Run 'brewprune --help' for a list of available commands.
-  Error: unknown command "blorp" for "brewprune"
-  ```
-  The helpful hint appears *before* the error message, which reads backwards. No "did you mean?" suggestion is offered.
-- **Expected:** Error first, then the hint. Standard CLI convention is `Error: ...` followed by the hint.
-- **Repro:** `docker exec bp-audit3 brewprune blorp`
-
----
-
-### [DISCOVERY] `scan --help` exposes an internal post-install-hook detail as a user-facing example
-- **Severity:** UX-polish
-- **What happens:** The `scan --help` example section includes:
-  ```
-  # Fast path: refresh shims only (used by post_install hook)
-  brewprune scan --refresh-shims
-  ```
-  "used by post_install hook" is an internal implementation detail that a new user will find confusing.
-- **Expected:** Either remove this example from user-facing help or move it to an "Advanced" section.
-- **Repro:** `docker exec bp-audit3 brewprune scan --help`
+- **What happens:** Main help page shows example `brewprune remove --safe` but the remove command help doesn't mention --safe prominently (it's listed lower under "Tier shortcut flags")
+- **Expected:** Either use `--tier safe` in examples or make shortcut flags more prominent in help text
+- **Repro:** Compare `brewprune --help` vs `brewprune remove --help`
 
 ---
 
 ## Area 2: Setup / Onboarding
 
-### [SETUP] `quickstart` prints a full 40-row package table mid-flow
-- **Severity:** UX-improvement
-- **What happens:** During `quickstart`, Step 1 prints the entire package inventory (all 40 packages with size, installed time, last used). This creates a wall of output that buries the subsequent steps and the critical PATH instruction.
-- **Expected:** Step 1 should emit only a one-line summary (`Scan complete: 40 packages, 352 MB`). The package table belongs in `brewprune scan` or `brewprune unused`, not in the onboarding wizard.
-- **Repro:** `docker exec bp-audit3 brewprune quickstart`
-
----
-
-### [SETUP] PATH instruction appears twice with contradictory framing
-- **Severity:** UX-improvement
-- **What happens:** After the scan step, a `⚠` block warns "add shim directory to PATH." Then Step 2 reports `✓ Added /home/brewuser/.brewprune/bin to PATH in /home/brewuser/.profile` followed by another "Restart your shell" instruction. The user sees two different PATH messages that appear to contradict each other (one warns, one says it's done).
-- **Expected:** A single clear PATH message at the end of the flow, explaining that the config file was updated but the current shell session needs a restart. The in-scan warning should be suppressed during `quickstart`.
-- **Repro:** `docker exec bp-audit3 brewprune quickstart`
-
----
-
-### [SETUP] `status` shows "PATH missing" warning immediately after successful `quickstart`
-- **Severity:** UX-improvement
-- **What happens:** After running `quickstart`, `status` shows:
-  ```
-  Shims: active · 222 commands · PATH missing ⚠
-         Note: events are from setup self-test, not real shim interception.
-  ```
-  This is technically correct (the current shell session hasn't sourced the updated profile), but to a new user who just ran `quickstart` successfully, seeing `PATH missing` looks like setup failed.
-- **Expected:** `status` should distinguish between "PATH not yet in effect in current session" and "PATH was never configured." If the profile file already contains the export, status should say something like `PATH configured (restart shell to activate)` rather than the alarming `PATH missing ⚠`.
-- **Repro:** `docker exec bp-audit3 brewprune quickstart && docker exec bp-audit3 brewprune status`
-
----
-
-### [SETUP] Re-running `scan` after `quickstart` reprints the full package table
-- **Severity:** UX-polish
-- **What happens:** Running `brewprune scan` a second time reprints all build messages (`Building shim binary...`, `Generating PATH shims...`) and the full 40-package table, even when nothing has changed.
-- **Expected:** On a re-scan with no changes detected, output should be terse: `✓ Database up to date (40 packages, 0 changes)`. Verbose output should only appear on first scan or with an explicit flag.
-- **Repro:** `docker exec bp-audit3 brewprune scan` (after quickstart has already run)
-
----
-
-## Area 3: Core Feature — Unused
-
-### [UNUSED] `--sort age` returns packages in no visible order
-- **Severity:** UX-improvement
-- **What happens:** `brewprune unused --sort age` returns packages in what appears to be random order. All packages were installed at the same time in this environment, so there is no meaningful age difference — but the output gives no indication of this. A user who types `--sort age` expecting a meaningful sort gets a shuffled list with no explanation.
-- **Expected:** When all packages share the same install timestamp, note "all packages installed at the same time — age sort has no effect" or fall back to a secondary sort (e.g., score or name). The sort direction (newest-first or oldest-first) should also be documented or indicated in the column header.
-- **Repro:** `docker exec bp-audit3 brewprune unused --sort age`
-
----
-
-### [UNUSED] `--min-score 70` silently suppresses risky tier without explanation
-- **Severity:** UX-improvement
-- **What happens:** `brewprune unused --min-score 70` shows only the 5 safe-tier packages (score 80), with no medium-tier packages (scores 50-65) visible. The risky tier is hidden by the separate `--all` rule, not by `--min-score`. The footer does not explain the interaction between these two filters.
-- **Expected:** The footer should clarify: "Showing packages with score >= 70. X packages below threshold hidden. Risky tier also hidden (use --all to include)." The interaction between `--min-score` and risky-tier suppression should be surfaced.
-- **Repro:** `docker exec bp-audit3 brewprune unused --min-score 70`
-
----
-
-### [UNUSED] Verbose `-v` with no tier filter dumps hundreds of lines without warning
-- **Severity:** UX-polish
-- **What happens:** `brewprune unused -v` prints a full detailed breakdown for all 36 non-risky packages — hundreds of lines — with no paging, no prompt, and no truncation.
-- **Expected:** Either recommend `brewprune unused --tier safe -v` in the flag description (the help already shows this example, but the default behavior remains overwhelming), or warn before rendering if the output will exceed ~30 packages.
-- **Repro:** `docker exec bp-audit3 brewprune unused -v`
-
----
-
-### [UNUSED] Summary header tier labels (`SAFE`, `MEDIUM`, `RISKY`) are not color-coded
-- **Severity:** UX-polish
-- **What happens:** The table rows use colored symbols (`✓ safe` in green, `~ review` in yellow, `⚠ risky` in red), but the summary header line (`SAFE: 5 packages · MEDIUM: 31 · RISKY: 4`) uses plain text with no color.
-- **Expected:** The summary header tier labels should use the same color coding as the table rows for visual consistency.
-- **Repro:** `docker exec bp-audit3 brewprune unused`
-
----
-
-## Area 4: Tracking / Daemon
-
-### [DAEMON] `stats --package git` crashed with exit 139 (SIGSEGV) on first invocation
+### [SETUP] Quickstart fails on concurrent execution
 - **Severity:** UX-critical
-- **What happens:** The first call to `brewprune stats --package git` (immediately after daemon start) returned exit code `139` (segmentation fault) with no output. A subsequent call succeeded normally.
-- **Expected:** `stats --package` should never crash. If this is a timing issue (daemon still processing), the command should wait briefly and retry, or output a message like "Usage data still being processed — try again in a few seconds."
-- **Repro:** `docker exec bp-audit3 brewprune stats --package git` immediately after `brewprune watch --daemon`
+- **What happens:** Running `brewprune quickstart` when a daemon is already running results in "database is locked (5) (SQLITE_BUSY)" error
+- **Expected:** Quickstart should detect existing daemon and either reuse it or provide clear instructions
+- **Repro:** Run `quickstart` twice without stopping daemon between runs
 
----
+### [SETUP] Quickstart writes PATH to .profile twice
+- **Severity:** UX-critical
+- **What happens:** Quickstart adds the PATH export to `/home/brewuser/.profile` twice, resulting in duplicate entries ("# brewprune shims" + export line appears twice)
+- **Expected:** Idempotent config modification — should detect existing entries and not duplicate them
+- **Repro:** `grep brewprune ~/.profile` shows 4 lines (2 duplicate sets)
 
-### [DAEMON] `stats` default output hides 39 of 40 packages without prominent notice
+### [SETUP] PATH status messages contradict each other
 - **Severity:** UX-improvement
-- **What happens:** `brewprune stats` shows only the 1 package with usage data (git), and the footer reads: `(39 packages with no recorded usage hidden — use --all to show)`. This note is easy to miss. A new user may think only git is installed.
-- **Expected:** Surface the hidden count more prominently, e.g., as a banner line before the table: `Showing 1 of 40 packages (39 with no recorded usage — use --all to see all)`.
-- **Repro:** `docker exec bp-audit3 brewprune stats`
+- **What happens:** Status and doctor both report "PATH configured (restart shell to activate)" but also warn "⚠ Shim directory not in PATH — executions won't be intercepted". These messages contradict each other.
+- **Expected:** Clear distinction between "written to shell config" vs "active in current session"
+- **Repro:**
+```bash
+docker exec bp-audit4 brewprune quickstart
+docker exec bp-audit4 brewprune status
+docker exec bp-audit4 brewprune doctor
+```
 
----
-
-### [DAEMON] `stats --package git` output omits trend detail and scoring context
+### [SETUP] Doctor warning contradicts quickstart success
 - **Severity:** UX-improvement
-- **What happens:** `brewprune stats --package git` outputs a terse 6-line block:
-  ```
-  Package: git
-  Total Uses: 2
-  Last Used: 2026-02-28 06:44:10
-  Days Since: 0
-  First Seen: 2026-02-28 03:08:52
-  Frequency: daily
-  ```
-  There is no per-day breakdown, no mention of whether the single event was from the shim or the self-test pipeline, and no link to `brewprune explain git` for scoring context.
-- **Expected:** Per-package stats should clarify the data source (shim interception vs. self-test), include a usage-over-time breakdown even if sparse, and suggest `brewprune explain <package>` for the full scoring picture.
-- **Repro:** `docker exec bp-audit3 brewprune stats --package git`
+- **What happens:** After quickstart says setup complete and tracking verified, `brewprune doctor` shows "⚠ Shim directory not in PATH" and exits with code 1 (failure)
+- **Expected:** Either doctor should exit 0 with warnings, or quickstart should acknowledge the PATH limitation
+- **Repro:** `brewprune quickstart` then `brewprune doctor`
 
----
-
-## Area 5: Explain
-
-### [EXPLAIN] The "Usage: 0/40 means recently used" note is confusingly worded
+### [SETUP] Status note "events from self-test" confuses new users
 - **Severity:** UX-improvement
-- **What happens:** The `explain` output includes:
-  ```
-  Note: Higher removal score = more confident to remove.
-        Usage: 0/40 means recently used (lower = keep this package).
-  ```
-  This note appears for every package. The phrase "0/40 means recently used" is technically correct but confusing because git (which *was* used) and packages that were *never* used both show `0/40` for different reasons. The scoring direction is counter-intuitive without clear explanation.
-- **Expected:** Rewrite as: "The usage component scores removal confidence from observed activity. 0/40 means the package was recently used (fewer points toward removal). 40/40 means no usage was ever observed."
-- **Repro:** `docker exec bp-audit3 brewprune explain git`
+- **What happens:** Status shows "Note: events are from setup self-test, not real shim interception. Real tracking starts when PATH is fixed and shims are in front of Homebrew."
+- **Expected:** This is confusing for new users. The setup already added PATH to ~/.profile, so what's "not fixed"? Either make it actionable or don't show it. Could add: "This is normal. Once your shell is restarted, you'll see real usage data."
+- **Repro:** `docker exec bp-audit4 brewprune status` (after quickstart)
 
----
-
-### [EXPLAIN] `explain nonexistent` suggests running `scan` even when scan cannot help
+### [SETUP] "brew services not supported on Linux" message unclear
 - **Severity:** UX-polish
-- **What happens:** `brewprune explain nonexistent` returns:
-  ```
-  Error: package not found: nonexistent
-  Run 'brewprune scan' to update package database
-  ```
-  `scan` cannot help if the package is genuinely not installed. The suggestion is misleading for the common case of a typo.
-- **Expected:** "Package 'nonexistent' is not installed or not in the database. If you recently installed it, run 'brewprune scan' to update the index."
-- **Repro:** `docker exec bp-audit3 brewprune explain nonexistent`
+- **What happens:** Quickstart output says "brew found but using daemon mode (brew services not supported on Linux)"
+- **Expected:** Either omit this (user doesn't care about implementation detail) or clarify why it matters (e.g., "using background daemon instead")
+- **Repro:** `docker exec bp-audit4 brewprune quickstart`
+
+---
+
+## Area 3: Core Feature — Unused Package Detection
+
+### [UNUSED] Verbose mode output is extremely long
+- **Severity:** UX-improvement
+- **What happens:** `brewprune unused --verbose` outputs detailed scoring for every package with full separator lines, making it hard to scan. Output is 200+ lines for 40 packages.
+- **Expected:** Consider paginating, summarizing, or suggesting to pipe to less. Or limit verbose to specific tier.
+- **Repro:** `docker exec bp-audit4 brewprune unused --verbose`
+
+### [UNUSED] Inconsistent tier filtering behavior with --all
+- **Severity:** UX-improvement
+- **What happens:**
+  - `brewprune unused` shows safe+medium (hides risky with "use --all")
+  - `brewprune unused --tier risky` shows only risky tier
+  - `brewprune unused --all` shows all tiers
+  - The help text says "--tier shows only that specific tier regardless of --all"
+- **Expected:** The interaction between --tier and --all is confusing. Pick one model: either --tier is always a filter, or --all overrides --tier.
+- **Repro:** Compare outputs of various tier/all combinations
+
+### [UNUSED] Hidden count in summary mixes two filters
+- **Severity:** UX-improvement
+- **What happens:** Footer says "35 packages below score threshold hidden. Risky tier also hidden (use --all to include)." But with --min-score 70, the 35 includes both score filtering and tier filtering.
+- **Expected:** Separate counts for "below score threshold" vs "hidden tier" or just say "35 packages hidden (score/tier filters)"
+- **Repro:** `docker exec bp-audit4 brewprune unused --min-score 70`
+
+### [UNUSED] Empty result message too terse
+- **Severity:** UX-polish
+- **What happens:** When using `--tier safe --min-score 90`, output shows "No packages match the specified criteria." with no context
+- **Expected:** Show what filters were active: "No packages match: tier=safe, min-score=90. Try lowering --min-score or use --all."
+- **Repro:** `docker exec bp-audit4 brewprune unused --tier safe --min-score 90`
+
+### [UNUSED] Size formatting inconsistency
+- **Severity:** UX-polish
+- **What happens:** Sizes shown as "5 MB", "976 KB", "1000 KB", "1004 KB" - inconsistent use of KB vs MB for values near 1 MB
+- **Expected:** Convert 1000+ KB to MB for consistency
+- **Repro:** `docker exec bp-audit4 brewprune unused --all`
+
+### [UNUSED] "Uses (7d)" column header unclear
+- **Severity:** UX-polish
+- **What happens:** Column header "Uses (7d)" might not be immediately clear to new users (uses in last 7 days? over 7 days?)
+- **Expected:** "Last 7d" or "Recent Uses" or add footnote explaining the time window
+- **Repro:** `docker exec bp-audit4 brewprune unused`
+
+---
+
+## Area 4: Data / Tracking
+
+### [TRACKING] Silent tracking failure — no warning when shims don't intercept
+- **Severity:** UX-critical
+- **What happens:** After running `git --version && jq --version && fd --version` in the container, the event count didn't increase (remained at 2). This means shims aren't working, but the user gets no feedback about this critical failure.
+- **Expected:** Either status should show "⚠ shims not active - no events in last 30s" warning, or doctor should fail if events aren't being logged
+- **Repro:**
+```bash
+docker exec bp-audit4 sh -c 'git --version'
+docker exec bp-audit4 brewprune status  # event count doesn't increase
+```
+
+### [TRACKING] Status note about self-test events persists
+- **Severity:** UX-improvement
+- **What happens:** Even after commands are executed (git, jq, fd), status still shows "Note: events are from setup self-test, not real shim interception"
+- **Expected:** This note should disappear once real usage is detected, or clarify conditions under which it will change
+- **Repro:**
+```bash
+docker exec bp-audit4 sh -c 'git --version && jq --version && fd --version'
+docker exec bp-audit4 brewprune status
+```
+
+### [TRACKING] No indication that events source is test vs real
+- **Severity:** UX-improvement
+- **What happens:** The git usage shown in stats/explain is from the self-test, but there's no way to distinguish this from real user-initiated usage
+- **Expected:** Could tag events with source or add metadata to indicate test vs tracked usage
+- **Repro:** `brewprune stats --package git` shows usage but it's from setup, not real tracking
+
+### [TRACKING] Progress indicators lack time estimates
+- **Severity:** UX-improvement
+- **What happens:** Several operations (doctor pipeline test, quickstart self-test) wait up to 35 seconds with dots showing progress, but the dots appear slowly and there's no ETA
+- **Expected:** Show "waiting up to 35s" or progress bar or seconds elapsed
+- **Repro:** `docker exec bp-audit4 brewprune doctor` (takes 23-35 seconds with just dots)
+
+### [TRACKING] Daemon restart message could be clearer
+- **Severity:** UX-polish
+- **What happens:** `brewprune watch --daemon` when daemon is already running says "Daemon already running (PID 3100). Nothing to do."
+- **Expected:** Good message, but could add "use --stop to stop it first" or "use 'brewprune status' to check tracking"
+- **Repro:** `docker exec bp-audit4 brewprune watch --daemon` (when already running)
+
+### [TRACKING] Scan provides no detail on re-run
+- **Severity:** UX-polish
+- **What happens:** `brewprune scan` shows "✓ Database up to date (40 packages, 0 changes)" with no indication of what it checked
+- **Expected:** When run with no changes, this is fine. But first run should show more detail (scanning, building deps, creating shims).
+- **Repro:** `docker exec bp-audit4 brewprune scan` (after initial scan)
+
+---
+
+## Area 5: Explanation / Detail
+
+### [EXPLAIN] Nonexistent package error suggests wrong action
+- **Severity:** UX-improvement
+- **What happens:** Error says "If you recently installed it, run 'brewprune scan'" but user is asking about a package that doesn't exist at all
+- **Expected:** "Package not found: nonexistent-package. Check the name with 'brew list' or 'brew search <name>'. If you just installed it, run 'brewprune scan'."
+- **Repro:** `docker exec bp-audit4 brewprune explain nonexistent-package`
+
+### [EXPLAIN] Missing argument format inconsistent
+- **Severity:** UX-polish
+- **What happens:** Error says "Usage: brewprune explain <package>" but help says "brewprune explain [package]"
+- **Expected:** Use consistent format - either both `<package>` or both `[package]`
+- **Repro:** Compare `brewprune explain` error vs `brewprune explain --help`
+
+### [STATS] Tip message inconsistency
+- **Severity:** UX-polish
+- **What happens:** Stats for packages with usage show "Tip: Run 'brewprune explain git' for removal recommendation and scoring detail." Packages with zero usage say "Tip: Run 'brewprune explain jq' for removal recommendation." (missing "and scoring detail")
+- **Expected:** Consistent messaging - both should say "and scoring detail"
+- **Repro:** Compare `brewprune stats --package git` vs `brewprune stats --package jq`
+
+### [STATS] --all flag shows unsorted output
+- **Severity:** UX-polish
+- **What happens:** `brewprune stats --all` lists all 40 packages but the order seems arbitrary (not alphabetical, not by usage, not by score)
+- **Expected:** Sort by total uses (descending) or make it clear what the sort order is
+- **Repro:** `docker exec bp-audit4 brewprune stats --all`
 
 ---
 
 ## Area 6: Diagnostics
 
-### [DOCTOR] `doctor --fix` is not implemented but users will expect it
-- **Severity:** UX-critical
-- **What happens:** `brewprune doctor --fix` returns `Error: unknown flag: --fix` with exit code `1`. The `doctor --help` page does not mention `--fix` at all, but users coming from tools like `npm doctor` or `go doctor` will attempt it.
-- **Expected:** Either implement `--fix` with at minimum the PATH remediation step (re-write the profile export and instruct the user to source it), or add a note to `doctor --help`: "To fix issues, re-run 'brewprune quickstart'."
-- **Repro:** `docker exec bp-audit3 brewprune doctor --fix`
-
----
-
-### [DOCTOR] `doctor` exits with code 2 for warnings; scripts expect 0 or 1
+### [DOCTOR] Exit code 1 for warnings breaks scripting
 - **Severity:** UX-improvement
-- **What happens:** `brewprune doctor` exits with code `2` when the only finding is a PATH warning (non-blocking). Exit code `2` conventionally means "misuse of shell built-in" in POSIX tools and is unexpected here.
-- **Expected:** Use exit code `0` for "all clear," exit code `1` for "issues found" (warnings or errors). If a warning-vs-error distinction is needed, document it in `doctor --help`.
-- **Repro:** `docker exec bp-audit3 brewprune doctor; echo $?` — prints `2`
+- **What happens:** Doctor exits with code 1 when there are only warnings (no critical issues), making it hard to use in scripts
+- **Expected:** Exit 0 for warnings only, exit 1 for critical issues, exit 2 for errors. This matters for scripting and CI/CD integration.
+- **Repro:** `docker exec bp-audit4 sh -c 'brewprune doctor && echo "Exit code: $?"'` shows exit code 1 despite "System is functional but not fully configured"
 
----
+### [DOCTOR] Pipeline test takes 17-35 seconds with minimal feedback
+- **Severity:** UX-improvement
+- **What happens:** After "Running pipeline test" appears, there's a 17-35 second wait with only dots appearing, no context
+- **Expected:** Either show percentage/countdown, or explain: "Running pipeline test (may take up to 35s)......"
+- **Repro:** `docker exec bp-audit4 brewprune doctor` - watch the timing
 
-## Area 7: Remove (Dry-Run)
+### [DOCTOR] Pipeline test runs even when daemon is stopped
+- **Severity:** UX-improvement
+- **What happens:** After killing the daemon, `brewprune doctor` reports "⚠ Daemon not running" but then still runs a 35-second pipeline test that predictably fails
+- **Expected:** If daemon is not running, skip the pipeline test or make it much faster (5s timeout)
+- **Repro:** `docker exec bp-audit4 sh -c 'pkill -f "brewprune watch" && sleep 1 && brewprune doctor'`
 
-No findings. All tested behaviors were correct:
+### [DOCTOR] Incorrect fix suggestion when daemon stopped
+- **Severity:** UX-improvement
+- **What happens:** When daemon is stopped and pipeline test fails, it says "Action: Run 'brewprune scan' to rebuild shims and restart the daemon" but that won't restart the daemon
+- **Expected:** Should say "Action: Run 'brewprune watch --daemon' to restart the daemon"
+- **Repro:** Kill daemon with `pkill -f "brewprune watch"` then run `brewprune doctor`
 
-- `--dry-run` clearly labeled: `Dry-run mode: no packages will be removed.`
-- Both `--safe` and `--tier safe` produced identical output (consistent behavior, documented equivalence).
-- `remove nonexistent --dry-run` returned `Error: package "nonexistent" not found` with exit code `1`.
-- Summary block showed package count, disk space freed, and snapshot notice.
-
----
-
-## Area 8: Undo
-
-### [UNDO] `undo` (no args) exits 1 but `undo --list` (empty) exits 0 — inconsistent
+### [DOCTOR] Pipeline test failure message too technical
 - **Severity:** UX-polish
-- **What happens:** `brewprune undo` with no arguments exits `1` with a usage error. `brewprune undo --list` with no snapshots available exits `0`. The asymmetry in exit codes for similar "no snapshots" states is inconsistent.
-- **Expected:** `undo` with no args could exit `0` and print usage guidance (since no action failed), or the exit codes should be consistently documented.
-- **Repro:** `docker exec bp-audit3 brewprune undo; echo $?` — `1`
-  `docker exec bp-audit3 brewprune undo --list; echo $?` — `0`
+- **What happens:** Error says "no usage event recorded after 35.322s (waited 35s) — shim executed git but daemon did not write to database"
+- **Expected:** Simplify: "Pipeline test failed: shim logged event but daemon didn't process it (timeout after 35s). Try: brewprune watch --daemon"
+- **Repro:** `docker exec bp-audit4 brewprune doctor` (with daemon stopped)
 
 ---
 
-### [UNDO] `undo latest` error does not suggest `--list` as a next step
+## Area 7: Destructive / Write Operations
+
+### [REMOVE] No-argument error could suggest workflow
+- **Severity:** UX-improvement
+- **What happens:** Running `brewprune remove` with no packages or tier shows: "Error: no tier specified; use --safe, --medium, or --risky (add --dry-run to preview changes first)"
+- **Expected:** This is actually good! But could show exact command: "Try: brewprune remove --safe --dry-run"
+- **Repro:** `docker exec bp-audit4 brewprune remove`
+
+### [REMOVE] --safe/--medium/--risky vs --tier confusion
 - **Severity:** UX-polish
-- **What happens:** `brewprune undo latest` returns:
-  ```
-  Error: no snapshots available.
+- **What happens:** Help text explains that `--safe` is equivalent to `--tier safe`, but having both options might confuse users
+- **Expected:** Pick one pattern. The shortcut flags (--safe, --medium, --risky) are more intuitive than --tier.
+- **Repro:** `docker exec bp-audit4 brewprune remove --help`
 
-  Snapshots are automatically created before package removal.
-  Use 'brewprune remove' to remove packages and create snapshots.
-  ```
-  The message is clear but does not suggest `undo --list` for users who expect prior snapshots to exist.
-- **Expected:** Add: "Run 'brewprune undo --list' to see all available snapshots."
-- **Repro:** `docker exec bp-audit3 brewprune undo latest`
-
----
-
-## Area 9: Edge Cases
-
-All four invalid-input cases produced user-friendly validation errors with exit code `1`. However:
-
-### [EDGE] Tier validation error messages have inconsistent phrasing across commands
+### [UNDO] Missing argument shows usage but exits 0
 - **Severity:** UX-polish
-- **What happens:**
-  - `unused --tier invalid` → `Error: invalid tier: invalid (must be safe, medium, or risky)` — value unquoted, colon separator
-  - `remove --tier invalid` → `Error: invalid tier "invalid": must be safe, medium, or risky` — value quoted, different structure
-- **Expected:** Standardize to one format across all commands, e.g.: `Error: invalid --tier value "invalid": must be one of: safe, medium, risky`
-- **Repro:** Compare `docker exec bp-audit3 brewprune unused --tier invalid` vs `docker exec bp-audit3 brewprune remove --tier invalid --dry-run`
+- **What happens:** `brewprune undo` with no argument shows brief usage and suggests --list, but exits with code 0
+- **Expected:** Should exit with code 1 since no action was taken (or explicitly say "no action taken" to justify exit 0)
+- **Repro:** `docker exec bp-audit4 sh -c 'brewprune undo; echo "Exit code: $?"'`
 
 ---
 
-## Appendix: All Commands and Exit Codes
+## Area 8: Edge Cases
 
-| Command | Exit Code |
-|---------|-----------|
-| `brewprune --help` | 0 |
-| `brewprune scan --help` | 0 |
-| `brewprune unused --help` | 0 |
-| `brewprune remove --help` | 0 |
-| `brewprune watch --help` | 0 |
-| `brewprune explain --help` | 0 |
-| `brewprune stats --help` | 0 |
-| `brewprune doctor --help` | 0 |
-| `brewprune undo --help` | 0 |
-| `brewprune status --help` | 0 |
-| `brewprune quickstart --help` | 0 |
-| `brewprune quickstart` | 0 |
-| `brewprune scan` | 0 |
-| `brewprune status` | 0 |
-| `brewprune unused` | 0 |
-| `brewprune unused --tier safe` | 0 |
-| `brewprune unused --tier medium` | 0 |
-| `brewprune unused --tier risky` | 0 |
-| `brewprune unused --all` | 0 |
-| `brewprune unused --sort size` | 0 |
-| `brewprune unused --sort age` | 0 |
-| `brewprune unused --min-score 70` | 0 |
-| `brewprune unused -v` | 0 |
-| `brewprune unused --casks` | 0 |
-| `brewprune watch --daemon` | 0 |
-| `brewprune status` (post-daemon) | 0 |
-| `brewprune stats` | 0 |
-| `brewprune stats --package git` (1st attempt) | 139 (SIGSEGV crash) |
-| `brewprune stats --package git` (2nd attempt) | 0 |
-| `brewprune stats --package nonexistent` | 1 |
-| `brewprune explain git` | 0 |
-| `brewprune explain jq` | 0 |
-| `brewprune explain nonexistent` | 1 |
-| `brewprune explain` (no args) | 1 |
-| `brewprune doctor` | 2 |
-| `brewprune doctor --fix` | 1 |
-| `brewprune remove --safe --dry-run` | 0 |
-| `brewprune remove --tier safe --dry-run` | 0 |
-| `brewprune remove nonexistent --dry-run` | 1 |
-| `brewprune undo` (no args) | 1 |
-| `brewprune undo latest` (no snapshots) | 1 |
-| `brewprune undo --list` (no snapshots) | 0 |
-| `brewprune` (no args) | 0 |
-| `brewprune blorp` | 1 |
-| `brewprune unused --tier invalid` | 1 |
-| `brewprune remove --tier invalid --dry-run` | 1 |
-| `brewprune unused --sort invalid` | 1 |
+### [EDGE] Nonexistent database path gives misleading message
+- **Severity:** UX-critical
+- **What happens:** `brewprune --db /nonexistent/path.db status` shows "brewprune is not set up — run 'brewprune scan' to get started." This is misleading because the issue is the wrong path, not lack of setup.
+- **Expected:** "Error: database not found at /nonexistent/path.db. Check --db path or run quickstart."
+- **Repro:** `docker exec bp-audit4 brewprune --db /nonexistent/path.db status`
+
+### [EDGE] Invalid flag error doesn't suggest correction
+- **Severity:** UX-polish
+- **What happens:** `brewprune --invalid-flag` shows "Error: unknown flag: --invalid-flag" with no suggestion
+- **Expected:** Could suggest: "Run 'brewprune --help' to see available flags"
+- **Repro:** `docker exec bp-audit4 brewprune --invalid-flag`
+
+---
+
+## Area 9: Output Review
+
+### [OUTPUT] Confidence tip is repetitive
+- **Severity:** UX-polish
+- **What happens:** Every unused/stats output ends with "Confidence: MEDIUM (2 events, tracking for 0 days)" followed by "Tip: 1-2 weeks of data provides more reliable recommendations"
+- **Expected:** Show this once during onboarding or when confidence is LOW. Don't repeat on every command.
+- **Repro:** Any `brewprune unused` or `brewprune stats` command
+
+### [OUTPUT] "Last Used" column shows relative vs absolute time
+- **Severity:** UX-polish
+- **What happens:** Git shows "Last Used: just now" in table but explain shows precise timestamp "Last Used: 2026-02-28 08:49:35"
+- **Expected:** Be consistent. Either always show relative time or always show timestamps. Or show both: "just now (2026-02-28 08:49)"
+- **Repro:** Compare `brewprune unused --all` and `brewprune stats --package git`
+
+### [OUTPUT] Data quality description vague
+- **Severity:** UX-polish
+- **What happens:** Status shows "Data quality: COLLECTING (0 of 14 days)"
+- **Expected:** Good, but could explain what "14 days" means (minimum recommended) or what happens after 14 days (changes to "GOOD"?)
+- **Repro:** `docker exec bp-audit4 brewprune status`
+
+---
+
+## Positive Notes
+
+**What works well:**
+- Table alignment is excellent - columns line up perfectly across all commands
+- Headers and footers provide helpful context (reclaimable space, tier counts)
+- Status symbols are semantic: ✓ (safe), ~ (review), ⚠ (risky)
+- Error messages generally actionable with suggested next steps
+- Empty states handled gracefully with guidance
+- Quickstart workflow is intuitive and well-designed
+- Dry-run mode output is clear and informative
+- Color usage appears semantic (green=good, yellow=caution, red=warning)
+- Size formatting is human-readable (MB, KB)
+- Help text is comprehensive and well-structured
+
+---
+
+## Priority Recommendations
+
+### P0 — Must Fix (UX-Critical)
+
+1. **Add --version flag** - Standard CLI feature
+2. **Fix error message 4x duplication** - Remove duplicate handlers in Execute() or main()
+3. **Fix quickstart PATH duplication** - Make shell config modification idempotent
+4. **Fix database lock on concurrent quickstart** - Detect existing daemon
+5. **Warn when shims don't intercept** - Silent tracking failure is critical
+6. **Fix misleading "not set up" for wrong DB path** - Distinguish path error from setup error
+7. **Fix help display exit code** - Should exit 0, not 1
+
+### P1 — Should Fix (UX-Improvement)
+
+8. Resolve PATH status message contradictions (configured vs active)
+9. Make doctor exit 0 for warnings, 1 for failures only
+10. Skip or speed up pipeline test when daemon is not running
+11. Fix doctor's incorrect action suggestion (suggests scan instead of watch --daemon)
+12. Improve nonexistent package error messaging
+13. Clarify tier filtering behavior with --all flag
+14. Shorten or paginate verbose mode output
+15. Remove unimplemented --fix flag from doctor or implement it
+16. Add progress indicators with time estimates for long operations
+17. Distinguish self-test events from real usage events
+
+### P2 — Nice to Have (UX-Polish)
+
+18. Consistent size formatting (KB vs MB threshold at 1024)
+19. Sort stats --all output meaningfully
+20. Reduce repetitive confidence tip
+21. Consistent --tier vs --safe flag documentation
+22. Better empty state messages with filter context
+23. Add fuzzy matching for package name errors
+24. Various minor messaging improvements
+
+---
+
+## Environmental Notes
+
+- Container environment makes PATH changes hard to test in real-world way
+- Non-interactive shell means sourcing .profile isn't automatic
+- The tool handles these limitations reasonably well with status messages
+- Self-test mechanism is clever and validates the pipeline despite PATH issues
+
+---
+
+## Overall Assessment
+
+Brewprune is impressively polished for a pre-1.0 tool. The CLI interface is intuitive, help text is comprehensive, and error handling is generally good. Round 3 fixes addressed many issues, but introduced a few regressions (error duplication, PATH duplication).
+
+The most critical issues are:
+- Missing --version flag
+- 4x error duplication (triple error handling in code)
+- Silent tracking failure (no warning when shims don't work)
+- Database locking on quickstart re-run
+- PATH status message contradictions
+
+Most issues are polish-level concerns that would elevate an already solid foundation. The tool successfully guides users through a complex setup (shims, daemon, PATH modification) with clear feedback. The "quickstart" command is particularly well-designed.

@@ -37,32 +37,59 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println("Welcome to brewprune! Running end-to-end setup...")
 	fmt.Println()
 
+	// Check if database already exists and has packages
+	// If so, skip scan to avoid database lock conflicts with running daemon
+	dbPath, dbErr := getDBPath()
+	var skipScan bool
+	if dbErr == nil {
+		if db, openErr := store.New(dbPath); openErr == nil {
+			packages, pkgErr := db.ListPackages()
+			db.Close()
+			if pkgErr == nil && len(packages) > 0 {
+				skipScan = true
+			}
+		}
+	}
+
 	// ── Step 1: Scan ──────────────────────────────────────────────────────────
 	fmt.Println("Step 1/4: Scanning installed Homebrew packages")
 
-	// Run scan quietly to avoid duplicate PATH warnings and verbose table output.
-	// We'll print a summary instead of the full 40-row package table.
-	originalQuiet := scanQuiet
-	scanQuiet = true
-	defer func() { scanQuiet = originalQuiet }()
+	if skipScan {
+		fmt.Println("  ✓ Database already populated, skipping scan")
+	} else {
+		// Run scan quietly to avoid duplicate PATH warnings and verbose table output.
+		// We'll print a summary instead of the full 40-row package table.
+		originalQuiet := scanQuiet
+		scanQuiet = true
+		defer func() { scanQuiet = originalQuiet }()
 
-	if err := runScan(cmd, args); err != nil {
-		return fmt.Errorf("scan failed: %w", err)
+		if err := runScan(cmd, args); err != nil {
+			// Check if it's a database lock error
+			if strings.Contains(err.Error(), "database is locked") || strings.Contains(err.Error(), "SQLITE_BUSY") {
+				fmt.Println("  ⚠ Database is locked (daemon may be running)")
+				fmt.Println("  If setup is already complete, this is normal. Check: brewprune status")
+				skipScan = true
+			} else {
+				return fmt.Errorf("scan failed: %w", err)
+			}
+		}
 	}
 
-	// Print a concise summary instead of the full table
-	dbPath, dbErr := getDBPath()
-	if dbErr == nil {
-		db, openErr := store.New(dbPath)
-		if openErr == nil {
-			defer db.Close()
-			packages, pkgErr := db.ListPackages()
-			if pkgErr == nil {
-				var totalSize int64
-				for _, pkg := range packages {
-					totalSize += pkg.SizeBytes
+	// Print a concise summary (if scan was run or DB exists)
+	if !skipScan {
+		dbPath, dbErr = getDBPath()
+		if dbErr == nil {
+			db, openErr := store.New(dbPath)
+			if openErr == nil {
+				defer db.Close()
+				packages, pkgErr := db.ListPackages()
+				if pkgErr == nil {
+					var totalSize int64
+					for _, pkg := range packages {
+						totalSize += pkg.SizeBytes
+					}
+					fmt.Printf("  ✓ Scan complete: %d packages, %s\n", len(packages), formatSize(totalSize))
 				}
-				fmt.Printf("  ✓ Scan complete: %d packages, %s\n", len(packages), formatSize(totalSize))
 			}
 		}
 	}

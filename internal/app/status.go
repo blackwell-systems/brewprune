@@ -66,11 +66,25 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Check database
 	dbExists := false
-	if _, err := os.Stat(dbPath); err == nil {
+	if st, err := os.Stat(dbPath); err == nil {
 		dbExists = true
+		_ = st
 	}
 
 	if !dbExists {
+		// Check if user provided a custom --db path
+		if dbPath != "" && strings.Contains(dbPath, "/") {
+			// Check if parent directory exists
+			dbDir := dbPath
+			if strings.Contains(dbPath, "/") {
+				dbDir = dbPath[:strings.LastIndex(dbPath, "/")]
+			}
+			if _, dirErr := os.Stat(dbDir); os.IsNotExist(dirErr) {
+				fmt.Printf("Error: database path does not exist: %s\n", dbPath)
+				fmt.Println("Check the --db path or run 'brewprune quickstart' to set up.")
+				return nil
+			}
+		}
 		fmt.Println("brewprune is not set up — run 'brewprune scan' to get started.")
 		return nil
 	}
@@ -119,6 +133,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Events line
 	fmt.Printf(label+"%s total · %d in last 24h\n", "Events:", formatNumber(totalEvents), events24h)
+
+	// Warn if daemon is running but no recent events
+	if daemonRunning && events24h == 0 && totalEvents <= 2 {
+		fmt.Printf("              ⚠ Daemon running but no events logged. Shims may not be intercepting commands.\n")
+		fmt.Printf("              Run 'brewprune doctor' to diagnose.\n")
+	}
 
 	// Shims line
 	shimStatus := "inactive"
