@@ -35,6 +35,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
+      - -X main.shimVersion={{.Version}}
 
 archives:
   - id: brewprune

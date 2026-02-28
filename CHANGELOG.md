@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-27
+
 ### Added
 - **Brew-native shim infrastructure** — `shim.RefreshShims` performs incremental diff of desired vs current symlinks with LookPath collision-safety; `WriteShimVersion`/`ReadShimVersion` track shim binary version via crash-safe temp-file rename
 - **Shim startup version check** — `brewprune-shim` compares its embedded version against `~/.brewprune/shim.version` on every invocation and warns (rate-limited to once/day) when stale, prompting `brewprune scan`
@@ -133,7 +135,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/blackwell-systems/brewprune/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/blackwell-systems/brewprune/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/blackwell-systems/brewprune/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/blackwell-systems/brewprune/compare/v0.1.2...v0.1.3
