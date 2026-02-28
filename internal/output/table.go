@@ -425,7 +425,7 @@ type UsageStats struct {
 // RenderTierSummary renders a colored one-line tier breakdown header.
 // Format: "SAFE: 5 packages (43 MB) · MEDIUM: 19 (186 MB) · RISKY: 143 (hidden, use --all)"
 // When showAll is true, risky shows its size instead of "hidden".
-func RenderTierSummary(safe, medium, risky TierStats, showAll bool) string {
+func RenderTierSummary(safe, medium, risky TierStats, showAll bool, caskCount int) string {
 	var sb strings.Builder
 
 	// Safe tier
@@ -447,6 +447,10 @@ func RenderTierSummary(safe, medium, risky TierStats, showAll bool) string {
 	} else {
 		sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (hidden, use --all)",
 			colorRed, colorReset, risky.Count))
+	}
+
+	if caskCount > 0 {
+		sb.WriteString(fmt.Sprintf(" \u00b7 %d casks (not tracked)", caskCount))
 	}
 
 	return sb.String()

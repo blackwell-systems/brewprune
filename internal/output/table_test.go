@@ -582,7 +582,7 @@ func TestRenderTierSummary_ShowAll(t *testing.T) {
 	medium := TierStats{Count: 19, SizeBytes: 195035136}  // ~186 MB
 	risky := TierStats{Count: 143, SizeBytes: 4509715456} // ~4.2 GB
 
-	result := RenderTierSummary(safe, medium, risky, true)
+	result := RenderTierSummary(safe, medium, risky, true, 0)
 
 	for _, want := range []string{"SAFE", "5 packages", "MEDIUM", "19", "RISKY", "143"} {
 		if !strings.Contains(result, want) {
@@ -601,7 +601,7 @@ func TestRenderTierSummary_HideRisky(t *testing.T) {
 	medium := TierStats{Count: 19, SizeBytes: 195035136}
 	risky := TierStats{Count: 143, SizeBytes: 4509715456}
 
-	result := RenderTierSummary(safe, medium, risky, false)
+	result := RenderTierSummary(safe, medium, risky, false, 0)
 
 	if !strings.Contains(result, "hidden, use --all") {
 		t.Errorf("RenderTierSummary(showAll=false) should contain 'hidden, use --all'\nGot: %s", result)

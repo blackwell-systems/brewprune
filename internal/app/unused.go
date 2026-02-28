@@ -19,6 +19,7 @@ var (
 	unusedSort     string
 	unusedVerbose  bool
 	unusedAll      bool
+	unusedCasks    bool
 )
 
 var unusedCmd = &cobra.Command{
@@ -68,6 +69,7 @@ func init() {
 	unusedCmd.Flags().StringVar(&unusedSort, "sort", "score", "Sort by: score, size, age")
 	unusedCmd.Flags().BoolVarP(&unusedVerbose, "verbose", "v", false, "Show detailed explanation for each package")
 	unusedCmd.Flags().BoolVar(&unusedAll, "all", false, "Show all tiers including risky")
+	unusedCmd.Flags().BoolVar(&unusedCasks, "casks", false, "Include casks (GUI apps) in output")
 
 	// Register with root command
 	RootCmd.AddCommand(unusedCmd)
@@ -146,7 +148,12 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Compute tier stats from all scores (before any filtering)
 	var safeTier, mediumTier, riskyTier output.TierStats
+	var caskCount int
 	for _, s := range allScores {
+		if isCaskMap[s.Package] {
+			caskCount++
+			continue
+		}
 		switch s.Tier {
 		case "safe":
 			safeTier.Count++
@@ -163,6 +170,10 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	// Apply filters
 	var scores []*analyzer.ConfidenceScore
 	for _, s := range allScores {
+		// Hide casks unless --casks flag is set
+		if !unusedCasks && isCaskMap[s.Package] {
+			continue
+		}
 		if unusedTier != "" && s.Tier != unusedTier {
 			continue
 		}
@@ -177,7 +188,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print tier summary header
-	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != ""))
+	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "", caskCount))
 	fmt.Println()
 
 	if len(scores) == 0 {
