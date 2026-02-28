@@ -190,7 +190,16 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 				spinner.StopWithMessage(fmt.Sprintf("  ⚠ Self-test did not confirm tracking: %v", testErr))
 				fmt.Println("  Run 'brewprune doctor' for diagnostics")
 			} else {
-				spinner.StopWithMessage("  ✓ Tracking verified — brewprune is working")
+				// Qualify success message based on PATH status
+				var successMessage string
+				if shimDirErr == nil && isOnPATH(shimDir) {
+					successMessage = "  ✓ Tracking verified — brewprune is working"
+				} else if shimDirErr == nil && isConfiguredInShellProfile(shimDir) {
+					successMessage = "  ✓ Self-test passed (tracking will work after shell restart)"
+				} else {
+					successMessage = "  ✓ Self-test passed (run 'brewprune doctor' to check PATH)"
+				}
+				spinner.StopWithMessage(successMessage)
 			}
 		}
 	}
