@@ -147,9 +147,12 @@ func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 	fmt.Printf("First Seen: %s\n", formatTime(stats.FirstSeen))
 	fmt.Printf("Frequency: %s\n", colorFreq(stats.Frequency))
 
+	// Show explain hint for all packages
+	fmt.Println()
 	if stats.TotalUses == 0 {
-		fmt.Println()
 		fmt.Printf("Tip: Run 'brewprune explain %s' for removal recommendation.\n", pkg)
+	} else {
+		fmt.Printf("Tip: Run 'brewprune explain %s' for removal recommendation and scoring detail.\n", pkg)
 	}
 
 	return nil
@@ -215,6 +218,13 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 			fmt.Println("No usage data found. Run 'brewprune watch' to collect usage data.")
 		}
 		return nil
+	}
+
+	// Show banner if packages are hidden
+	if hiddenCount > 0 && !statsAll {
+		totalPackages := len(filteredStats) + hiddenCount
+		fmt.Printf("Showing %d of %d packages (%d with no recorded usage — use --all to see all)\n\n",
+			len(filteredStats), totalPackages, hiddenCount)
 	}
 
 	table := output.RenderUsageTable(filteredStats)

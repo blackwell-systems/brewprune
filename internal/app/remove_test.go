@@ -145,6 +145,28 @@ func TestDetermineTier_TierFlag(t *testing.T) {
 	removeTierFlag = ""
 }
 
+func TestRemoveTierValidationFormat(t *testing.T) {
+	// Test that tier validation error matches standard format
+	removeFlagSafe = false
+	removeFlagMedium = false
+	removeFlagRisky = false
+	removeTierFlag = "invalid"
+
+	_, err := determineTier()
+
+	if err == nil {
+		t.Fatal("expected error for invalid tier, got nil")
+	}
+
+	expectedMsg := `invalid --tier value "invalid": must be one of: safe, medium, risky`
+	if err.Error() != expectedMsg {
+		t.Errorf("error message = %q, want %q", err.Error(), expectedMsg)
+	}
+
+	// Reset flags
+	removeTierFlag = ""
+}
+
 func TestRemoveCommandRegistration(t *testing.T) {
 	// Create a temporary root command for testing
 	tempRoot := &cobra.Command{Use: "test"}

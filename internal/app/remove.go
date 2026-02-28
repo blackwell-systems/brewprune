@@ -282,7 +282,7 @@ func determineTier() (string, error) {
 		case "safe", "medium", "risky":
 			return removeTierFlag, nil
 		default:
-			return "", fmt.Errorf("invalid tier %q: must be safe, medium, or risky", removeTierFlag)
+			return "", fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", removeTierFlag)
 		}
 	}
 	if removeFlagRisky {
@@ -329,7 +329,7 @@ func getPackagesByTier(anlzr *analyzer.Analyzer, tier string) ([]*analyzer.Confi
 		}
 		allScores = scores
 	default:
-		return nil, fmt.Errorf("invalid tier: %s", tier)
+		return nil, fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", tier)
 	}
 
 	return allScores, nil

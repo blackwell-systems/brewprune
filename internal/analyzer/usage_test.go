@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -337,6 +338,21 @@ func TestGetUsageTrends_FilterByTimeWindow(t *testing.T) {
 		if stats.TotalUses != 0 {
 			t.Errorf("expected old_pkg to have 0 uses in 30-day window, got %d", stats.TotalUses)
 		}
+	}
+}
+
+func TestGetUsageStats_NilPackage(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	analyzer := New(s)
+	_, err := analyzer.GetUsageStats("nonexistent_pkg")
+	if err == nil {
+		t.Fatal("expected error for nonexistent package, got nil")
+	}
+	// The error is wrapped with "failed to get package: " prefix
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
 	}
 }
 

@@ -60,7 +60,17 @@ Examples:
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+			// Check if --help flag was explicitly set
+			// If so, show help and exit 0 (success)
+			helpFlag := cmd.Flags().Lookup("help")
+			if helpFlag != nil && helpFlag.Changed {
+				return cmd.Help()
+			}
+
+			// Bare invocation without args should exit 1
+			// Show help but return error to signal failure
+			_ = cmd.Help()
+			return fmt.Errorf("no command specified")
 		},
 	}
 )
@@ -82,9 +92,19 @@ func init() {
 func Execute() error {
 	err := RootCmd.Execute()
 	if err != nil {
+		// For unknown commands, print error first, then hint
 		if strings.Contains(err.Error(), "unknown command") {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 			fmt.Fprintf(os.Stderr, "Run 'brewprune --help' for a list of available commands.\n")
+			return err
 		}
+		// For "no command specified" error (bare invocation), suppress the error message
+		// since we already showed help text
+		if strings.Contains(err.Error(), "no command specified") {
+			return err
+		}
+		// For all other errors, print them normally
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 	}
 	return err
 }

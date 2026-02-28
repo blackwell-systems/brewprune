@@ -23,7 +23,10 @@ Checks:
   • Database exists and is accessible
   • Daemon is running
   • Usage events are being recorded
-  • Recommends next steps`,
+  • Recommends next steps
+
+Note: The --fix flag is not yet implemented. To fix issues automatically,
+re-run 'brewprune quickstart'.`,
 	RunE: runDoctor,
 }
 
@@ -200,9 +203,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("diagnostics failed")
 	}
 
-	// [DOCTOR-2] Warning-only path: use os.Exit(2) so main.go's error handler
-	// is never reached, eliminating the double-print of the error message.
+	// [DOCTOR-2] Warning-only path: use os.Exit(1) per POSIX convention.
+	// Exit code 2 means "misuse of shell built-in" and breaks scripts.
 	fmt.Printf("Found %d warning(s). System is functional but not fully configured.\n", warningIssues)
-	os.Exit(2)
+	os.Exit(1)
 	return nil // unreachable; satisfies compiler
 }

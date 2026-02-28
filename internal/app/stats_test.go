@@ -632,3 +632,239 @@ func TestShowPackageStats_ZeroUsage_ShowsExplainHint(t *testing.T) {
 		t.Errorf("expected package name in explain hint, got:\n%s", out)
 	}
 }
+
+// TestShowPackageStats_WithUsage_ShowsExplainHint verifies that when a package
+// has usage data, the output contains a pointer to 'brewprune explain' with
+// mention of "scoring detail".
+func TestShowPackageStats_WithUsage_ShowsExplainHint(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkg := &brew.Package{
+		Name:        "with-usage-pkg",
+		Version:     "1.0.0",
+		InstalledAt: now.AddDate(0, 0, -30),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Add usage event
+	event := &store.UsageEvent{
+		Package:    "with-usage-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/with-usage-pkg",
+		Timestamp:  now.AddDate(0, 0, -5),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showPackageStats(a, "with-usage-pkg")
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showPackageStats returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "brewprune explain") {
+		t.Errorf("expected 'brewprune explain' hint in output for package with usage, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "with-usage-pkg") {
+		t.Errorf("expected package name in explain hint, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "scoring detail") {
+		t.Errorf("expected 'scoring detail' phrase in explain hint for package with usage, got:\n%s", out)
+	}
+}
+
+// TestShowUsageTrends_BannerShownWhenHidden verifies that the banner appears
+// BEFORE the table when packages are hidden (default --all=false behavior).
+func TestShowUsageTrends_BannerShownWhenHidden(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkgs := []*brew.Package{
+		{Name: "used-banner-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "unused-banner-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	event := &store.UsageEvent{
+		Package:    "used-banner-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/used-banner-pkg",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = false
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	// Verify the banner appears
+	if !strings.Contains(out, "Showing 1 of 2 packages") {
+		t.Errorf("expected banner 'Showing 1 of 2 packages' in output, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "use --all to see all") {
+		t.Errorf("expected '--all' mention in banner, got:\n%s", out)
+	}
+
+	// Verify banner appears before the table (check for Package header after banner)
+	bannerIdx := strings.Index(out, "Showing 1 of 2 packages")
+	if bannerIdx == -1 {
+		t.Fatal("banner not found")
+	}
+	// The table should have the package name after the banner
+	tableIdx := strings.Index(out, "used-banner-pkg")
+	if tableIdx == -1 {
+		t.Fatal("table content not found")
+	}
+	if bannerIdx >= tableIdx {
+		t.Errorf("expected banner to appear before table content, banner at %d, table at %d", bannerIdx, tableIdx)
+	}
+}
+
+// TestShowUsageTrends_NoBannerWithAllFlag verifies that when --all is set, no
+// banner is shown because all packages are visible.
+func TestShowUsageTrends_NoBannerWithAllFlag(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkgs := []*brew.Package{
+		{Name: "used-all-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "unused-all-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	event := &store.UsageEvent{
+		Package:    "used-all-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/used-all-pkg",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = true
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	// Verify no banner appears (no "Showing X of Y" text)
+	if strings.Contains(out, "Showing") && strings.Contains(out, "of") && strings.Contains(out, "packages") {
+		// More precise check - the banner format is "Showing X of Y packages"
+		if strings.Contains(out, "Showing") && strings.Index(out, "of") > strings.Index(out, "Showing") {
+			t.Errorf("expected no banner with --all flag, got:\n%s", out)
+		}
+	}
+
+	// Both packages should appear
+	if !strings.Contains(out, "used-all-pkg") {
+		t.Errorf("expected 'used-all-pkg' in output with --all, got:\n%s", out)
+	}
+	if !strings.Contains(out, "unused-all-pkg") {
+		t.Errorf("expected 'unused-all-pkg' in output with --all, got:\n%s", out)
+	}
+}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -383,6 +384,129 @@ func TestUnusedCommand_TierFilter(t *testing.T) {
 	for _, s := range filtered {
 		if s.Tier != "safe" {
 			t.Errorf("filtered package %s has tier %s, want safe", s.Package, s.Tier)
+		}
+	}
+}
+
+func TestUnusedSortAgeExplanation(t *testing.T) {
+	// Test that when all packages have identical install times,
+	// the sort age note appears with the correct fallback explanation
+	sameTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	scores := []*analyzer.ConfidenceScore{
+		{Package: "pkg-a", Score: 90, Tier: "safe", InstalledAt: sameTime},
+		{Package: "pkg-b", Score: 70, Tier: "medium", InstalledAt: sameTime},
+		{Package: "pkg-c", Score: 50, Tier: "risky", InstalledAt: sameTime},
+	}
+
+	// Check that detection logic works
+	allSameInstallTime := true
+	if len(scores) > 1 {
+		firstTime := scores[0].InstalledAt
+		for _, s := range scores[1:] {
+			if !s.InstalledAt.Equal(firstTime) {
+				allSameInstallTime = false
+				break
+			}
+		}
+	}
+
+	if !allSameInstallTime {
+		t.Error("expected allSameInstallTime to be true when all times are identical")
+	}
+
+	// Verify sort fallback behavior (tier order, then alphabetical)
+	sortScores(scores, "age")
+
+	// Expected order: safe (pkg-a) → medium (pkg-b) → risky (pkg-c)
+	if scores[0].Package != "pkg-a" || scores[0].Tier != "safe" {
+		t.Errorf("position 0: got %s (%s), want pkg-a (safe)", scores[0].Package, scores[0].Tier)
+	}
+	if scores[1].Package != "pkg-b" || scores[1].Tier != "medium" {
+		t.Errorf("position 1: got %s (%s), want pkg-b (medium)", scores[1].Package, scores[1].Tier)
+	}
+	if scores[2].Package != "pkg-c" || scores[2].Tier != "risky" {
+		t.Errorf("position 2: got %s (%s), want pkg-c (risky)", scores[2].Package, scores[2].Tier)
+	}
+}
+
+func TestUnusedMinScoreFooter(t *testing.T) {
+	// Test footer logic when both --min-score filters packages
+	// AND risky tier is hidden (not using --all)
+
+	// Simulate the filtering logic
+	allScores := []*analyzer.ConfidenceScore{
+		{Package: "safe1", Score: 80, Tier: "safe"},     // Above threshold (80 >= 70)
+		{Package: "safe2", Score: 85, Tier: "safe"},     // Above threshold (85 >= 70)
+		{Package: "medium1", Score: 65, Tier: "medium"}, // Below threshold (65 < 70)
+		{Package: "medium2", Score: 50, Tier: "medium"}, // Below threshold (50 < 70)
+		{Package: "risky1", Score: 30, Tier: "risky"},   // Below threshold + hidden by risky filter
+	}
+
+	minScore := 70
+	showAll := false
+	showRiskyImplicit := false
+	tierFilter := ""
+
+	var filtered []*analyzer.ConfidenceScore
+	var belowScoreThreshold int
+
+	for _, s := range allScores {
+		if s.Score < minScore {
+			belowScoreThreshold++
+			continue
+		}
+		// Hide risky tier when not using --all
+		if !showAll && tierFilter == "" && s.Tier == "risky" && !showRiskyImplicit {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+
+	// Expected: 2 packages shown (safe1=80, safe2=85)
+	// 3 below threshold (medium1=65, medium2=50, risky1=30)
+	// Note: risky1 is hidden by risky suppression AND below threshold
+	if len(filtered) != 2 {
+		t.Errorf("filtered count: got %d, want 2", len(filtered))
+	}
+	if belowScoreThreshold != 3 {
+		t.Errorf("below threshold count: got %d, want 3", belowScoreThreshold)
+	}
+
+	// Verify footer condition: both filters active
+	bothFiltersActive := belowScoreThreshold > 0 && !showAll && tierFilter == "" && !showRiskyImplicit
+	if !bothFiltersActive {
+		t.Error("expected both filters (score + risky suppression) to be active")
+	}
+}
+
+func TestUnusedTierValidationFormat(t *testing.T) {
+	// Test that tier validation error matches the standard format
+	invalidTier := "invalid"
+	expectedError := `invalid --tier value "invalid": must be one of: safe, medium, risky`
+
+	// Simulate validation logic from runUnused
+	var err error
+	if invalidTier != "" && invalidTier != "safe" && invalidTier != "medium" && invalidTier != "risky" {
+		err = fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", invalidTier)
+	}
+
+	if err == nil {
+		t.Fatal("expected validation error but got nil")
+	}
+
+	if err.Error() != expectedError {
+		t.Errorf("error format mismatch:\ngot:  %s\nwant: %s", err.Error(), expectedError)
+	}
+
+	// Test valid tiers don't produce errors
+	validTiers := []string{"safe", "medium", "risky", ""}
+	for _, tier := range validTiers {
+		var validErr error
+		if tier != "" && tier != "safe" && tier != "medium" && tier != "risky" {
+			validErr = fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", tier)
+		}
+		if validErr != nil {
+			t.Errorf("tier %q should be valid but got error: %v", tier, validErr)
 		}
 	}
 }

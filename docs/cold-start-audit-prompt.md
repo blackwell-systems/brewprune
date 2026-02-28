@@ -6,7 +6,7 @@ each package based on usage patterns, dependencies, age, and type.
 
 You are acting as a **new user** encountering this tool for the first time.
 
-You have access to a Docker container called `bp-sandbox` with brewprune installed
+You have access to a Docker container called `bp-audit3` with brewprune installed
 at `/home/linuxbrew/.linuxbrew/bin/brewprune` and the following packages available:
 
 ```
@@ -17,7 +17,7 @@ oniguruma, openldap, openssl@3, pcre2, readline, ripgrep, sqlite, tmux, utf8proc
 util-linux, xz, zlib-ng-compat, zstd
 ```
 
-Run all commands using: `docker exec bp-sandbox <command>`
+Run all commands using: `docker exec bp-audit3 <command>`
 
 ---
 
@@ -28,17 +28,17 @@ Run all commands using: `docker exec bp-sandbox <command>`
 Explore the top-level help and all subcommand help pages as a new user would.
 
 ```
-docker exec bp-sandbox brewprune --help
-docker exec bp-sandbox brewprune scan --help
-docker exec bp-sandbox brewprune unused --help
-docker exec bp-sandbox brewprune remove --help
-docker exec bp-sandbox brewprune watch --help
-docker exec bp-sandbox brewprune explain --help
-docker exec bp-sandbox brewprune stats --help
-docker exec bp-sandbox brewprune doctor --help
-docker exec bp-sandbox brewprune undo --help
-docker exec bp-sandbox brewprune status --help
-docker exec bp-sandbox brewprune quickstart --help
+docker exec bp-audit3 brewprune --help
+docker exec bp-audit3 brewprune scan --help
+docker exec bp-audit3 brewprune unused --help
+docker exec bp-audit3 brewprune remove --help
+docker exec bp-audit3 brewprune watch --help
+docker exec bp-audit3 brewprune explain --help
+docker exec bp-audit3 brewprune stats --help
+docker exec bp-audit3 brewprune doctor --help
+docker exec bp-audit3 brewprune undo --help
+docker exec bp-audit3 brewprune status --help
+docker exec bp-audit3 brewprune quickstart --help
 ```
 
 Evaluate: Is the top-level help clear about what brewprune does? Is the Quick Start
@@ -52,9 +52,9 @@ documentation match actual behavior?
 Follow the onboarding flow a new user would take.
 
 ```
-docker exec bp-sandbox brewprune quickstart
-docker exec bp-sandbox brewprune scan
-docker exec bp-sandbox brewprune status
+docker exec bp-audit3 brewprune quickstart
+docker exec bp-audit3 brewprune scan
+docker exec bp-audit3 brewprune status
 ```
 
 Evaluate: Does `quickstart` complete without errors? Does it explain what it did?
@@ -68,16 +68,16 @@ Does `status` give useful feedback about whether setup succeeded?
 Explore the unused command and its flags exhaustively.
 
 ```
-docker exec bp-sandbox brewprune unused
-docker exec bp-sandbox brewprune unused --tier safe
-docker exec bp-sandbox brewprune unused --tier medium
-docker exec bp-sandbox brewprune unused --tier risky
-docker exec bp-sandbox brewprune unused --all
-docker exec bp-sandbox brewprune unused --sort size
-docker exec bp-sandbox brewprune unused --sort age
-docker exec bp-sandbox brewprune unused --min-score 70
-docker exec bp-sandbox brewprune unused -v
-docker exec bp-sandbox brewprune unused --casks
+docker exec bp-audit3 brewprune unused
+docker exec bp-audit3 brewprune unused --tier safe
+docker exec bp-audit3 brewprune unused --tier medium
+docker exec bp-audit3 brewprune unused --tier risky
+docker exec bp-audit3 brewprune unused --all
+docker exec bp-audit3 brewprune unused --sort size
+docker exec bp-audit3 brewprune unused --sort age
+docker exec bp-audit3 brewprune unused --min-score 70
+docker exec bp-audit3 brewprune unused -v
+docker exec bp-audit3 brewprune unused --casks
 ```
 
 Evaluate: Is the default output (no flags) useful and clear? Are tier labels visually
@@ -92,15 +92,15 @@ banner helpful? Are `--sort` and `--min-score` intuitive?
 Start the daemon, check status, wait, then view usage stats.
 
 ```
-docker exec bp-sandbox brewprune watch --daemon
-docker exec bp-sandbox brewprune status
+docker exec bp-audit3 brewprune watch --daemon
+docker exec bp-audit3 brewprune status
 ```
 
 Wait 5 seconds, then:
 
 ```
-docker exec bp-sandbox brewprune stats
-docker exec bp-sandbox brewprune stats --package git
+docker exec bp-audit3 brewprune stats
+docker exec bp-audit3 brewprune stats --package git
 ```
 
 Evaluate: Does the daemon start silently or with confirmation? Does `status` clearly
@@ -115,10 +115,10 @@ would find actionable?
 Test the explain subcommand with valid packages, an unknown package, and no argument.
 
 ```
-docker exec bp-sandbox brewprune explain git
-docker exec bp-sandbox brewprune explain jq
-docker exec bp-sandbox brewprune explain nonexistent
-docker exec bp-sandbox brewprune explain
+docker exec bp-audit3 brewprune explain git
+docker exec bp-audit3 brewprune explain jq
+docker exec bp-audit3 brewprune explain nonexistent
+docker exec bp-audit3 brewprune explain
 ```
 
 Evaluate: Does explain show a clear scoring breakdown with labeled components
@@ -133,8 +133,8 @@ case give a helpful usage hint rather than a cryptic error?
 Run the doctor command in normal and fix mode.
 
 ```
-docker exec bp-sandbox brewprune doctor
-docker exec bp-sandbox brewprune doctor --fix
+docker exec bp-audit3 brewprune doctor
+docker exec bp-audit3 brewprune doctor --fix
 ```
 
 Evaluate: Does `doctor` surface all relevant checks (database, daemon, usage events)?
@@ -148,9 +148,9 @@ it is going to fix before doing it, and confirm what it fixed afterward?
 Test remove in dry-run mode only — do not actually remove packages.
 
 ```
-docker exec bp-sandbox brewprune remove --safe --dry-run
-docker exec bp-sandbox brewprune remove --tier safe --dry-run
-docker exec bp-sandbox brewprune remove nonexistent --dry-run
+docker exec bp-audit3 brewprune remove --safe --dry-run
+docker exec bp-audit3 brewprune remove --tier safe --dry-run
+docker exec bp-audit3 brewprune remove nonexistent --dry-run
 ```
 
 Evaluate: Does `--dry-run` clearly indicate no changes will be made? Is the list
@@ -166,9 +166,9 @@ error rather than silently succeeding?
 Explore the undo subcommand and snapshot listing.
 
 ```
-docker exec bp-sandbox brewprune undo
-docker exec bp-sandbox brewprune undo latest
-docker exec bp-sandbox brewprune undo --help
+docker exec bp-audit3 brewprune undo
+docker exec bp-audit3 brewprune undo latest
+docker exec bp-audit3 brewprune undo --help
 ```
 
 Evaluate: Does `brewprune undo` with no arguments give clear guidance (e.g., suggest
@@ -183,11 +183,11 @@ Does `--help` describe the `snapshot-id | latest` argument clearly?
 Probe error handling and unknown input behavior.
 
 ```
-docker exec bp-sandbox brewprune
-docker exec bp-sandbox brewprune blorp
-docker exec bp-sandbox brewprune unused --tier invalid
-docker exec bp-sandbox brewprune remove --tier invalid --dry-run
-docker exec bp-sandbox brewprune unused --sort invalid
+docker exec bp-audit3 brewprune
+docker exec bp-audit3 brewprune blorp
+docker exec bp-audit3 brewprune unused --tier invalid
+docker exec bp-audit3 brewprune remove --tier invalid --dry-run
+docker exec bp-audit3 brewprune unused --sort invalid
 ```
 
 Evaluate: Does `brewprune` with no args show help or a useful prompt (not a blank
@@ -227,5 +227,5 @@ Severity guide:
 - Include a summary table at the top: total count by severity
 - Write the complete report to `docs/cold-start-audit.md` using the Write tool
 
-IMPORTANT: Run ALL commands via `docker exec bp-sandbox <command>`.
+IMPORTANT: Run ALL commands via `docker exec bp-audit3 <command>`.
 Do not run brewprune directly on the host.

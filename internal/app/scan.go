@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/blackwell-systems/brewprune/internal/brew"
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/scanner"
 	"github.com/blackwell-systems/brewprune/internal/shim"
@@ -38,7 +39,7 @@ The scan command should be run:
   # Scan without refreshing binary paths
   brewprune scan --refresh-binaries=false
 
-  # Fast path: refresh shims only (used by post_install hook)
+  # Fast path: refresh shims only
   brewprune scan --refresh-shims
 
   # Scan quietly (suppress output)
@@ -77,29 +78,72 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return runRefreshShims(db)
 	}
 
+	// Check if this is a re-scan by getting existing packages
+	existingPackages, err := db.ListPackages()
+	if err != nil {
+		existingPackages = nil // Treat error as empty (first scan)
+	}
+	isFirstScan := len(existingPackages) == 0
+
 	// Create scanner
 	s := scanner.New(db)
 
-	if !scanQuiet {
-		fmt.Println("Scanning installed Homebrew packages...")
-	}
-
-	// Scan packages
+	// Scan packages quietly to check for changes first
 	isTTY := isatty.IsTerminal(os.Stdout.Fd())
 	var spinner *output.Spinner
-	if isTTY {
-		spinner = output.NewSpinner("Discovering packages...")
-	} else {
-		fmt.Println("Discovering packages...")
-	}
-	if err := s.ScanPackages(); err != nil {
+
+	if !scanQuiet && !isFirstScan {
+		// On re-scan, be quiet during discovery to check for changes
 		if isTTY {
+			spinner = output.NewSpinner("Checking for changes...")
+		}
+	} else if !scanQuiet {
+		// On first scan, show verbose output
+		fmt.Println("Scanning installed Homebrew packages...")
+		if isTTY {
+			spinner = output.NewSpinner("Discovering packages...")
+		} else {
+			fmt.Println("Discovering packages...")
+		}
+	}
+
+	if err := s.ScanPackages(); err != nil {
+		if !scanQuiet && isTTY {
 			spinner.Stop()
 		}
 		return fmt.Errorf("failed to scan packages: %w", err)
 	}
-	if isTTY {
-		spinner.StopWithMessage("✓ Packages discovered")
+
+	// Get new packages and compare
+	newPackages, err := s.GetInventory()
+	if err != nil {
+		if !scanQuiet && isTTY {
+			spinner.Stop()
+		}
+		return fmt.Errorf("failed to get inventory: %w", err)
+	}
+
+	// Detect changes: compare package names
+	hasChanges := detectChanges(existingPackages, newPackages)
+
+	// If no changes on re-scan, show terse output and exit
+	if !isFirstScan && !hasChanges && !scanQuiet {
+		if isTTY {
+			spinner.StopWithMessage(fmt.Sprintf("✓ Database up to date (%d packages, 0 changes)", len(newPackages)))
+		} else {
+			fmt.Printf("✓ Database up to date (%d packages, 0 changes)\n", len(newPackages))
+		}
+		return nil
+	}
+
+	// Continue with verbose output for first scan or when changes detected
+	if !scanQuiet && isTTY {
+		if isFirstScan {
+			spinner.StopWithMessage("✓ Packages discovered")
+		} else {
+			spinner.StopWithMessage("✓ Changes detected")
+			fmt.Println("Scanning installed Homebrew packages...")
+		}
 	}
 
 	// Build dependency graph
@@ -143,7 +187,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Get inventory for display
+	// Re-fetch inventory after building dep graph and refreshing binaries
 	packages, err := s.GetInventory()
 	if err != nil {
 		return fmt.Errorf("failed to get inventory: %w", err)
@@ -319,4 +363,40 @@ func runRefreshShims(db *store.Store) error {
 	}
 
 	return nil
+}
+
+// detectChanges compares two package lists and returns true if there are any
+// differences (added, removed, or changed packages).
+func detectChanges(oldPkgs, newPkgs []*brew.Package) bool {
+	// Different package count means changes
+	if len(oldPkgs) != len(newPkgs) {
+		return true
+	}
+
+	// Build a map of old packages by name for quick lookup
+	oldMap := make(map[string]*brew.Package)
+	for _, pkg := range oldPkgs {
+		oldMap[pkg.Name] = pkg
+	}
+
+	// Check if any new packages differ from old ones
+	for _, newPkg := range newPkgs {
+		oldPkg, exists := oldMap[newPkg.Name]
+		if !exists {
+			// New package added
+			return true
+		}
+
+		// Check if version changed
+		if oldPkg.Version != newPkg.Version {
+			return true
+		}
+
+		// Check if binary count changed (indicates binary path refresh needed)
+		if len(oldPkg.BinaryPaths) != len(newPkg.BinaryPaths) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -12,6 +12,9 @@ func (a *Analyzer) GetUsageStats(pkg string) (*UsageStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get package: %w", err)
 	}
+	if pkgInfo == nil {
+		return nil, fmt.Errorf("package not found: %s", pkg)
+	}
 
 	// Get all usage events for the package
 	events, err := a.store.GetUsageEvents(pkg, time.Time{})
@@ -125,6 +128,9 @@ func (a *Analyzer) getUsageStatsInWindow(pkg string, days int) (*UsageStats, err
 	pkgInfo, err := a.store.GetPackage(pkg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get package: %w", err)
+	}
+	if pkgInfo == nil {
+		return nil, fmt.Errorf("package not found: %s", pkg)
 	}
 
 	// Get events within the time window

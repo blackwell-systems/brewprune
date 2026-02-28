@@ -809,3 +809,61 @@ func TestRenderUsageTable_SortedByRunsThenLastUsed(t *testing.T) {
 		t.Errorf("beta (24h ago) should appear before gamma (never) when equal runs, got:\n%s", result)
 	}
 }
+
+// TestTierSummaryColorCoded verifies that RenderTierSummary applies ANSI
+// color codes to SAFE/MEDIUM/RISKY labels when IsColorEnabled() is true.
+// Note: IsColorEnabled() checks both TTY status and NO_COLOR env var,
+// so this test only verifies the output format when colors are enabled.
+func TestTierSummaryColorCoded(t *testing.T) {
+	// Skip if NO_COLOR is set or stdout is not a TTY
+	if !IsColorEnabled() {
+		t.Skip("Skipping color test: colors disabled (NO_COLOR set or stdout not a TTY)")
+	}
+
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderTierSummary(safe, medium, risky, true, 0)
+
+	// Verify color codes are present
+	if !strings.Contains(result, colorGreen+"SAFE"+colorReset) {
+		t.Errorf("Expected SAFE to be wrapped in green color codes, got: %s", result)
+	}
+	if !strings.Contains(result, colorYellow+"MEDIUM"+colorReset) {
+		t.Errorf("Expected MEDIUM to be wrapped in yellow color codes, got: %s", result)
+	}
+	if !strings.Contains(result, colorRed+"RISKY"+colorReset) {
+		t.Errorf("Expected RISKY to be wrapped in red color codes, got: %s", result)
+	}
+}
+
+// TestTierSummaryPlainTextWhenNoTTY verifies that RenderTierSummary does NOT
+// include ANSI color codes when stdout is not a terminal (e.g., piped output).
+// This test simulates non-TTY behavior by setting NO_COLOR.
+func TestTierSummaryPlainTextWhenNoTTY(t *testing.T) {
+	// Force colors off
+	t.Setenv("NO_COLOR", "1")
+
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderTierSummary(safe, medium, risky, true, 0)
+
+	// Verify NO color codes are present
+	if strings.Contains(result, "\033[") {
+		t.Errorf("Expected no ANSI color codes when NO_COLOR=1, got: %s", result)
+	}
+
+	// Verify plain text labels are present
+	if !strings.Contains(result, "SAFE: 5 packages") {
+		t.Errorf("Expected plain 'SAFE: 5 packages' label, got: %s", result)
+	}
+	if !strings.Contains(result, "MEDIUM: 19") {
+		t.Errorf("Expected plain 'MEDIUM: 19' label, got: %s", result)
+	}
+	if !strings.Contains(result, "RISKY: 143") {
+		t.Errorf("Expected plain 'RISKY: 143' label, got: %s", result)
+	}
+}

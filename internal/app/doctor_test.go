@@ -13,14 +13,14 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/store"
 )
 
-// TestRunDoctor_WarningOnlyExitsCode2 verifies that when the doctor command
-// encounters warnings (but no critical failures), it calls os.Exit(2) rather
+// TestRunDoctor_WarningOnlyExitsCode1 verifies that when the doctor command
+// encounters warnings (but no critical failures), it calls os.Exit(1) rather
 // than returning an error.
 //
-// Because os.Exit(2) terminates the test process, we use the subprocess
+// Because os.Exit(1) terminates the test process, we use the subprocess
 // pattern: the test re-executes itself as a child process with a special
-// environment variable, and the parent verifies the exit code is 2.
-func TestRunDoctor_WarningOnlyExitsCode2(t *testing.T) {
+// environment variable, and the parent verifies the exit code is 1.
+func TestRunDoctor_WarningOnlyExitsCode1(t *testing.T) {
 	if os.Getenv("BREWPRUNE_TEST_DOCTOR_SUBPROCESS") == "1" {
 		// ---- Child process ----
 		// Set up a real database so the DB checks pass, but leave no daemon PID
@@ -63,7 +63,7 @@ func TestRunDoctor_WarningOnlyExitsCode2(t *testing.T) {
 
 	// ---- Parent process ----
 	// Rerun this test in subprocess mode.
-	cmd := exec.Command(os.Args[0], "-test.run=TestRunDoctor_WarningOnlyExitsCode2", "-test.v")
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunDoctor_WarningOnlyExitsCode1", "-test.v")
 	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_SUBPROCESS=1")
 	err := cmd.Run()
 	if err == nil {
@@ -71,10 +71,10 @@ func TestRunDoctor_WarningOnlyExitsCode2(t *testing.T) {
 		return
 	}
 	if exitErr, ok := err.(*exec.ExitError); ok {
-		// exit 2 would be the warning-only path; exit 0 is the no-issue path
+		// exit 1 would be the warning-only path; exit 0 is the no-issue path
 		code := exitErr.ExitCode()
-		if code != 2 && code != 0 {
-			t.Errorf("expected exit code 0 or 2 from subprocess, got %d", code)
+		if code != 1 && code != 0 {
+			t.Errorf("expected exit code 0 or 1 from subprocess, got %d", code)
 		}
 	} else {
 		t.Errorf("unexpected error running subprocess: %v", err)
@@ -201,5 +201,99 @@ func TestRunDoctor_PipelineTestShowsProgress(t *testing.T) {
 	// the message once with a trailing newline).
 	if !strings.Contains(out, "Running pipeline test...") {
 		t.Errorf("expected doctor output to contain 'Running pipeline test...', got:\n%s", out)
+	}
+}
+
+// TestDoctorWarningExitsOne verifies that doctor exits with code 1 (not 2) when warnings found.
+// This test uses a subprocess pattern to verify the exit code behavior.
+func TestDoctorWarningExitsOne(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_WARNING_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		// Create a minimal environment where DB checks pass but daemon check warns.
+		tmpDir := t.TempDir()
+		tmpDB := filepath.Join(tmpDir, "test.db")
+
+		// Create a real database with one package so DB checks pass.
+		st, err := store.New(tmpDB)
+		if err != nil {
+			t.Fatalf("store.New: %v", err)
+		}
+		if err := st.CreateSchema(); err != nil {
+			st.Close()
+			t.Fatalf("CreateSchema: %v", err)
+		}
+		pkg := &brew.Package{
+			Name:        "testpkg",
+			Version:     "1.0",
+			InstalledAt: time.Now(),
+			InstallType: "explicit",
+		}
+		if err := st.InsertPackage(pkg); err != nil {
+			st.Close()
+			t.Fatalf("InsertPackage: %v", err)
+		}
+		st.Close()
+
+		// Override global dbPath
+		dbPath = tmpDB
+
+		// Create a temp home with shim binary so check 6 passes
+		tmpHome := t.TempDir()
+		shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+		if err := os.MkdirAll(shimDir, 0755); err != nil {
+			t.Fatalf("MkdirAll shimDir: %v", err)
+		}
+		shimBin := filepath.Join(shimDir, "brewprune-shim")
+		if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+			t.Fatalf("WriteFile shimBin: %v", err)
+		}
+		os.Setenv("HOME", tmpHome)
+
+		// No daemon PID file, so daemon check will produce a warning and exit 1.
+		// Pipeline test will fail but that's a critical issue, so we need to
+		// make sure only warning-level checks fail. Let's suppress the pipeline
+		// by having no events (warning level) and no daemon (warning level).
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestDoctorWarningExitsOne", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_WARNING_SUBPROCESS=1")
+	err := cmd.Run()
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		code := exitErr.ExitCode()
+		if code != 1 {
+			t.Errorf("expected exit code 1 from doctor with warnings, got %d", code)
+		}
+	} else if err == nil {
+		t.Error("expected doctor with warnings to exit non-zero, got exit 0")
+	} else {
+		t.Errorf("unexpected error running subprocess: %v", err)
+	}
+}
+
+// TestDoctorHelpIncludesFixNote verifies `doctor --help` output contains the --fix note.
+func TestDoctorHelpIncludesFixNote(t *testing.T) {
+	// Capture the help output by invoking the command with --help
+	cmd := exec.Command(os.Args[0], "doctor", "--help")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// --help exits with code 0, but if there's an actual error, fail
+		if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 0 {
+			t.Fatalf("failed to run doctor --help: %v\nOutput: %s", err, out)
+		}
+	}
+
+	helpText := string(out)
+
+	// Check for the key phrases from the --fix note
+	if !strings.Contains(helpText, "--fix flag is not yet implemented") {
+		t.Errorf("doctor --help should mention '--fix flag is not yet implemented', got:\n%s", helpText)
+	}
+
+	if !strings.Contains(helpText, "brewprune quickstart") {
+		t.Errorf("doctor --help should mention 'brewprune quickstart' as fix alternative, got:\n%s", helpText)
 	}
 }

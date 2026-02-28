@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackwell-systems/brewprune/internal/brew"
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/blackwell-systems/brewprune/internal/watcher"
@@ -347,6 +348,113 @@ func TestRunScan_ShimCountZeroShowsUpToDate(t *testing.T) {
 	}
 	if strings.Contains(shimMsg, "command shims created") {
 		t.Errorf("expected shimMsg NOT to contain 'command shims created' when shimCount==0, got: %s", shimMsg)
+	}
+}
+
+// TestDetectChanges verifies the detectChanges helper correctly identifies
+// when package lists differ.
+func TestDetectChanges(t *testing.T) {
+	tests := []struct {
+		name     string
+		oldPkgs  []*brew.Package
+		newPkgs  []*brew.Package
+		expected bool
+	}{
+		{
+			name:     "empty lists",
+			oldPkgs:  []*brew.Package{},
+			newPkgs:  []*brew.Package{},
+			expected: false,
+		},
+		{
+			name:    "first scan (old empty)",
+			oldPkgs: []*brew.Package{},
+			newPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0"},
+			},
+			expected: true,
+		},
+		{
+			name: "identical packages",
+			oldPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0", BinaryPaths: []string{"/usr/local/bin/git"}},
+				{Name: "node", Version: "20.10.0", BinaryPaths: []string{"/usr/local/bin/node"}},
+			},
+			newPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0", BinaryPaths: []string{"/usr/local/bin/git"}},
+				{Name: "node", Version: "20.10.0", BinaryPaths: []string{"/usr/local/bin/node"}},
+			},
+			expected: false,
+		},
+		{
+			name: "version changed",
+			oldPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0"},
+			},
+			newPkgs: []*brew.Package{
+				{Name: "git", Version: "2.44.0"},
+			},
+			expected: true,
+		},
+		{
+			name: "package added",
+			oldPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0"},
+			},
+			newPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0"},
+				{Name: "node", Version: "20.10.0"},
+			},
+			expected: true,
+		},
+		{
+			name: "package removed",
+			oldPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0"},
+				{Name: "node", Version: "20.10.0"},
+			},
+			newPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0"},
+			},
+			expected: true,
+		},
+		{
+			name: "binary paths changed",
+			oldPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0", BinaryPaths: []string{"/usr/local/bin/git"}},
+			},
+			newPkgs: []*brew.Package{
+				{Name: "git", Version: "2.43.0", BinaryPaths: []string{"/usr/local/bin/git", "/usr/local/bin/git-shell"}},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := detectChanges(tt.oldPkgs, tt.newPkgs)
+			if result != tt.expected {
+				t.Errorf("detectChanges() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestScanHelpExcludesInternalDetail verifies that the scan command help text
+// does not mention "post_install hook" or other internal implementation details.
+func TestScanHelpExcludesInternalDetail(t *testing.T) {
+	example := scanCmd.Example
+	if example == "" {
+		t.Fatal("scan command Example field is empty")
+	}
+
+	if strings.Contains(example, "post_install hook") {
+		t.Error("scan command Example should not mention 'post_install hook' (internal detail)")
+	}
+
+	// Verify the --refresh-shims example is still present
+	if !strings.Contains(example, "--refresh-shims") {
+		t.Error("scan command Example should still include --refresh-shims example")
 	}
 }
 

@@ -224,3 +224,99 @@ func TestRenderExplanation_DetailNotTruncated(t *testing.T) {
 			truncatedVersion)
 	}
 }
+
+// TestExplainNoteWording verifies that the explain note includes clarification
+// about both endpoints of the usage score (0/40 = recently used, 40/40 = never used).
+func TestExplainNoteWording(t *testing.T) {
+	// Redirect stdout to capture output.
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	score := &analyzer.ConfidenceScore{
+		Package:    "testpkg",
+		Score:      20,
+		Tier:       "medium",
+		UsageScore: 20,
+		DepsScore:  0,
+		AgeScore:   0,
+		TypeScore:  0,
+		Reason:     "moderate usage",
+		Explanation: analyzer.ScoreExplanation{
+			UsageDetail: "used 30 days ago",
+			DepsDetail:  "no dependents",
+			AgeDetail:   "installed 100 days ago",
+			TypeDetail:  "leaf package",
+		},
+	}
+
+	renderExplanation(score, "2024-01-01")
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Verify the note contains the improved wording with both endpoints.
+	if !strings.Contains(output, "0/40 means recently used") {
+		t.Errorf("expected output to contain '0/40 means recently used', got: %q", output)
+	}
+	if !strings.Contains(output, "40/40 means no usage ever observed") {
+		t.Errorf("expected output to contain '40/40 means no usage ever observed', got: %q", output)
+	}
+	if !strings.Contains(output, "fewer points toward removal") {
+		t.Errorf("expected output to contain 'fewer points toward removal', got: %q", output)
+	}
+}
+
+// TestExplainNotFoundSuggestion verifies that the error message for a
+// nonexistent package suggests both scan (for recently installed packages)
+// and checking the package name (for typos).
+func TestExplainNotFoundSuggestion(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_EXPLAIN_NOTFOUND_SUGGESTION_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDB := filepath.Join(t.TempDir(), "test.db")
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		_ = runExplain(cmd, []string{"nonexistent-package-xyzzy"})
+		os.Exit(0)
+		return
+	}
+
+	// ---- Parent process ----
+	proc := exec.Command(os.Args[0], "-test.run=TestExplainNotFoundSuggestion", "-test.v")
+	proc.Env = append(os.Environ(), "BREWPRUNE_TEST_EXPLAIN_NOTFOUND_SUGGESTION_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	proc.Stderr = &stderrBuf
+
+	err := proc.Run()
+
+	// We expect a non-zero exit (exit 1 from os.Exit(1)).
+	if err == nil {
+		t.Error("expected subprocess to exit non-zero for not-found package, got exit 0")
+		return
+	}
+
+	stderrOutput := stderrBuf.String()
+
+	// Verify the error message contains the improved suggestions.
+	if !strings.Contains(stderrOutput, "If you recently installed it") {
+		t.Errorf("expected error message to contain 'If you recently installed it', got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "brewprune scan") {
+		t.Errorf("expected error message to contain 'brewprune scan', got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "check the package name") {
+		t.Errorf("expected error message to contain 'check the package name', got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "brew list") {
+		t.Errorf("expected error message to contain 'brew list', got: %q", stderrOutput)
+	}
+}

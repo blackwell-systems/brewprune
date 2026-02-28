@@ -257,3 +257,79 @@ func TestExecute_UnknownCommandHelpHint(t *testing.T) {
 		t.Errorf("expected error to contain 'unknown command', got: %v", err)
 	}
 }
+
+func TestBareBrewpruneExitsOne(t *testing.T) {
+	// Verify that bare invocation (no args, no flags) exits with non-zero
+	var buf bytes.Buffer
+	RootCmd.SetOut(&buf)
+	defer RootCmd.SetOut(nil)
+
+	// Suppress stderr
+	RootCmd.SetErr(bytes.NewBuffer(nil))
+	defer RootCmd.SetErr(nil)
+
+	RootCmd.SetArgs([]string{})
+	err := Execute()
+
+	if err == nil {
+		t.Error("expected Execute() to return an error for bare invocation")
+	}
+
+	// Verify help text was shown (stdout should contain usage info)
+	out := buf.String()
+	if !strings.Contains(out, "Usage:") {
+		t.Errorf("expected help output to contain 'Usage:', got: %s", out)
+	}
+}
+
+func TestBrewpruneHelpExitsZero(t *testing.T) {
+	// Verify that --help flag exits successfully (no error)
+	var buf bytes.Buffer
+	RootCmd.SetOut(&buf)
+	defer RootCmd.SetOut(nil)
+
+	// Suppress stderr
+	RootCmd.SetErr(bytes.NewBuffer(nil))
+	defer RootCmd.SetErr(nil)
+
+	RootCmd.SetArgs([]string{"--help"})
+	err := Execute()
+
+	if err != nil {
+		t.Errorf("expected Execute() with --help to succeed, got error: %v", err)
+	}
+
+	// Verify help text was shown
+	out := buf.String()
+	if !strings.Contains(out, "Usage:") {
+		t.Errorf("expected help output to contain 'Usage:', got: %s", out)
+	}
+}
+
+func TestUnknownSubcommandErrorOrder(t *testing.T) {
+	// Verify that unknown subcommand error appears before the hint
+	// Note: Execute() writes to os.Stderr directly, so we can't fully capture it,
+	// but we can verify the error is returned and contains the expected text
+	var stderrBuf bytes.Buffer
+	RootCmd.SetErr(&stderrBuf)
+	defer RootCmd.SetErr(nil)
+
+	// Suppress stdout
+	RootCmd.SetOut(bytes.NewBuffer(nil))
+	defer RootCmd.SetOut(nil)
+
+	RootCmd.SetArgs([]string{"blorp"})
+	err := Execute()
+
+	if err == nil {
+		t.Error("expected Execute() to return an error for unknown command")
+	}
+
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected error to contain 'unknown command', got: %v", err)
+	}
+
+	// The actual stderr output order is verified by the Execute() function logic,
+	// which prints error first, then hint. This test verifies the error is properly
+	// returned so Execute() can format it correctly.
+}

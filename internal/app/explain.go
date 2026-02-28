@@ -60,7 +60,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	// exit code is non-zero for the error condition.
 	_, err = st.GetPackage(packageName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: package not found: %s\nRun 'brewprune scan' to update package database\n", packageName)
+		fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nIf you recently installed it, run 'brewprune scan' to update the index.\nOtherwise, check the package name (try 'brew list' to see installed packages).\n", packageName)
 		os.Exit(1)
 	}
 
@@ -145,7 +145,8 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 
 	fmt.Println()
 	fmt.Println("Note: Higher removal score = more confident to remove.")
-	fmt.Println("      Usage: 0/40 means recently used (lower = keep this package).")
+	fmt.Println("      Usage component: 0/40 means recently used (fewer points toward removal).")
+	fmt.Println("      40/40 means no usage ever observed.")
 
 	// Why this tier
 	fmt.Printf("\n%sWhy %s:%s %s\n", colorBold, strings.ToUpper(score.Tier), colorReset, score.Reason)

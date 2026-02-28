@@ -83,7 +83,7 @@ func init() {
 func runUnused(cmd *cobra.Command, args []string) error {
 	// Validate flags
 	if unusedTier != "" && unusedTier != "safe" && unusedTier != "medium" && unusedTier != "risky" {
-		return fmt.Errorf("invalid tier: %s (must be safe, medium, or risky)", unusedTier)
+		return fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", unusedTier)
 	}
 
 	if unusedMinScore < 0 || unusedMinScore > 100 {
@@ -180,6 +180,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Apply filters
 	var scores []*analyzer.ConfidenceScore
+	var belowScoreThreshold int
 	for _, s := range allScores {
 		// Hide casks unless --casks flag is set
 		if !unusedCasks && isCaskMap[s.Package] {
@@ -189,6 +190,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		if s.Score < unusedMinScore {
+			belowScoreThreshold++
 			continue
 		}
 		// When --all is not set and no explicit --tier, hide risky packages
@@ -226,6 +228,19 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Sort scores
 	sortScores(scores, unusedSort)
+
+	// Check if age sort has no effect (all packages installed at same time)
+	allSameInstallTime := false
+	if unusedSort == "age" && len(scores) > 1 {
+		allSameInstallTime = true
+		firstTime := scores[0].InstalledAt
+		for _, s := range scores[1:] {
+			if !s.InstalledAt.Equal(firstTime) {
+				allSameInstallTime = false
+				break
+			}
+		}
+	}
 
 	// Render table
 	if unusedVerbose {
@@ -282,9 +297,28 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		fmt.Print(table)
 	}
 
+	// Show age sort note if all packages have identical install times
+	if allSameInstallTime {
+		fmt.Println()
+		fmt.Println("Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically.")
+	}
+
 	// Show reclaimable footer (replaces old summary block)
 	fmt.Println()
-	fmt.Println(output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != ""))
+	footer := output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "")
+	fmt.Println(footer)
+
+	// Show filter explanation if multiple filters are active
+	if belowScoreThreshold > 0 && !unusedAll && unusedTier == "" && !showRiskyImplicit {
+		// Both score threshold and risky tier are filtering
+		fmt.Printf("%d packages below score threshold hidden. Risky tier also hidden (use --all to include).\n", belowScoreThreshold)
+	} else if belowScoreThreshold > 0 {
+		// Only score threshold is filtering
+		fmt.Printf("%d packages below score threshold hidden.\n", belowScoreThreshold)
+	} else if !unusedAll && unusedTier == "" && !showRiskyImplicit && riskyTier.Count > 0 { //nolint:staticcheck
+		// Only risky tier is hidden (no score threshold, but risky is suppressed)
+		// This message is typically shown by the reclaimable footer itself
+	}
 
 	// Add confidence assessment
 	if err := showConfidenceAssessment(st); err != nil {

@@ -125,8 +125,17 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if shimActive {
 		shimStatus = "active"
 	}
-	pathStatus := "PATH ok"
-	if !pathOK {
+
+	// Determine PATH status with three cases:
+	// 1. PATH active: shim dir is in current $PATH
+	// 2. PATH configured: shim dir is in shell profile but not yet sourced
+	// 3. PATH missing: shim dir is not in shell profile
+	var pathStatus string
+	if pathOK {
+		pathStatus = "PATH active ✓"
+	} else if isConfiguredInShellProfile(shimDir) {
+		pathStatus = "PATH configured (restart shell to activate)"
+	} else {
 		pathStatus = "PATH missing ⚠"
 	}
 	fmt.Printf(label+"%s · %d commands · %s\n", "Shims:", shimStatus, shimCount, pathStatus)
@@ -193,6 +202,51 @@ func isOnPATH(dir string) bool {
 		}
 	}
 	return false
+}
+
+// isConfiguredInShellProfile checks if the given directory is configured in the
+// shell profile file, even if not yet active in the current session's PATH.
+// Returns true if the shell config file contains a brewprune PATH export for dir.
+func isConfiguredInShellProfile(dir string) bool {
+	// Detect the user's shell and determine config file path.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+
+	shellPath := os.Getenv("SHELL")
+	shellName := strings.TrimPrefix(shellPath, "/bin/")
+	shellName = strings.TrimPrefix(shellName, "/usr/bin/")
+	shellName = strings.TrimPrefix(shellName, "/usr/local/bin/")
+
+	var configPath string
+	var searchPattern string
+
+	switch shellName {
+	case "zsh":
+		configPath = fmt.Sprintf("%s/.zprofile", home)
+		searchPattern = fmt.Sprintf("export PATH=%q", dir)
+	case "bash":
+		configPath = fmt.Sprintf("%s/.bash_profile", home)
+		searchPattern = fmt.Sprintf("export PATH=%q", dir)
+	case "fish":
+		configPath = fmt.Sprintf("%s/.config/fish/conf.d/brewprune.fish", home)
+		searchPattern = fmt.Sprintf("fish_add_path %s", dir)
+	default:
+		configPath = fmt.Sprintf("%s/.profile", home)
+		searchPattern = fmt.Sprintf("export PATH=%q", dir)
+	}
+
+	// Read the config file and check if it contains the brewprune PATH export.
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		// Config file doesn't exist or can't be read.
+		return false
+	}
+
+	content := string(data)
+	// Check for the exact quoted path or the unquoted path (both valid).
+	return strings.Contains(content, searchPattern) || strings.Contains(content, fmt.Sprintf("export PATH=%s", dir))
 }
 
 // daemonSince returns a human-readable age of the PID file (proxy for daemon start time).

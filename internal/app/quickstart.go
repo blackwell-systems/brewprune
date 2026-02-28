@@ -39,10 +39,32 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 
 	// ── Step 1: Scan ──────────────────────────────────────────────────────────
 	fmt.Println("Step 1/4: Scanning installed Homebrew packages")
-	fmt.Println("Running: brewprune scan")
-	fmt.Println()
+
+	// Run scan quietly to avoid duplicate PATH warnings and verbose table output.
+	// We'll print a summary instead of the full 40-row package table.
+	originalQuiet := scanQuiet
+	scanQuiet = true
+	defer func() { scanQuiet = originalQuiet }()
+
 	if err := runScan(cmd, args); err != nil {
 		return fmt.Errorf("scan failed: %w", err)
+	}
+
+	// Print a concise summary instead of the full table
+	dbPath, dbErr := getDBPath()
+	if dbErr == nil {
+		db, openErr := store.New(dbPath)
+		if openErr == nil {
+			defer db.Close()
+			packages, pkgErr := db.ListPackages()
+			if pkgErr == nil {
+				var totalSize int64
+				for _, pkg := range packages {
+					totalSize += pkg.SizeBytes
+				}
+				fmt.Printf("  ✓ Scan complete: %d packages, %s\n", len(packages), formatSize(totalSize))
+			}
+		}
 	}
 	fmt.Println()
 
@@ -122,7 +144,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 
 	// ── Step 4: Self-test ─────────────────────────────────────────────────────
 	fmt.Println("Step 4/4: Running self-test (tracking verified)")
-	dbPath, dbErr := getDBPath()
+	dbPath, dbErr = getDBPath()
 	if dbErr != nil {
 		fmt.Printf("  ⚠ Could not get database path: %v\n", dbErr)
 		fmt.Println("  Run 'brewprune doctor' for diagnostics")

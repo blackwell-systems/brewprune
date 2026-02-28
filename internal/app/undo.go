@@ -66,7 +66,9 @@ func runUndo(cmd *cobra.Command, args []string) error {
 
 	// Require snapshot ID or "latest"
 	if len(args) == 0 {
-		return fmt.Errorf("snapshot ID or 'latest' required (use --list to see available snapshots)")
+		fmt.Println("Usage: brewprune undo [snapshot-id | latest]")
+		fmt.Println("\nUse 'brewprune undo --list' to see available snapshots.")
+		return nil
 	}
 
 	snapshotArg := args[0]
@@ -84,6 +86,7 @@ func runUndo(cmd *cobra.Command, args []string) error {
 		if len(snaps) == 0 {
 			fmt.Fprintln(os.Stderr, "Error: no snapshots available.")
 			fmt.Fprintln(os.Stderr, "\nSnapshots are automatically created before package removal.")
+			fmt.Fprintln(os.Stderr, "Run 'brewprune undo --list' to see all available snapshots.")
 			fmt.Fprintln(os.Stderr, "Use 'brewprune remove' to remove packages and create snapshots.")
 			os.Exit(1)
 		}

@@ -311,6 +311,107 @@ func TestUndoHelp_UsageComesBeforeExamples(t *testing.T) {
 	}
 }
 
+// TestUndoNoArgsExitsZero verifies that `brewprune undo` with no arguments
+// exits with code 0 (treating it as a request for guidance rather than an error).
+func TestUndoNoArgsExitsZero(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_UNDO_NOARGS_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDir := t.TempDir()
+		tmpDB := tmpDir + "/undo_noargs_test.db"
+
+		st, stErr := store.New(tmpDB)
+		if stErr != nil {
+			os.Exit(2)
+		}
+		if schemaErr := st.CreateSchema(); schemaErr != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		err := runUndo(cmd, []string{})
+		if err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestUndoNoArgsExitsZero", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_UNDO_NOARGS_SUBPROCESS=1")
+
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+
+	err := cmd.Run()
+	stdoutOutput := stdoutBuf.String()
+
+	// Expect exit code 0
+	if err != nil {
+		t.Errorf("expected subprocess to exit 0, got error: %v", err)
+	}
+
+	// Verify guidance message appears in stdout
+	if !strings.Contains(stdoutOutput, "undo --list") {
+		t.Errorf("expected stdout to contain %q, got:\n%s", "undo --list", stdoutOutput)
+	}
+}
+
+// TestUndoLatestSuggestsList verifies that when `brewprune undo latest` is
+// invoked with no snapshots available, the error message suggests using
+// `undo --list` to see all available snapshots.
+func TestUndoLatestSuggestsList(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_UNDO_LIST_SUGGESTION_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDir := t.TempDir()
+		tmpDB := tmpDir + "/undo_list_suggestion_test.db"
+
+		st, stErr := store.New(tmpDB)
+		if stErr != nil {
+			os.Exit(2)
+		}
+		if schemaErr := st.CreateSchema(); schemaErr != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		runUndo(cmd, []string{"latest"}) //nolint:errcheck
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestUndoLatestSuggestsList", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_UNDO_LIST_SUGGESTION_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
+	err := cmd.Run()
+	stderrOutput := stderrBuf.String()
+
+	// Expect exit code 1 (this is an error case)
+	if err == nil {
+		t.Fatal("expected subprocess to exit non-zero, got exit 0")
+	}
+
+	// Verify --list suggestion appears in stderr
+	if !strings.Contains(stderrOutput, "undo --list") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "undo --list", stderrOutput)
+	}
+
+	// Verify it mentions "see all available snapshots"
+	if !strings.Contains(stderrOutput, "available snapshots") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "available snapshots", stderrOutput)
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
