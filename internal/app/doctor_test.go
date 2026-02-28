@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,71 +14,59 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/store"
 )
 
-// TestRunDoctor_WarningOnlyExitsCode1 verifies that when the doctor command
-// encounters warnings (but no critical failures), it calls os.Exit(1) rather
-// than returning an error.
-//
-// Because os.Exit(1) terminates the test process, we use the subprocess
-// pattern: the test re-executes itself as a child process with a special
-// environment variable, and the parent verifies the exit code is 1.
-func TestRunDoctor_WarningOnlyExitsCode1(t *testing.T) {
-	if os.Getenv("BREWPRUNE_TEST_DOCTOR_SUBPROCESS") == "1" {
-		// ---- Child process ----
-		// Set up a real database so the DB checks pass, but leave no daemon PID
-		// file so the daemon check produces a warning.
-		tmpDir := t.TempDir()
-		tmpDB := filepath.Join(tmpDir, "test.db")
+// TestRunDoctor_WarningOnlyExitsCode0 verifies that when the doctor command
+// encounters warnings (but no critical failures), it returns nil (exit code 0)
+// rather than returning an error or calling os.Exit.
+func TestRunDoctor_WarningOnlyExitsCode0(t *testing.T) {
+	// Create a minimal environment where DB checks pass but daemon check warns.
+	tmpDir := t.TempDir()
+	tmpDB := filepath.Join(tmpDir, "test.db")
 
-		// Override global dbPath
-		dbPath = tmpDB
-
-		// We intentionally do NOT start a daemon or create any PID file so
-		// that at least one warning fires (daemon not running).  No shim binary
-		// will exist either, but that is a critical check — so we must ensure
-		// the DB check passes but shim check is critical.  To keep the test
-		// focused on the warning-only path we instead arrange for a minimal DB
-		// (so DB checks pass) and then let only warning-level checks fail.
-		//
-		// Actually the simplest arrangement: let the DB not exist so the DB check
-		// fails as critical.  That drives runDoctor down the critical path and
-		// exits with error (exit 1 via main.go).  We want warnings only.
-		//
-		// Reliable strategy: provide a valid DB with packages, no daemon, no
-		// shim binary (that's critical).  Let's just verify the function
-		// signature by running the real binary in the parent.  The child process
-		// path below is used to drive runDoctor indirectly.
-		//
-		// For simplicity we exercise the warning path by calling the cobra
-		// command via Execute() on an empty DB with no daemon.  The shim check
-		// will be critical so we can't reliably hit warning-only.
-		//
-		// Instead, we test the code path directly: call runDoctor via cobra
-		// with a real empty-but-created DB so DB critical checks pass,
-		// daemon check is a warning, shim check is critical.
-		//
-		// To avoid the shim critical, we skip the test child and just let it
-		// exit 0 here; the parent test verifies compilation of the exit-2 path.
-		os.Exit(0)
-		return
+	// Create a real database with one package so DB checks pass.
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
 	}
-
-	// ---- Parent process ----
-	// Rerun this test in subprocess mode.
-	cmd := exec.Command(os.Args[0], "-test.run=TestRunDoctor_WarningOnlyExitsCode1", "-test.v")
-	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_SUBPROCESS=1")
-	err := cmd.Run()
-	if err == nil {
-		// exit 0 — acceptable (child exited cleanly as designed above)
-		return
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("CreateSchema: %v", err)
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		// exit 1 would be the warning-only path; exit 0 is the no-issue path
-		code := exitErr.ExitCode()
-		if code != 1 && code != 0 {
-			t.Errorf("expected exit code 0 or 1 from subprocess, got %d", code)
-		}
-	} else {
-		t.Errorf("unexpected error running subprocess: %v", err)
+	pkg := &brew.Package{
+		Name:        "testpkg",
+		Version:     "1.0",
+		InstalledAt: time.Now(),
+		InstallType: "explicit",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		st.Close()
+		t.Fatalf("InsertPackage: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath
+	oldDBPath := dbPath
+	dbPath = tmpDB
+	defer func() { dbPath = oldDBPath }()
+
+	// Create a temp home with shim binary so check 6 passes
+	tmpHome := t.TempDir()
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("MkdirAll shimDir: %v", err)
+	}
+	shimBin := filepath.Join(shimDir, "brewprune-shim")
+	if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatalf("WriteFile shimBin: %v", err)
+	}
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	// No daemon PID file, so daemon check will produce a warning.
+	// Pipeline test will be skipped since daemon is not running.
+	err = runDoctor(doctorCmd, []string{})
+	if err != nil {
+		t.Errorf("expected runDoctor to return nil for warnings-only, got: %v", err)
 	}
 }
 
@@ -193,20 +182,28 @@ func TestRunDoctor_PipelineTestShowsProgress(t *testing.T) {
 	os.Setenv("HOME", tmpHome)
 	defer os.Setenv("HOME", origHome)
 
+	// Create a PID file so the daemon check passes and the pipeline test runs.
+	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+	pidContent := fmt.Sprintf("%d", os.Getpid()) // Use current process PID so it appears running
+	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+		t.Fatalf("WriteFile pidFile: %v", err)
+	}
+
 	out := captureStdout(t, func() {
 		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure is expected
 	})
 
 	// The spinner must have emitted the progress line (non-TTY path prints
 	// the message once with a trailing newline).
-	if !strings.Contains(out, "Running pipeline test...") {
-		t.Errorf("expected doctor output to contain 'Running pipeline test...', got:\n%s", out)
+	if !strings.Contains(out, "Running pipeline test") {
+		t.Errorf("expected doctor output to contain 'Running pipeline test', got:\n%s", out)
 	}
 }
 
-// TestDoctorWarningExitsOne verifies that doctor exits with code 1 (not 2) when warnings found.
+// TestDoctorWarningExitsZero verifies that doctor exits with code 0 (not 1) when only warnings found.
 // This test uses a subprocess pattern to verify the exit code behavior.
-func TestDoctorWarningExitsOne(t *testing.T) {
+// Per the UX audit finding, warnings-only should exit 0 so scripting workflows aren't broken.
+func TestDoctorWarningExitsZero(t *testing.T) {
 	if os.Getenv("BREWPRUNE_TEST_DOCTOR_WARNING_SUBPROCESS") == "1" {
 		// ---- Child process ----
 		// Create a minimal environment where DB checks pass but daemon check warns.
@@ -249,29 +246,25 @@ func TestDoctorWarningExitsOne(t *testing.T) {
 		}
 		os.Setenv("HOME", tmpHome)
 
-		// No daemon PID file, so daemon check will produce a warning and exit 1.
-		// Pipeline test will fail but that's a critical issue, so we need to
-		// make sure only warning-level checks fail. Let's suppress the pipeline
-		// by having no events (warning level) and no daemon (warning level).
+		// No daemon PID file, so daemon check will produce a warning and exit 0.
+		// Pipeline test will be skipped since daemon is not running.
+		// This should result in warnings-only (no critical issues) and thus exit 0.
 		runDoctor(doctorCmd, []string{}) //nolint:errcheck
 		return
 	}
 
 	// ---- Parent process ----
-	cmd := exec.Command(os.Args[0], "-test.run=TestDoctorWarningExitsOne", "-test.v")
+	cmd := exec.Command(os.Args[0], "-test.run=TestDoctorWarningExitsZero", "-test.v")
 	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_WARNING_SUBPROCESS=1")
 	err := cmd.Run()
 
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		code := exitErr.ExitCode()
-		if code != 1 {
-			t.Errorf("expected exit code 1 from doctor with warnings, got %d", code)
-		}
-	} else if err == nil {
-		t.Error("expected doctor with warnings to exit non-zero, got exit 0")
-	} else {
+		t.Errorf("expected exit code 0 from doctor with warnings-only, got exit code %d", code)
+	} else if err != nil {
 		t.Errorf("unexpected error running subprocess: %v", err)
 	}
+	// else err == nil means exit 0, which is what we want
 }
 
 // TestDoctorHelpIncludesFixNote verifies `doctor --help` output contains the --fix note.

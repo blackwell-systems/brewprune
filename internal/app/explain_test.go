@@ -307,16 +307,19 @@ func TestExplainNotFoundSuggestion(t *testing.T) {
 	stderrOutput := stderrBuf.String()
 
 	// Verify the error message contains the improved suggestions.
-	if !strings.Contains(stderrOutput, "If you recently installed it") {
-		t.Errorf("expected error message to contain 'If you recently installed it', got: %q", stderrOutput)
-	}
-	if !strings.Contains(stderrOutput, "brewprune scan") {
-		t.Errorf("expected error message to contain 'brewprune scan', got: %q", stderrOutput)
-	}
-	if !strings.Contains(stderrOutput, "check the package name") {
-		t.Errorf("expected error message to contain 'check the package name', got: %q", stderrOutput)
+	if !strings.Contains(stderrOutput, "Check the name with") {
+		t.Errorf("expected error message to contain 'Check the name with', got: %q", stderrOutput)
 	}
 	if !strings.Contains(stderrOutput, "brew list") {
 		t.Errorf("expected error message to contain 'brew list', got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "brew search") {
+		t.Errorf("expected error message to contain 'brew search', got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "If you just installed it") {
+		t.Errorf("expected error message to contain 'If you just installed it', got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "brewprune scan") {
+		t.Errorf("expected error message to contain 'brewprune scan', got: %q", stderrOutput)
 	}
 }

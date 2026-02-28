@@ -183,12 +183,12 @@ func TestRootCmd_BareInvocationShowsHelp(t *testing.T) {
 		t.Errorf("SuggestionsMinimumDistance = %d, want 2", RootCmd.SuggestionsMinimumDistance)
 	}
 
-	// Verify SilenceUsage and SilenceErrors are set
+	// Verify SilenceUsage is set, but SilenceErrors is false (changed in P0 fixes)
 	if !RootCmd.SilenceUsage {
 		t.Error("expected SilenceUsage to be true")
 	}
-	if !RootCmd.SilenceErrors {
-		t.Error("expected SilenceErrors to be true")
+	if RootCmd.SilenceErrors {
+		t.Error("expected SilenceErrors to be false (P0-2 fix: let Cobra handle error printing)")
 	}
 
 	// Verify Long description is still set (used by --help)
@@ -258,8 +258,8 @@ func TestExecute_UnknownCommandHelpHint(t *testing.T) {
 	}
 }
 
-func TestBareBrewpruneExitsOne(t *testing.T) {
-	// Verify that bare invocation (no args, no flags) exits with non-zero
+func TestBareBrewpruneShowsHelpExitsZero(t *testing.T) {
+	// Verify that bare invocation (no args, no flags) shows help and exits 0 (P0-1 fix)
 	var buf bytes.Buffer
 	RootCmd.SetOut(&buf)
 	defer RootCmd.SetOut(nil)
@@ -271,8 +271,8 @@ func TestBareBrewpruneExitsOne(t *testing.T) {
 	RootCmd.SetArgs([]string{})
 	err := Execute()
 
-	if err == nil {
-		t.Error("expected Execute() to return an error for bare invocation")
+	if err != nil {
+		t.Errorf("expected Execute() to return nil (exit 0) for bare invocation, got error: %v", err)
 	}
 
 	// Verify help text was shown (stdout should contain usage info)

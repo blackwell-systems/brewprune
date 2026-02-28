@@ -141,7 +141,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			return tierErr
 		}
 		if tier == "" {
-			return fmt.Errorf("no tier specified; use --safe, --medium, or --risky (add --dry-run to preview changes first)")
+			return fmt.Errorf("no tier specified\n\nTry:\n  brewprune remove --safe --dry-run\n\nOr use --medium or --risky for more aggressive removal")
 		}
 
 		scores, err := getPackagesByTier(anlzr, tier)

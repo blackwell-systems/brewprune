@@ -11,7 +11,7 @@ import (
 )
 
 var explainCmd = &cobra.Command{
-	Use:   "explain [package]",
+	Use:   "explain <package>",
 	Short: "Show detailed scoring explanation for a package",
 	Long: `Display detailed breakdown of removal confidence score for a specific package.
 
@@ -60,7 +60,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	// exit code is non-zero for the error condition.
 	_, err = st.GetPackage(packageName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nIf you recently installed it, run 'brewprune scan' to update the index.\nOtherwise, check the package name (try 'brew list' to see installed packages).\n", packageName)
+		fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\n", packageName, packageName)
 		os.Exit(1)
 	}
 

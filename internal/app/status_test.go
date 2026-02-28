@@ -299,6 +299,104 @@ func TestStatusPathNeverConfigured(t *testing.T) {
 	}
 }
 
+// TestStatusPathConfiguredWithEvents_NoSelfTestNote verifies that when PATH is
+// configured in shell profile but not yet sourced, AND usage events exist,
+// the "setup self-test" note is NOT shown (it only shows for truly missing PATH).
+func TestStatusPathConfiguredWithEvents_NoSelfTestNote(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	origShell := os.Getenv("SHELL")
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("failed to set HOME: %v", err)
+	}
+	defer os.Setenv("HOME", origHome)
+
+	// Set SHELL to zsh for consistent test behavior
+	if err := os.Setenv("SHELL", "/bin/zsh"); err != nil {
+		t.Fatalf("failed to set SHELL: %v", err)
+	}
+	defer os.Setenv("SHELL", origShell)
+
+	// Create .brewprune directory
+	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
+	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
+		t.Fatalf("failed to create .brewprune dir: %v", err)
+	}
+
+	// Create a real SQLite DB with a package and a usage event
+	realDB := fmt.Sprintf("%s/brewprune.db", brewpruneDir)
+	st, err := store.New(realDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("failed to create schema: %v", err)
+	}
+	// Insert a package and a synthetic usage event.
+	_, err = st.DB().Exec(
+		"INSERT INTO packages (name, installed_at, install_type, version, tap, is_cask, size_bytes, has_binary, binary_paths) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"git", time.Now().Format(time.RFC3339), "formula", "2.43.0", "homebrew/core", false, 0, true, "",
+	)
+	if err != nil {
+		st.Close()
+		t.Fatalf("failed to insert package: %v", err)
+	}
+	_, err = st.DB().Exec(
+		"INSERT INTO usage_events (package, event_type, binary_path, timestamp) VALUES (?, ?, ?, ?)",
+		"git", "exec", "/usr/bin/git", time.Now().Format(time.RFC3339),
+	)
+	if err != nil {
+		st.Close()
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath
+	origDBPath := dbPath
+	dbPath = realDB
+	defer func() { dbPath = origDBPath }()
+
+	// Create .zprofile with brewprune PATH export (PATH is configured but not sourced)
+	shimDir := fmt.Sprintf("%s/.brewprune/bin", tmpDir)
+	zprofile := fmt.Sprintf("%s/.zprofile", tmpDir)
+	profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
+	if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
+		t.Fatalf("failed to write .zprofile: %v", err)
+	}
+
+	// Ensure shim dir is NOT in current PATH (simulating a session that hasn't sourced yet)
+	// The temp dir won't be in PATH, so isOnPATH will return false.
+
+	// Capture stdout
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	_ = runStatus(nil, nil)
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	os.Stdout = origStdout
+
+	// Should show "PATH configured (restart shell to activate)"
+	if !strings.Contains(output, "PATH configured") {
+		t.Errorf("expected 'PATH configured' when shell profile has export but session hasn't sourced, got output:\n%s", output)
+	}
+	// Should NOT show the self-test note (only appears when PATH is truly missing)
+	if strings.Contains(output, "setup self-test") {
+		t.Errorf("should not show 'setup self-test' note when PATH is configured (only waiting to be sourced), got output:\n%s", output)
+	}
+	if strings.Contains(output, "Real tracking starts") {
+		t.Errorf("should not show 'Real tracking starts' note when PATH is configured (only waiting to be sourced), got output:\n%s", output)
+	}
+}
+
 // TestStatusPathActive verifies that status shows "PATH active ✓"
 // when the shim directory is already in the current $PATH.
 func TestStatusPathActive(t *testing.T) {

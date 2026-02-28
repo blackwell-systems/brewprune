@@ -66,9 +66,7 @@ func runUndo(cmd *cobra.Command, args []string) error {
 
 	// Require snapshot ID or "latest"
 	if len(args) == 0 {
-		fmt.Println("Usage: brewprune undo [snapshot-id | latest]")
-		fmt.Println("\nUse 'brewprune undo --list' to see available snapshots.")
-		return nil
+		return fmt.Errorf("snapshot ID or 'latest' required\n\nUsage: brewprune undo [snapshot-id | latest]\n\nUse 'brewprune undo --list' to see available snapshots")
 	}
 
 	snapshotArg := args[0]

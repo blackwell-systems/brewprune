@@ -39,8 +39,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// [DOCTOR-1] Track critical vs warning-level issues separately so we can
-	// exit with code 2 for warnings-only (no double-print) and exit 1 for
-	// critical failures.
+	// exit with code 0 for warnings-only and exit 1 for critical failures.
 	criticalIssues := 0
 	warningIssues := 0
 
@@ -97,6 +96,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check 5: Daemon running — warning only
+	// Track daemon status separately so we can skip/shorten pipeline test if not running.
+	daemonRunning := false
 	pidFile, err := getDefaultPIDFile()
 	if err != nil {
 		fmt.Println("⚠ Failed to get PID file path:", err)
@@ -115,6 +116,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println("  Action: Run 'brewprune watch --daemon'")
 			warningIssues++
 		} else {
+			daemonRunning = true
 			// Get PID if daemon is running
 			pidData, err := os.ReadFile(pidFile)
 			if err == nil {
@@ -166,23 +168,30 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	// Check 8: End-to-end pipeline test (only when no critical issues)
 	if criticalIssues == 0 {
-		pipelineStart := time.Now()
-		db2, dbErr := store.New(resolvedDBPath)
-		if dbErr != nil {
-			fmt.Println("✗ Pipeline test: cannot open database:", dbErr)
-			criticalIssues++
+		// Skip or shorten pipeline test if daemon is not running, since the test
+		// requires the daemon to record usage events.
+		if !daemonRunning {
+			fmt.Println("⊘ Pipeline test skipped (daemon not running)")
+			fmt.Println("  The pipeline test requires a running daemon to record usage events")
 		} else {
-			defer db2.Close()
-			spinner := output.NewSpinner("Running pipeline test...")
-			pipelineErr := RunShimTest(db2, 35*time.Second)
-			pipelineElapsed := time.Since(pipelineStart).Round(time.Millisecond)
-			if pipelineErr != nil {
-				spinner.StopWithMessage(fmt.Sprintf("✗ Pipeline test: fail (%v)", pipelineElapsed))
-				fmt.Printf("  %v\n", pipelineErr)
-				fmt.Println("  Action: Run 'brewprune scan' to rebuild shims and restart the daemon")
+			pipelineStart := time.Now()
+			db2, dbErr := store.New(resolvedDBPath)
+			if dbErr != nil {
+				fmt.Println("✗ Pipeline test: cannot open database:", dbErr)
 				criticalIssues++
 			} else {
-				spinner.StopWithMessage(fmt.Sprintf("✓ Pipeline test: pass (%v)", pipelineElapsed))
+				defer db2.Close()
+				spinner := output.NewSpinner("Running pipeline test (up to 35s)...")
+				pipelineErr := RunShimTest(db2, 35*time.Second)
+				pipelineElapsed := time.Since(pipelineStart).Round(time.Millisecond)
+				if pipelineErr != nil {
+					spinner.StopWithMessage(fmt.Sprintf("✗ Pipeline test: fail (%v)", pipelineElapsed))
+					fmt.Printf("  %v\n", pipelineErr)
+					fmt.Println("  Action: Run 'brewprune watch --daemon' to restart the daemon")
+					criticalIssues++
+				} else {
+					spinner.StopWithMessage(fmt.Sprintf("✓ Pipeline test: pass (%v)", pipelineElapsed))
+				}
 			}
 		}
 	}
@@ -203,9 +212,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("diagnostics failed")
 	}
 
-	// [DOCTOR-2] Warning-only path: use os.Exit(1) per POSIX convention.
-	// Exit code 2 means "misuse of shell built-in" and breaks scripts.
+	// [DOCTOR-2] Warning-only path: exit 0 since warnings don't prevent usage.
+	// Exit code 0 = success/warnings, exit code 1 = critical failure.
 	fmt.Printf("Found %d warning(s). System is functional but not fully configured.\n", warningIssues)
-	os.Exit(1)
-	return nil // unreachable; satisfies compiler
+	return nil
 }

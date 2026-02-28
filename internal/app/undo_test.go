@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -311,9 +312,9 @@ func TestUndoHelp_UsageComesBeforeExamples(t *testing.T) {
 	}
 }
 
-// TestUndoNoArgsExitsZero verifies that `brewprune undo` with no arguments
-// exits with code 0 (treating it as a request for guidance rather than an error).
-func TestUndoNoArgsExitsZero(t *testing.T) {
+// TestUndoNoArgsExitsNonZero verifies that `brewprune undo` with no arguments
+// exits with code 1 (error, since no action can be taken without an argument).
+func TestUndoNoArgsExitsNonZero(t *testing.T) {
 	if os.Getenv("BREWPRUNE_TEST_UNDO_NOARGS_SUBPROCESS") == "1" {
 		// ---- Child process ----
 		tmpDir := t.TempDir()
@@ -334,29 +335,30 @@ func TestUndoNoArgsExitsZero(t *testing.T) {
 		cmd := &cobra.Command{}
 		err := runUndo(cmd, []string{})
 		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		return
 	}
 
 	// ---- Parent process ----
-	cmd := exec.Command(os.Args[0], "-test.run=TestUndoNoArgsExitsZero", "-test.v")
+	cmd := exec.Command(os.Args[0], "-test.run=TestUndoNoArgsExitsNonZero", "-test.v")
 	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_UNDO_NOARGS_SUBPROCESS=1")
 
-	var stdoutBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	err := cmd.Run()
-	stdoutOutput := stdoutBuf.String()
+	stderrOutput := stderrBuf.String()
 
-	// Expect exit code 0
-	if err != nil {
-		t.Errorf("expected subprocess to exit 0, got error: %v", err)
+	// Expect exit code 1 (non-zero)
+	if err == nil {
+		t.Errorf("expected subprocess to exit 1, got exit 0")
 	}
 
-	// Verify guidance message appears in stdout
-	if !strings.Contains(stdoutOutput, "undo --list") {
-		t.Errorf("expected stdout to contain %q, got:\n%s", "undo --list", stdoutOutput)
+	// Verify guidance message appears in stderr (error messages go to stderr)
+	if !strings.Contains(stderrOutput, "undo --list") {
+		t.Errorf("expected stderr to contain %q, got:\n%s", "undo --list", stderrOutput)
 	}
 }
 

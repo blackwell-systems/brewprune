@@ -159,7 +159,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		pathStatus = "PATH missing ⚠"
 	}
 	fmt.Printf(label+"%s · %d commands · %s\n", "Shims:", shimStatus, shimCount, pathStatus)
-	if !pathOK && totalEvents > 0 {
+	// Only show the self-test note when PATH is genuinely missing from config,
+	// not when it's just configured but not yet sourced.
+	if !pathOK && !isConfiguredInShellProfile(shimDir) && totalEvents > 0 {
 		fmt.Printf("              %s\n", "Note: events are from setup self-test, not real shim interception.")
 		fmt.Printf("              %s\n", "Real tracking starts when PATH is fixed and shims are in front of Homebrew.")
 	}

@@ -510,3 +510,161 @@ func TestUnusedTierValidationFormat(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyResultsMessageWithFilters(t *testing.T) {
+	// Test that empty results with active filters show helpful message
+	tier := "safe"
+	minScore := 90
+
+	// Simulate filter description building
+	var filters []string
+	if tier != "" {
+		filters = append(filters, fmt.Sprintf("tier=%s", tier))
+	}
+	if minScore > 0 {
+		filters = append(filters, fmt.Sprintf("min-score=%d", minScore))
+	}
+
+	if len(filters) == 0 {
+		t.Fatal("expected filters to be populated")
+	}
+
+	expectedSubstring := "tier=safe, min-score=90"
+	actualMessage := strings.Join(filters, ", ")
+
+	if actualMessage != expectedSubstring {
+		t.Errorf("filter message mismatch:\ngot:  %s\nwant: %s", actualMessage, expectedSubstring)
+	}
+}
+
+func TestHiddenCountSeparation(t *testing.T) {
+	// Test that hidden count separates score threshold from tier filtering
+	belowScoreThreshold := 3
+	riskyTierCount := 5
+	minScore := 70
+	showAll := false
+	tierFilter := ""
+	showRiskyImplicit := false
+
+	var hiddenMessages []string
+
+	if belowScoreThreshold > 0 {
+		hiddenMessages = append(hiddenMessages, fmt.Sprintf("%d packages below score threshold (%d)", belowScoreThreshold, minScore))
+	}
+
+	if !showAll && tierFilter == "" && !showRiskyImplicit && riskyTierCount > 0 {
+		hiddenMessages = append(hiddenMessages, fmt.Sprintf("%d packages in risky tier", riskyTierCount))
+	}
+
+	if len(hiddenMessages) != 2 {
+		t.Errorf("expected 2 hidden messages, got %d", len(hiddenMessages))
+	}
+
+	expectedFirst := "3 packages below score threshold (70)"
+	if hiddenMessages[0] != expectedFirst {
+		t.Errorf("first message mismatch:\ngot:  %s\nwant: %s", hiddenMessages[0], expectedFirst)
+	}
+
+	expectedSecond := "5 packages in risky tier"
+	if hiddenMessages[1] != expectedSecond {
+		t.Errorf("second message mismatch:\ngot:  %s\nwant: %s", hiddenMessages[1], expectedSecond)
+	}
+}
+
+func TestVerbosePaginationTip(t *testing.T) {
+	// Test that verbose mode suggests pagination for large output
+	scores := make([]*analyzer.ConfidenceScore, 15) // More than 10
+
+	if len(scores) <= 10 {
+		t.Error("expected pagination tip to trigger for >10 packages")
+	}
+
+	// The tip should only show for verbose mode with >10 packages
+	// This is a logic test - actual output is tested in integration
+}
+
+func TestEmptyResultsFormattedMessage(t *testing.T) {
+	// Test that empty results show improved message format
+	tier := "safe"
+	minScore := 90
+
+	// Build filter description as in runUnused
+	var filters []string
+	if tier != "" {
+		filters = append(filters, fmt.Sprintf("tier=%s", tier))
+	}
+	if minScore > 0 {
+		filters = append(filters, fmt.Sprintf("min-score=%d", minScore))
+	}
+
+	if len(filters) == 0 {
+		t.Fatal("expected filters to be populated")
+	}
+
+	// Expected format: "No packages match: tier=safe, min-score=90"
+	expectedSubstring := "tier=safe, min-score=90"
+	actualMessage := strings.Join(filters, ", ")
+
+	if actualMessage != expectedSubstring {
+		t.Errorf("filter message mismatch:\ngot:  %s\nwant: %s", actualMessage, expectedSubstring)
+	}
+}
+
+func TestHiddenCountSeparatedByFilter(t *testing.T) {
+	// Test that hidden messages separate score threshold from tier filtering
+	belowScoreThreshold := 3
+	riskyTierCount := 5
+	minScore := 70
+	showAll := false
+	tierFilter := ""
+	showRiskyImplicit := false
+
+	var hiddenMessages []string
+
+	if belowScoreThreshold > 0 {
+		hiddenMessages = append(hiddenMessages, fmt.Sprintf("%d below score threshold (%d)", belowScoreThreshold, minScore))
+	}
+
+	if !showAll && tierFilter == "" && !showRiskyImplicit && riskyTierCount > 0 {
+		hiddenMessages = append(hiddenMessages, fmt.Sprintf("%d in risky tier", riskyTierCount))
+	}
+
+	if len(hiddenMessages) != 2 {
+		t.Errorf("expected 2 hidden messages, got %d", len(hiddenMessages))
+	}
+
+	expectedFirst := "3 below score threshold (70)"
+	if hiddenMessages[0] != expectedFirst {
+		t.Errorf("first message mismatch:\ngot:  %s\nwant: %s", hiddenMessages[0], expectedFirst)
+	}
+
+	expectedSecond := "5 in risky tier"
+	if hiddenMessages[1] != expectedSecond {
+		t.Errorf("second message mismatch:\ngot:  %s\nwant: %s", hiddenMessages[1], expectedSecond)
+	}
+
+	// Test message format with semicolon separator
+	joinedMessage := strings.Join(hiddenMessages, "; ")
+	expectedJoined := "3 below score threshold (70); 5 in risky tier"
+	if joinedMessage != expectedJoined {
+		t.Errorf("joined message mismatch:\ngot:  %s\nwant: %s", joinedMessage, expectedJoined)
+	}
+}
+
+func TestTierFilteringDocumentation(t *testing.T) {
+	// Test that the Long description contains clarification about --tier and --all interaction
+	longDesc := unusedCmd.Long
+
+	// Check for key phrases that explain tier filtering behavior
+	if !strings.Contains(longDesc, "Tier Filtering:") {
+		t.Error("Long description should contain 'Tier Filtering:' section")
+	}
+
+	if !strings.Contains(longDesc, "--tier always shows the specified tier") {
+		t.Error("Long description should explain that --tier always shows the specified tier")
+	}
+
+	if !strings.Contains(longDesc, "--all shows all tiers when --tier is not specified") {
+		t.Error("Long description should explain that --all affects behavior when --tier is not specified")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
@@ -42,8 +43,14 @@ Packages are classified into tiers:
 
 Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental removal.
 
-Note: --tier shows only that specific tier regardless of --all. For example,
-'brewprune unused --tier risky' shows all risky packages without needing --all.
+Tier Filtering:
+  --tier always shows the specified tier (safe, medium, or risky) regardless of --all.
+  --all shows all tiers when --tier is not specified.
+  Without --tier or --all, safe and medium tiers are shown (risky hidden by default).
+
+Example: 'brewprune unused --tier risky' shows only risky packages.
+Example: 'brewprune unused --all' shows all three tiers.
+
 When no --tier or --all flag is set and no usage data exists, the risky tier is
 shown automatically with a warning banner.`,
 	Example: `  # Show all unused packages
@@ -221,7 +228,30 @@ func runUnused(cmd *cobra.Command, args []string) error {
 				fmt.Printf("No casks match the specified criteria (%d cask(s) installed).\n", caskCount)
 			}
 		} else {
-			fmt.Println("No packages match the specified criteria.")
+			// Build filter description
+			var filters []string
+			if unusedTier != "" {
+				filters = append(filters, fmt.Sprintf("tier=%s", unusedTier))
+			}
+			if unusedMinScore > 0 {
+				filters = append(filters, fmt.Sprintf("min-score=%d", unusedMinScore))
+			}
+
+			if len(filters) > 0 {
+				fmt.Printf("No packages match: %s\n", strings.Join(filters, ", "))
+				fmt.Println("\nSuggestions:")
+				if unusedMinScore > 0 {
+					fmt.Println("  • Try lowering --min-score")
+				}
+				if !unusedAll && unusedTier == "" {
+					fmt.Println("  • Use --all to include risky tier")
+				}
+				if unusedTier != "" {
+					fmt.Println("  • Try a different --tier (safe, medium, risky)")
+				}
+			} else {
+				fmt.Println("No packages match the current filters.")
+			}
 		}
 		return nil
 	}
@@ -272,6 +302,13 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		}
 		table := output.RenderConfidenceTableVerbose(verboseScores)
 		fmt.Print(table)
+
+		// Suggest pagination for long output
+		if len(scores) > 10 {
+			fmt.Println()
+			fmt.Println("Tip: For easier viewing of long output, pipe to less:")
+			fmt.Println("     brewprune unused --verbose | less")
+		}
 	} else {
 		// Convert to output format for standard table
 		sevenDaysAgo := time.Now().AddDate(0, 0, -7)
@@ -308,16 +345,23 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	footer := output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "")
 	fmt.Println(footer)
 
-	// Show filter explanation if multiple filters are active
-	if belowScoreThreshold > 0 && !unusedAll && unusedTier == "" && !showRiskyImplicit {
-		// Both score threshold and risky tier are filtering
-		fmt.Printf("%d packages below score threshold hidden. Risky tier also hidden (use --all to include).\n", belowScoreThreshold)
-	} else if belowScoreThreshold > 0 {
-		// Only score threshold is filtering
-		fmt.Printf("%d packages below score threshold hidden.\n", belowScoreThreshold)
-	} else if !unusedAll && unusedTier == "" && !showRiskyImplicit && riskyTier.Count > 0 { //nolint:staticcheck
-		// Only risky tier is hidden (no score threshold, but risky is suppressed)
-		// This message is typically shown by the reclaimable footer itself
+	// Show filter explanation - separate counts for clarity
+	var hiddenMessages []string
+
+	if belowScoreThreshold > 0 {
+		hiddenMessages = append(hiddenMessages, fmt.Sprintf("%d below score threshold (%d)", belowScoreThreshold, unusedMinScore))
+	}
+
+	if !unusedAll && unusedTier == "" && !showRiskyImplicit && riskyTier.Count > 0 {
+		hiddenMessages = append(hiddenMessages, fmt.Sprintf("%d in risky tier", riskyTier.Count))
+	}
+
+	if len(hiddenMessages) > 0 {
+		fmt.Printf("Hidden: %s", strings.Join(hiddenMessages, "; "))
+		if !unusedAll && unusedTier == "" && !showRiskyImplicit {
+			fmt.Print(" (use --all to show risky)")
+		}
+		fmt.Println()
 	}
 
 	// Add confidence assessment

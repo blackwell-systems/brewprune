@@ -149,11 +149,7 @@ func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 
 	// Show explain hint for all packages
 	fmt.Println()
-	if stats.TotalUses == 0 {
-		fmt.Printf("Tip: Run 'brewprune explain %s' for removal recommendation.\n", pkg)
-	} else {
-		fmt.Printf("Tip: Run 'brewprune explain %s' for removal recommendation and scoring detail.\n", pkg)
-	}
+	fmt.Printf("Tip: Run 'brewprune explain %s' for removal recommendation and scoring detail.\n", pkg)
 
 	return nil
 }

@@ -578,7 +578,8 @@ func TestShowUsageTrends_ShowAllFlag(t *testing.T) {
 }
 
 // TestShowPackageStats_ZeroUsage_ShowsExplainHint verifies that when a package
-// has 0 TotalUses the output contains a pointer to 'brewprune explain'.
+// has 0 TotalUses the output contains a pointer to 'brewprune explain' with
+// consistent message including "scoring detail".
 func TestShowPackageStats_ZeroUsage_ShowsExplainHint(t *testing.T) {
 	st, err := store.New(":memory:")
 	if err != nil {
@@ -630,6 +631,10 @@ func TestShowPackageStats_ZeroUsage_ShowsExplainHint(t *testing.T) {
 
 	if !strings.Contains(out, "zero-use-pkg") {
 		t.Errorf("expected package name in explain hint, got:\n%s", out)
+	}
+
+	if !strings.Contains(out, "scoring detail") {
+		t.Errorf("expected 'scoring detail' in tip message for consistency, got:\n%s", out)
 	}
 }
 
@@ -788,6 +793,129 @@ func TestShowUsageTrends_BannerShownWhenHidden(t *testing.T) {
 	}
 	if bannerIdx >= tableIdx {
 		t.Errorf("expected banner to appear before table content, banner at %d, table at %d", bannerIdx, tableIdx)
+	}
+}
+
+// TestShowUsageTrends_AllFlagSortsByTotalRuns verifies that with --all flag,
+// packages are sorted by total runs descending (most used first).
+func TestShowUsageTrends_AllFlagSortsByTotalRuns(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+
+	// Create packages with different usage counts
+	pkgs := []*brew.Package{
+		{Name: "high-usage", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "med-usage", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "low-usage", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "zero-usage", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	// Add events: high-usage=10, med-usage=5, low-usage=1, zero-usage=0
+	for i := 0; i < 10; i++ {
+		event := &store.UsageEvent{
+			Package:    "high-usage",
+			EventType:  "exec",
+			BinaryPath: "/usr/local/bin/high-usage",
+			Timestamp:  now.AddDate(0, 0, -i-1),
+		}
+		if err := st.InsertUsageEvent(event); err != nil {
+			t.Fatalf("failed to insert usage event: %v", err)
+		}
+	}
+	for i := 0; i < 5; i++ {
+		event := &store.UsageEvent{
+			Package:    "med-usage",
+			EventType:  "exec",
+			BinaryPath: "/usr/local/bin/med-usage",
+			Timestamp:  now.AddDate(0, 0, -i-1),
+		}
+		if err := st.InsertUsageEvent(event); err != nil {
+			t.Fatalf("failed to insert usage event: %v", err)
+		}
+	}
+	event := &store.UsageEvent{
+		Package:    "low-usage",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/low-usage",
+		Timestamp:  now.AddDate(0, 0, -1),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = true
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	// Verify all packages appear
+	if !strings.Contains(out, "high-usage") {
+		t.Errorf("expected 'high-usage' in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "med-usage") {
+		t.Errorf("expected 'med-usage' in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "low-usage") {
+		t.Errorf("expected 'low-usage' in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "zero-usage") {
+		t.Errorf("expected 'zero-usage' in output with --all, got:\n%s", out)
+	}
+
+	// Verify sorting order: high-usage should appear before med-usage, etc.
+	highIdx := strings.Index(out, "high-usage")
+	medIdx := strings.Index(out, "med-usage")
+	lowIdx := strings.Index(out, "low-usage")
+	zeroIdx := strings.Index(out, "zero-usage")
+
+	if highIdx == -1 || medIdx == -1 || lowIdx == -1 || zeroIdx == -1 {
+		t.Fatal("not all packages found in output")
+	}
+
+	if highIdx >= medIdx {
+		t.Errorf("expected high-usage (10 runs) before med-usage (5 runs), got high at %d, med at %d", highIdx, medIdx)
+	}
+	if medIdx >= lowIdx {
+		t.Errorf("expected med-usage (5 runs) before low-usage (1 run), got med at %d, low at %d", medIdx, lowIdx)
+	}
+	if lowIdx >= zeroIdx {
+		t.Errorf("expected low-usage (1 run) before zero-usage (0 runs), got low at %d, zero at %d", lowIdx, zeroIdx)
 	}
 }
 
