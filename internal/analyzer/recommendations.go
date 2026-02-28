@@ -122,8 +122,8 @@ func (a *Analyzer) ValidateRemoval(packages []string) ([]string, error) {
 					pkg, score.Score, score.Reason))
 		}
 
-		// Warn if recently used
-		if score.UsageScore >= 30 {
+		// Warn if recently used (UsageScore==0 means used within 7 days after inversion)
+		if score.UsageScore == 0 {
 			lastUsed, err := a.store.GetLastUsage(pkg)
 			if err == nil && lastUsed != nil {
 				warnings = append(warnings,

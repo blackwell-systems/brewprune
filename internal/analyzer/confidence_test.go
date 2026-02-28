@@ -47,14 +47,14 @@ func TestComputeScore_NeverUsedLeafPackage(t *testing.T) {
 	}
 
 	// Expected scores:
-	// Usage: 0 (never used)
+	// Usage: 40 (never used — high removal pressure)
 	// Deps: 30 (no dependents)
 	// Age: 20 (>180 days)
 	// Type: 10 (leaf with binaries)
-	// Total: 60
+	// Total: 100
 
-	if score.UsageScore != 0 {
-		t.Errorf("expected UsageScore 0, got %d", score.UsageScore)
+	if score.UsageScore != 40 {
+		t.Errorf("expected UsageScore 40, got %d", score.UsageScore)
 	}
 	if score.DepsScore != 30 {
 		t.Errorf("expected DepsScore 30, got %d", score.DepsScore)
@@ -65,11 +65,11 @@ func TestComputeScore_NeverUsedLeafPackage(t *testing.T) {
 	if score.TypeScore != 10 {
 		t.Errorf("expected TypeScore 10, got %d", score.TypeScore)
 	}
-	if score.Score != 60 {
-		t.Errorf("expected total Score 60, got %d", score.Score)
+	if score.Score != 100 {
+		t.Errorf("expected total Score 100, got %d", score.Score)
 	}
-	if score.Tier != "medium" {
-		t.Errorf("expected tier medium, got %s", score.Tier)
+	if score.Tier != "safe" {
+		t.Errorf("expected tier safe, got %s", score.Tier)
 	}
 }
 
@@ -107,20 +107,20 @@ func TestComputeScore_RecentlyUsedPackage(t *testing.T) {
 	}
 
 	// Expected scores:
-	// Usage: 40 (used within 7 days)
+	// Usage: 0 (used within 7 days — low removal pressure)
 	// Deps: 30 (no dependents)
 	// Age: 15 (>90 days)
 	// Type: 10 (leaf with binaries)
-	// Total: 95
+	// Total: 55
 
-	if score.UsageScore != 40 {
-		t.Errorf("expected UsageScore 40, got %d", score.UsageScore)
+	if score.UsageScore != 0 {
+		t.Errorf("expected UsageScore 0, got %d", score.UsageScore)
 	}
-	if score.Score != 95 {
-		t.Errorf("expected total Score 95, got %d", score.Score)
+	if score.Score != 55 {
+		t.Errorf("expected total Score 55, got %d", score.Score)
 	}
-	if score.Tier != "safe" {
-		t.Errorf("expected tier safe, got %s", score.Tier)
+	if score.Tier != "medium" {
+		t.Errorf("expected tier medium, got %s", score.Tier)
 	}
 }
 
@@ -148,17 +148,17 @@ func TestComputeScore_CoreDependency(t *testing.T) {
 	}
 
 	// Expected scores:
-	// Usage: 0 (never used directly)
+	// Usage: 40 (never used directly — high removal pressure)
 	// Deps: 30 (no dependents in test data)
 	// Age: 20 (>180 days)
 	// Type: 0 (core dependency)
-	// Total: 50
+	// Total: 90, capped at 70 (core dep criticality cap)
 
 	if score.TypeScore != 0 {
 		t.Errorf("expected TypeScore 0 for core dependency, got %d", score.TypeScore)
 	}
-	if score.Score != 50 {
-		t.Errorf("expected total Score 50, got %d", score.Score)
+	if score.Score != 70 {
+		t.Errorf("expected total Score 70 (capped), got %d", score.Score)
 	}
 	if score.Tier != "medium" {
 		t.Errorf("expected tier medium, got %s", score.Tier)
@@ -209,20 +209,20 @@ func TestComputeScore_WithDependents(t *testing.T) {
 	}
 
 	// Expected scores:
-	// Usage: 0 (never used directly)
+	// Usage: 40 (never used directly — high removal pressure)
 	// Deps: 0 (5 dependents, 4+)
 	// Age: 15 (>90 days)
 	// Type: 5 (library with no binaries)
-	// Total: 20
+	// Total: 60
 
 	if score.DepsScore != 0 {
 		t.Errorf("expected DepsScore 0 for 5 dependents, got %d", score.DepsScore)
 	}
-	if score.Score != 20 {
-		t.Errorf("expected total Score 20, got %d", score.Score)
+	if score.Score != 60 {
+		t.Errorf("expected total Score 60, got %d", score.Score)
 	}
-	if score.Tier != "risky" {
-		t.Errorf("expected tier risky, got %s", score.Tier)
+	if score.Tier != "medium" {
+		t.Errorf("expected tier medium, got %s", score.Tier)
 	}
 }
 
@@ -237,9 +237,9 @@ func TestComputeScore_TierBoundaries(t *testing.T) {
 		expectedTier  string
 		expectedScore int
 	}{
-		{"medium_boundary_60", 200, false, "medium", 60}, // 0+30+20+10=60 (medium, not safe)
-		{"medium_boundary_50", 40, false, "medium", 50},  // 0+30+10+10=50
-		{"risky_boundary_20", 20, true, "risky", 20},     // 0+10+0+10=20
+		{"medium_boundary_60", 200, false, "safe", 100}, // 40+30+20+10=100 (never used, old, no deps)
+		{"medium_boundary_50", 40, false, "safe", 90},   // 40+30+10+10=90
+		{"risky_boundary_20", 20, true, "medium", 60},   // 40+20+0+0=60
 	}
 
 	for _, tt := range tests {
@@ -380,7 +380,7 @@ func TestComputeScore_CriticalityPenalty(t *testing.T) {
 			name:          "git_capped",
 			pkg:           "git",
 			daysAgo:       200,
-			expectedScore: 70, // Would be 80+ without cap (0+30+20+10=60, but let's test never used)
+			expectedScore: 70, // 40+30+20+0=90, capped at 70 (TypeScore=0 for core deps)
 			expectedTier:  "medium",
 			isCritical:    true,
 		},
@@ -388,7 +388,7 @@ func TestComputeScore_CriticalityPenalty(t *testing.T) {
 			name:          "openssl_capped",
 			pkg:           "openssl@3",
 			daysAgo:       200,
-			expectedScore: 50, // 0+30+20+0=50 (TypeScore is 0 for core deps)
+			expectedScore: 70, // 40+30+20+0=90, capped at 70 (TypeScore is 0 for core deps)
 			expectedTier:  "medium",
 			isCritical:    true,
 		},
@@ -396,7 +396,7 @@ func TestComputeScore_CriticalityPenalty(t *testing.T) {
 			name:          "coreutils_capped",
 			pkg:           "coreutils",
 			daysAgo:       200,
-			expectedScore: 60, // 0+30+20+10=60 (if it has binaries)
+			expectedScore: 70, // 40+30+20+0=90, capped at 70 (TypeScore=0 for core deps)
 			expectedTier:  "medium",
 			isCritical:    true,
 		},
@@ -576,6 +576,78 @@ func TestScoreExplanation_WithDependents(t *testing.T) {
 	// Should show unused dependents
 	if score.Explanation.DepsDetail != "3 unused dependents" {
 		t.Errorf("expected '3 unused dependents', got: %s", score.Explanation.DepsDetail)
+	}
+}
+
+func TestComputeScore_UsedTodayIsRisky(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	// Package used today, installed recently, no dependents
+	pkg := &brew.Package{
+		Name:        "used-today-pkg",
+		Version:     "1.0.0",
+		InstalledAt: time.Now().AddDate(0, 0, -10),
+		InstallType: "explicit",
+		HasBinary:   true,
+		SizeBytes:   500000,
+	}
+	if err := s.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Used today
+	event := &store.UsageEvent{
+		Package:   "used-today-pkg",
+		EventType: "exec",
+		Timestamp: time.Now(),
+	}
+	if err := s.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	analyzer := New(s)
+	score, err := analyzer.ComputeScore("used-today-pkg")
+	if err != nil {
+		t.Fatalf("ComputeScore failed: %v", err)
+	}
+
+	// Used today should produce UsageScore=0 (low removal pressure)
+	if score.UsageScore != 0 {
+		t.Errorf("expected UsageScore 0 for package used today, got %d", score.UsageScore)
+	}
+	// A recently-used package should not land in safe tier
+	if score.Tier == "safe" {
+		t.Errorf("package used today should not be in safe tier, got tier=%s score=%d", score.Tier, score.Score)
+	}
+}
+
+func TestComputeScore_NeverUsedIsHighScore(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	// Package never used, no usage events
+	pkg := &brew.Package{
+		Name:        "never-used-pkg",
+		Version:     "1.0.0",
+		InstalledAt: time.Now().AddDate(0, 0, -200),
+		InstallType: "explicit",
+		HasBinary:   true,
+		SizeBytes:   500000,
+	}
+	if err := s.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	analyzer := New(s)
+	score, err := analyzer.ComputeScore("never-used-pkg")
+	if err != nil {
+		t.Fatalf("ComputeScore failed: %v", err)
+	}
+
+	// Never used should produce maximum UsageScore=40 (high removal pressure)
+	if score.UsageScore != 40 {
+		t.Errorf("expected UsageScore 40 for never-used package, got %d", score.UsageScore)
 	}
 }
 

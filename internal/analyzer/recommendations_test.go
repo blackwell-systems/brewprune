@@ -90,12 +90,12 @@ func TestGetRecommendations(t *testing.T) {
 	}
 }
 
-func TestGetRecommendations_NoSafePackages(t *testing.T) {
+func TestGetRecommendations_NeverUsedPackageIsSafe(t *testing.T) {
 	s := setupTestStore(t)
 	defer s.Close()
 
-	// Insert only medium/risky packages
-	// Medium: 0+30+0+10=40 (risky)
+	// A never-used, recently installed package scores 40+30+0+10=80 (safe)
+	// Under corrected scoring: never used = high removal pressure = safe tier
 	pkg := &brew.Package{
 		Name:        "medium_pkg",
 		Version:     "1.0.0",
@@ -108,19 +108,18 @@ func TestGetRecommendations_NoSafePackages(t *testing.T) {
 		t.Fatalf("failed to insert package: %v", err)
 	}
 
-	// No usage events, so score will be: 0+30+0+10=40 (risky, not safe)
-
+	// No usage events: UsageScore=40, total=40+30+0+10=80 → safe tier
 	analyzer := New(s)
 	rec, err := analyzer.GetRecommendations()
 	if err != nil {
 		t.Fatalf("GetRecommendations failed: %v", err)
 	}
 
-	if len(rec.Packages) != 0 {
-		t.Errorf("expected 0 safe packages, got %d", len(rec.Packages))
+	if len(rec.Packages) != 1 {
+		t.Errorf("expected 1 safe package (never used), got %d", len(rec.Packages))
 	}
-	if rec.TotalSize != 0 {
-		t.Errorf("expected total size 0, got %d", rec.TotalSize)
+	if rec.TotalSize != 10000000 {
+		t.Errorf("expected total size 10000000, got %d", rec.TotalSize)
 	}
 }
 
@@ -260,7 +259,9 @@ func TestValidateRemoval_RiskyPackage(t *testing.T) {
 	s := setupTestStore(t)
 	defer s.Close()
 
-	// Insert a recently installed package (will be risky due to low age score)
+	// Insert a recently installed AND recently used package (risky: low age + low usage score)
+	// Under corrected scoring: recently used = UsageScore=0; installed 10 days = AgeScore=0
+	// Total: 0+30+0+10=40 → risky tier
 	pkg := &brew.Package{
 		Name:        "newpkg",
 		Version:     "1.0.0",
@@ -271,6 +272,16 @@ func TestValidateRemoval_RiskyPackage(t *testing.T) {
 	}
 	if err := s.InsertPackage(pkg); err != nil {
 		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Add recent usage event so UsageScore=0 (recently used = keep)
+	event := &store.UsageEvent{
+		Package:   "newpkg",
+		EventType: "exec",
+		Timestamp: time.Now().AddDate(0, 0, -2),
+	}
+	if err := s.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
 	}
 
 	analyzer := New(s)

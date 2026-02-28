@@ -9,7 +9,8 @@ import (
 
 // ComputeScore calculates the confidence score for removing a package.
 // Score components:
-// - Usage (40 points): Last 7d=40, 30d=30, 90d=20, 1yr=10, never=0
+// - Usage (40 points): Last 7d=0, 30d=10, 90d=20, 1yr=30, never=40
+//   0 = recently used (keep), 40 = never used (safe to remove)
 // - Dependencies (30 points): No deps=30, 1-3 unused=20, 1-3 used=10, 4+=0
 // - Age (20 points): >180d=20, >90d=15, >30d=10, <30d=0
 // - Type (10 points): Leaf with bins=10, lib no bins=5, core=0
@@ -77,25 +78,26 @@ func (a *Analyzer) ComputeScore(pkg string) (*ConfidenceScore, error) {
 }
 
 // computeUsageScore calculates usage score based on last use time.
+// 0 = recently used (keep), 40 = never used (safe to remove)
 func (a *Analyzer) computeUsageScore(pkg string) int {
 	lastUsed, err := a.store.GetLastUsage(pkg)
 	if err != nil || lastUsed == nil {
 		// Never used or error
-		return 0
+		return 40
 	}
 
 	daysSince := int(time.Since(*lastUsed).Hours() / 24)
 
 	if daysSince <= 7 {
-		return 40
+		return 0
 	} else if daysSince <= 30 {
-		return 30
+		return 10
 	} else if daysSince <= 90 {
 		return 20
 	} else if daysSince <= 365 {
-		return 10
+		return 30
 	}
-	return 0
+	return 40
 }
 
 // computeDepsScore calculates dependency score based on dependents.
@@ -187,7 +189,7 @@ func (a *Analyzer) generateReason(score *ConfidenceScore, dependents []string, h
 	}
 
 	// Risky
-	if score.UsageScore >= 30 {
+	if score.UsageScore == 0 {
 		return "recently used, keep"
 	}
 	if len(dependents) >= 4 {
