@@ -79,7 +79,7 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 
 	// Header
 	sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s\n",
-		"Package", "Size", "Uses (7d)", "Last Used", "Depended On", ""))
+		"Package", "Size", "Uses (7d)", "Last Used", "Depended On", "Status"))
 	sb.WriteString(strings.Repeat("─", 80))
 	sb.WriteString("\n")
 
