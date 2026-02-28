@@ -15,11 +15,14 @@ import (
 // selection as a test target to prevent an exec loop.
 const shimBinaryExclude = "brewprune-shim"
 
-// findShimTestBinary scans shimDir for a suitable shim symlink to exec during
+// findShimTestBinary scans shimDir for a suitable shim entry to exec during
 // the pipeline test. It skips the brewprune-shim binary itself to avoid an
-// infinite exec loop and returns the full path of the first symlink found, or
-// "" if none exist.
+// infinite exec loop and returns the full path of the first shim found (hard
+// link or legacy symlink), or "" if none exist.
 func findShimTestBinary(shimDir string) string {
+	shimBinary := filepath.Join(shimDir, shimBinaryExclude)
+	shimBinaryIno, _ := shim.ShimBinaryIno(shimBinary)
+
 	entries, err := os.ReadDir(shimDir)
 	if err != nil {
 		return ""
@@ -32,22 +35,19 @@ func findShimTestBinary(shimDir string) string {
 			continue
 		}
 		p := filepath.Join(shimDir, name)
-		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		if shim.IsShimEntry(p, shimBinaryIno) {
 			return p
 		}
 	}
 
-	// Fall back to the first available symlink that isn't the shim binary.
+	// Fall back to the first available shim entry that isn't the shim binary.
 	for _, e := range entries {
 		if e.Name() == shimBinaryExclude {
 			continue
 		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return filepath.Join(shimDir, e.Name())
+		p := filepath.Join(shimDir, e.Name())
+		if shim.IsShimEntry(p, shimBinaryIno) {
+			return p
 		}
 	}
 

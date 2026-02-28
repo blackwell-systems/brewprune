@@ -25,6 +25,13 @@ const shimBinaryName = "brewprune-shim"
 // shimInode returns the inode number of the shim binary, used to identify
 // hard-link shim entries in the shim directory.
 func shimInode(shimBinary string) (uint64, error) {
+	return ShimBinaryIno(shimBinary)
+}
+
+// ShimBinaryIno returns the inode number of the given shim binary path.
+// The inode is used by IsShimEntry to identify hard-link shim entries without
+// relying on symlink mode bits (which enterprise EDR tools may flag).
+func ShimBinaryIno(shimBinary string) (uint64, error) {
 	info, err := os.Stat(shimBinary)
 	if err != nil {
 		return 0, err
@@ -39,6 +46,13 @@ func shimInode(shimBinary string) (uint64, error) {
 // isShimEntry reports whether a file in the shim directory is a shim — either
 // a symlink (legacy) or a hard link sharing the shim binary's inode.
 func isShimEntry(path string, shimBinaryIno uint64) bool {
+	return IsShimEntry(path, shimBinaryIno)
+}
+
+// IsShimEntry reports whether the file at path is a brewprune shim: either a
+// legacy symlink or a hard link whose inode matches shimBinaryIno.
+// shimBinaryIno should be obtained via ShimBinaryIno.
+func IsShimEntry(path string, shimBinaryIno uint64) bool {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return false
