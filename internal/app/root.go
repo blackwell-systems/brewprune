@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	dbPath     string
+	dbPath      string
 	versionFlag bool
 
 	// Version information (set via ldflags during build)

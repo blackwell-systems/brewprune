@@ -173,8 +173,9 @@ type Spinner struct {
 // message is printed once so that log output is not cluttered.
 //
 // Use WithTimeout() before the spinner starts to add time estimates:
-//   spinner := output.NewSpinner("Working...")
-//   spinner.WithTimeout(30 * time.Second)
+//
+//	spinner := output.NewSpinner("Working...")
+//	spinner.WithTimeout(30 * time.Second)
 func NewSpinner(message string) *Spinner {
 	s := &Spinner{
 		message:    message,

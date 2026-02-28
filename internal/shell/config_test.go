@@ -218,10 +218,10 @@ func TestEnsurePathEntry_FishUsesFishAddPath(t *testing.T) {
 // This is a regression test for P0-3 (duplicate "brewprune shims" in shell config).
 func TestEnsurePathEntry_Idempotency(t *testing.T) {
 	tests := []struct {
-		name        string
-		shell       string
-		configFile  string
-		expectFish  bool
+		name       string
+		shell      string
+		configFile string
+		expectFish bool
 	}{
 		{
 			name:       "sh_profile",
