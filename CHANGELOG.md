@@ -49,6 +49,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`stats --all` flag** — show all packages including those with zero usage (previously the default, now opt-in)
 - **`quickstart` PATH note** — completion summary now explains that tracking only activates once the shim directory is in PATH
 
+### Quality Assurance
+
+**Cold-Start Audit Round 5 (2026-02-28):**
+- Completed comprehensive UX audit after all Round 4 fixes (7 P0 manual + 3 SAW waves)
+- **24 findings discovered** (down from 38 in Round 4, 37% reduction):
+  - 3 UX-critical: PATH configuration messaging conflicts, --fix flag advertised but unimplemented, post-quickstart tracking status misleading
+  - 9 UX-improvement: doctor pipeline test slow, exit codes undifferentiated, terminology inconsistencies
+  - 12 UX-polish: mostly positive findings worth preserving (comprehensive help, excellent errors, safety-first design)
+- Overall assessment: "exceptional attention to UX detail" — remaining issues are messaging consistency, not broken functionality
+- Full report: `docs/cold-start-audit-r5.md`
+
+**Audit-Fix-Audit Cycle Results:**
+- Round 3: 19 findings → 11 agents (SAW Wave 1) → fixes committed
+- Round 4: 38 findings → 7 P0 manual fixes + 10 agents (3 SAW waves) → fixes committed
+- Round 5: 24 findings → validates previous fixes, reveals remaining gaps
+- Pattern effectiveness validated: critical issues reduced from 7→3, quality improved significantly
+
 ## [0.2.2] - 2026-02-27
 
 ### Changed
