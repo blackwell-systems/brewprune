@@ -654,3 +654,105 @@ func TestComputeScore_NeverUsedIsHighScore(t *testing.T) {
 func ptr(t time.Time) *time.Time {
 	return &t
 }
+
+func TestClassifyConfidence(t *testing.T) {
+	tests := []struct {
+		name         string
+		trackingDays int
+		want         string
+	}{
+		{
+			name:         "zero days - initial state",
+			trackingDays: 0,
+			want:         "COLLECTING (0 of 14 days)",
+		},
+		{
+			name:         "one day - early collection",
+			trackingDays: 1,
+			want:         "COLLECTING (1 of 14 days)",
+		},
+		{
+			name:         "seven days - halfway through collection",
+			trackingDays: 7,
+			want:         "COLLECTING (7 of 14 days)",
+		},
+		{
+			name:         "thirteen days - almost ready",
+			trackingDays: 13,
+			want:         "COLLECTING (13 of 14 days)",
+		},
+		{
+			name:         "fourteen days - minimum threshold reached",
+			trackingDays: 14,
+			want:         "READY",
+		},
+		{
+			name:         "fifteen days - past minimum threshold",
+			trackingDays: 15,
+			want:         "READY",
+		},
+		{
+			name:         "thirty days - optimal tracking period",
+			trackingDays: 30,
+			want:         "READY",
+		},
+		{
+			name:         "ninety days - extended tracking",
+			trackingDays: 90,
+			want:         "READY",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ClassifyConfidence(tt.trackingDays)
+			if got != tt.want {
+				t.Errorf("ClassifyConfidence(%d) = %q, want %q", tt.trackingDays, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMinimumTrackingDays(t *testing.T) {
+	// Verify the constant is set to expected value
+	if MinimumTrackingDays != 14 {
+		t.Errorf("MinimumTrackingDays = %d, want 14", MinimumTrackingDays)
+	}
+}
+
+func TestOptimalTrackingDays(t *testing.T) {
+	// Verify the constant is set to expected value
+	if OptimalTrackingDays != 30 {
+		t.Errorf("OptimalTrackingDays = %d, want 30", OptimalTrackingDays)
+	}
+}
+
+func TestClassifyConfidenceMessageFormat(t *testing.T) {
+	// Test that the COLLECTING message format is consistent
+	for days := 0; days < MinimumTrackingDays; days++ {
+		result := ClassifyConfidence(days)
+		expected := fmt.Sprintf("COLLECTING (%d of %d days)", days, MinimumTrackingDays)
+		if result != expected {
+			t.Errorf("ClassifyConfidence(%d) format mismatch: got %q, want %q", days, result, expected)
+		}
+	}
+}
+
+func TestClassifyConfidenceTransition(t *testing.T) {
+	// Verify the exact transition point
+	beforeThreshold := ClassifyConfidence(MinimumTrackingDays - 1)
+	atThreshold := ClassifyConfidence(MinimumTrackingDays)
+	afterThreshold := ClassifyConfidence(MinimumTrackingDays + 1)
+
+	if beforeThreshold == "READY" {
+		t.Errorf("ClassifyConfidence(%d) should not be READY yet", MinimumTrackingDays-1)
+	}
+
+	if atThreshold != "READY" {
+		t.Errorf("ClassifyConfidence(%d) should be READY, got %q", MinimumTrackingDays, atThreshold)
+	}
+
+	if afterThreshold != "READY" {
+		t.Errorf("ClassifyConfidence(%d) should be READY, got %q", MinimumTrackingDays+1, afterThreshold)
+	}
+}

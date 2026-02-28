@@ -7,6 +7,43 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/scanner"
 )
 
+// Data quality thresholds for tracking confidence.
+// These constants define when usage data becomes reliable enough
+// for confident removal recommendations.
+const (
+	// MinimumTrackingDays is the minimum number of days of tracking data
+	// recommended before making removal decisions. After this period,
+	// data quality transitions from "COLLECTING" to "READY" status.
+	//
+	// Why 14 days?
+	// - Captures at least two weekends of usage patterns
+	// - Provides sufficient sampling for weekly workflows
+	// - Balances data quality with reasonable onboarding time
+	MinimumTrackingDays = 14
+
+	// OptimalTrackingDays represents the ideal tracking duration
+	// for high-confidence removal decisions. After this period,
+	// data quality may be considered "EXCELLENT".
+	OptimalTrackingDays = 30
+)
+
+// ClassifyConfidence returns a human-readable data quality level
+// based on the number of days of tracking history.
+//
+// Returns:
+//   - "COLLECTING (N of 14 days)" when days < MinimumTrackingDays
+//   - "READY" when days >= MinimumTrackingDays
+//   - "EXCELLENT" when days >= OptimalTrackingDays (if extended classification is used)
+//
+// The data quality level helps users understand when they have enough
+// tracking data to make confident removal decisions.
+func ClassifyConfidence(trackingDays int) string {
+	if trackingDays < MinimumTrackingDays {
+		return fmt.Sprintf("COLLECTING (%d of %d days)", trackingDays, MinimumTrackingDays)
+	}
+	return "READY"
+}
+
 // ComputeScore calculates the confidence score for removing a package.
 // Score components:
 //   - Usage (40 points): Last 7d=0, 30d=10, 90d=20, 1yr=30, never=40

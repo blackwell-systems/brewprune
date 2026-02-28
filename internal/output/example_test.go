@@ -49,6 +49,7 @@ func ExampleProgressBar() {
 func ExampleSpinner() {
 	// Create and start a spinner
 	spinner := output.NewSpinner("Analyzing dependencies")
+	spinner.Start()
 
 	// Simulate some work
 	time.Sleep(2 * time.Second)
@@ -56,6 +57,35 @@ func ExampleSpinner() {
 	// Stop the spinner
 	spinner.Stop()
 	fmt.Println("Analysis complete!")
+}
+
+// Example showing how to use a spinner with timeout
+func ExampleSpinner_withTimeout() {
+	// Create a spinner with a 30-second timeout
+	spinner := output.NewSpinner("Running pipeline test")
+	spinner.WithTimeout(30 * time.Second)
+	spinner.Start()
+
+	// Simulate some work
+	time.Sleep(2 * time.Second)
+
+	// Stop with a final message
+	spinner.StopWithMessage("✓ Pipeline test complete")
+}
+
+// Example showing how to use a spinner with elapsed time
+func ExampleSpinner_withElapsed() {
+	// Create a spinner that shows elapsed time (no timeout)
+	spinner := output.NewSpinner("Processing data")
+	spinner.WithTimeout(0) // 0 means show elapsed time only
+	spinner.Start()
+
+	// Simulate some work
+	time.Sleep(2 * time.Second)
+
+	// Stop the spinner
+	spinner.Stop()
+	fmt.Println("Processing complete!")
 }
 
 // Example showing how to render snapshot table

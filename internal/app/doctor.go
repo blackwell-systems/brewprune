@@ -181,7 +181,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				criticalIssues++
 			} else {
 				defer db2.Close()
-				spinner := output.NewSpinner("Running pipeline test (up to 35s)...")
+				spinner := output.NewSpinner("Running pipeline test")
+				spinner.WithTimeout(35 * time.Second)
+				spinner.Start()
 				pipelineErr := RunShimTest(db2, 35*time.Second)
 				pipelineElapsed := time.Since(pipelineStart).Round(time.Millisecond)
 				if pipelineErr != nil {

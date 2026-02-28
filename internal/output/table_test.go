@@ -335,6 +335,10 @@ func TestFormatSize(t *testing.T) {
 		{"bytes", 512, "512 B"},
 		{"kilobytes", 1024, "1 KB"},
 		{"kilobytes rounded", 1536, "2 KB"},
+		{"999 KB stays as KB", 999 * 1024, "999 KB"},         // 1023000 bytes < 1024000 → stays as KB
+		{"1000 KB becomes 1 MB", 1000 * 1024, "1 MB"},        // 1024000 bytes = 1000 KB → 1 MB
+		{"1004 KB becomes 1 MB", 1004 * 1024, "1 MB"},        // 1028096 bytes = 1004 KB → 1 MB
+		{"1024 KB becomes 1 MB", 1024 * 1024, "1 MB"},        // Exact 1 MB
 		{"megabytes", 1048576, "1 MB"},
 		{"megabytes rounded", 10485760, "10 MB"},
 		{"gigabytes", 1073741824, "1.0 GB"},
@@ -705,6 +709,50 @@ func TestRenderReclaimableFooter_HideRisky(t *testing.T) {
 
 	if !strings.Contains(result, "risky, hidden") {
 		t.Errorf("showAll=false should contain 'risky, hidden', got: %s", result)
+	}
+}
+
+func TestRenderReclaimableFooterCumulative(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 40894464}       // ~39 MB
+	medium := TierStats{Count: 19, SizeBytes: 188743680}   // ~180 MB
+	risky := TierStats{Count: 143, SizeBytes: 140509184}   // ~134 MB
+
+	result := RenderReclaimableFooterCumulative(safe, medium, risky)
+
+	// Verify it contains "Reclaimable:" prefix
+	if !strings.Contains(result, "Reclaimable:") {
+		t.Errorf("expected 'Reclaimable:' prefix, got: %s", result)
+	}
+
+	// Verify it contains "safe" label (not in parens)
+	if !strings.Contains(result, "safe,") {
+		t.Errorf("expected 'safe,' in cumulative format, got: %s", result)
+	}
+
+	// Verify it contains "if medium included"
+	if !strings.Contains(result, "if medium included") {
+		t.Errorf("expected 'if medium included' phrase, got: %s", result)
+	}
+
+	// Verify it contains "total"
+	if !strings.Contains(result, "total") {
+		t.Errorf("expected 'total' in cumulative format, got: %s", result)
+	}
+
+	// Verify cumulative values are correct
+	// safe: 39 MB, safe+medium: ~219 MB, total: ~353 MB
+	safeSize := formatSize(safe.SizeBytes)
+	mediumCumulative := formatSize(safe.SizeBytes + medium.SizeBytes)
+	totalSize := formatSize(safe.SizeBytes + medium.SizeBytes + risky.SizeBytes)
+
+	if !strings.Contains(result, safeSize) {
+		t.Errorf("expected safe size %s in result, got: %s", safeSize, result)
+	}
+	if !strings.Contains(result, mediumCumulative) {
+		t.Errorf("expected medium cumulative %s in result, got: %s", mediumCumulative, result)
+	}
+	if !strings.Contains(result, totalSize) {
+		t.Errorf("expected total size %s in result, got: %s", totalSize, result)
 	}
 }
 

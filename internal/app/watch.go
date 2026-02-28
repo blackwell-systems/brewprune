@@ -140,6 +140,7 @@ func stopWatchDaemon() error {
 	}
 
 	spinner := output.NewSpinner("Stopping daemon...")
+	spinner.Start()
 	if err := watcher.StopDaemon(watchPIDFile); err != nil {
 		spinner.Stop()
 		return fmt.Errorf("failed to stop daemon: %w", err)
@@ -163,6 +164,7 @@ func startWatchDaemon(w *watcher.Watcher) error {
 	}
 
 	spinner := output.NewSpinner("Starting daemon...")
+	spinner.Start()
 	if err := w.StartDaemon(watchPIDFile, watchLogFile); err != nil {
 		spinner.Stop()
 		return fmt.Errorf("failed to start daemon: %w", err)
@@ -201,6 +203,7 @@ func runWatchForeground(w *watcher.Watcher) error {
 	fmt.Println()
 
 	spinner := output.NewSpinner("Processing usage log...")
+	spinner.Start()
 
 	// Start the watcher
 	if err := w.Start(); err != nil {
@@ -224,6 +227,7 @@ func runWatchForeground(w *watcher.Watcher) error {
 
 	// Stop the watcher
 	spinner = output.NewSpinner("Stopping watcher...")
+	spinner.Start()
 	if err := w.Stop(); err != nil {
 		spinner.Stop()
 		return fmt.Errorf("failed to stop watcher: %w", err)

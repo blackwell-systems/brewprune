@@ -182,7 +182,9 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 			fmt.Println("  Run 'brewprune doctor' for diagnostics")
 		} else {
 			defer db.Close()
-			spinner := output.NewSpinner("Verifying shim → daemon → database pipeline (up to 35s)...")
+			spinner := output.NewSpinner("Verifying shim → daemon → database pipeline")
+			spinner.WithTimeout(35 * time.Second)
+			spinner.Start()
 			testErr := RunShimTest(db, 35*time.Second)
 			if testErr != nil {
 				spinner.StopWithMessage(fmt.Sprintf("  ⚠ Self-test did not confirm tracking: %v", testErr))

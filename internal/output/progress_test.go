@@ -250,6 +250,7 @@ func TestSpinner_MultipleStops(t *testing.T) {
 	buf := &bytes.Buffer{}
 	s := NewSpinner("Test")
 	s.SetWriter(buf)
+	s.Start()
 
 	// Wait for it to start
 	time.Sleep(50 * time.Millisecond)
@@ -295,6 +296,7 @@ func TestSpinner_StopWithMessage(t *testing.T) {
 	buf := &bytes.Buffer{}
 	s := NewSpinner("Working")
 	s.SetWriter(buf)
+	s.Start()
 
 	// Wait for spinner to run
 	time.Sleep(150 * time.Millisecond)
@@ -386,6 +388,7 @@ func TestSpinner_Concurrent(t *testing.T) {
 	buf := &bytes.Buffer{}
 	s := NewSpinner("Concurrent spinner")
 	s.SetWriter(buf)
+	s.Start()
 
 	// Update message from multiple goroutines
 	done := make(chan struct{})
@@ -406,6 +409,167 @@ func TestSpinner_Concurrent(t *testing.T) {
 
 	s.Stop()
 	// Should not panic or race
+}
+
+// TestSpinner_WithTimeout tests the timeout functionality
+func TestSpinner_WithTimeout(t *testing.T) {
+	buf := &bytes.Buffer{}
+	s := &Spinner{
+		message:    "Processing",
+		chars:      []string{"|", "/", "-", "\\"},
+		writer:     buf,
+		done:       make(chan struct{}),
+		timeout:    5 * time.Second,
+		showTiming: true,
+	}
+	s.Start()
+
+	// Wait for a few ticks
+	time.Sleep(300 * time.Millisecond)
+
+	s.Stop()
+	output := buf.String()
+
+	// On a TTY, the output should contain timing info; on non-TTY just verify no panic.
+	if writerIsTTY(buf) {
+		if !strings.Contains(output, "remaining") && !strings.Contains(output, "elapsed") {
+			t.Logf("Spinner with timeout output: %q", output)
+		}
+	} else {
+		// Non-TTY: Start() prints message once
+		if len(output) == 0 {
+			t.Error("Spinner with timeout should produce output")
+		}
+	}
+}
+
+// TestSpinner_WithTimeout_ElapsedOnly tests elapsed time without timeout
+func TestSpinner_WithTimeout_ElapsedOnly(t *testing.T) {
+	buf := &bytes.Buffer{}
+	s := &Spinner{
+		message:    "Loading",
+		chars:      []string{"|", "/", "-", "\\"},
+		writer:     buf,
+		done:       make(chan struct{}),
+		timeout:    0, // No timeout, show elapsed only
+		showTiming: true,
+	}
+	s.Start()
+
+	// Wait for a few ticks
+	time.Sleep(300 * time.Millisecond)
+
+	s.Stop()
+	output := buf.String()
+
+	// On non-TTY just verify no panic
+	if len(output) == 0 {
+		t.Error("Spinner with elapsed time should produce output")
+	}
+}
+
+// TestSpinner_WithTimeout_Integration tests the WithTimeout method
+func TestSpinner_WithTimeout_Integration(t *testing.T) {
+	buf := &bytes.Buffer{}
+	s := &Spinner{
+		message: "Running test",
+		chars:   []string{"|", "/", "-", "\\"},
+		writer:  buf,
+		done:    make(chan struct{}),
+	}
+
+	// Configure timeout before starting
+	s.WithTimeout(10 * time.Second)
+	s.Start()
+
+	// Verify showTiming was enabled
+	s.mu.Lock()
+	if !s.showTiming {
+		t.Error("WithTimeout should enable showTiming")
+	}
+	if s.timeout != 10*time.Second {
+		t.Errorf("WithTimeout should set timeout to 10s, got %v", s.timeout)
+	}
+	s.mu.Unlock()
+
+	// Wait for a few ticks
+	time.Sleep(300 * time.Millisecond)
+
+	s.StopWithMessage("Test complete")
+	output := buf.String()
+
+	if !strings.Contains(output, "Test complete") {
+		t.Errorf("Output should contain final message, got: %q", output)
+	}
+}
+
+// TestSpinner_FormatMessage tests the formatMessage helper
+func TestSpinner_FormatMessage(t *testing.T) {
+	tests := []struct {
+		name       string
+		message    string
+		timeout    time.Duration
+		elapsed    time.Duration
+		showTiming bool
+		contains   string
+	}{
+		{
+			name:       "no timing",
+			message:    "Loading",
+			showTiming: false,
+			contains:   "Loading",
+		},
+		{
+			name:       "elapsed only",
+			message:    "Processing",
+			timeout:    0,
+			elapsed:    3 * time.Second,
+			showTiming: true,
+			contains:   "elapsed",
+		},
+		{
+			name:       "with timeout",
+			message:    "Testing",
+			timeout:    30 * time.Second,
+			elapsed:    5 * time.Second,
+			showTiming: true,
+			contains:   "remaining",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Spinner{
+				message:    tt.message,
+				timeout:    tt.timeout,
+				startTime:  time.Now().Add(-tt.elapsed),
+				showTiming: tt.showTiming,
+			}
+			result := s.formatMessage()
+			if !strings.Contains(result, tt.contains) {
+				t.Errorf("formatMessage() = %q, should contain %q", result, tt.contains)
+			}
+		})
+	}
+}
+
+// TestSpinner_RemainingTimeNeverNegative tests that remaining time doesn't go negative
+func TestSpinner_RemainingTimeNeverNegative(t *testing.T) {
+	s := &Spinner{
+		message:    "Timeout test",
+		timeout:    1 * time.Second,
+		startTime:  time.Now().Add(-2 * time.Second), // Started 2s ago
+		showTiming: true,
+	}
+
+	result := s.formatMessage()
+	// Should show 0s remaining, not negative
+	if strings.Contains(result, "-") {
+		t.Errorf("formatMessage() should not show negative time, got: %q", result)
+	}
+	if !strings.Contains(result, "0s remaining") {
+		t.Logf("When past timeout, expected '0s remaining' in: %q", result)
+	}
 }
 
 // Benchmark tests

@@ -96,12 +96,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 		// On re-scan, be quiet during discovery to check for changes
 		if isTTY {
 			spinner = output.NewSpinner("Checking for changes...")
+			spinner.Start()
 		}
 	} else if !scanQuiet {
 		// On first scan, show verbose output
 		fmt.Println("Scanning installed Homebrew packages...")
 		if isTTY {
 			spinner = output.NewSpinner("Discovering packages...")
+			spinner.Start()
 		} else {
 			fmt.Println("Discovering packages...")
 		}
@@ -150,6 +152,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if !scanQuiet {
 		if isTTY {
 			spinner = output.NewSpinner("Building dependency graph...")
+			spinner.Start()
 		} else {
 			fmt.Println("Building dependency graph...")
 		}
@@ -172,6 +175,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		if !scanQuiet {
 			if isTTY {
 				spinner = output.NewSpinner("Refreshing binary paths...")
+				spinner.Start()
 			} else {
 				fmt.Println("Refreshing binary paths...")
 			}
@@ -206,6 +210,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		if !scanQuiet {
 			if isTTY {
 				spinner = output.NewSpinner("Building shim binary...")
+				spinner.Start()
 			} else {
 				fmt.Println("Building shim binary...")
 			}
@@ -222,6 +227,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 				if isTTY {
 					spinner.StopWithMessage("✓ Shim binary built")
 					spinner = output.NewSpinner("Generating PATH shims...")
+					spinner.Start()
 				} else {
 					fmt.Println("Generating PATH shims...")
 				}

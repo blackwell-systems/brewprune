@@ -319,17 +319,20 @@ func RenderSnapshotTable(snapshots []*store.Snapshot) string {
 }
 
 // formatSize converts bytes to human-readable size (GB, MB, KB).
+// Thresholds chosen to avoid "1000+ KB" display - values >= 1000 KB show as MB.
 func formatSize(bytes int64) string {
 	const (
 		KB = 1024
 		MB = 1024 * KB
 		GB = 1024 * MB
+		// Display threshold: show MB for values that would display as "1000 KB" or more
+		MBThreshold = 1000 * KB // 1024000 bytes = 1000 KB
 	)
 
 	switch {
 	case bytes >= GB:
 		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
-	case bytes >= MB:
+	case bytes >= MBThreshold:
 		return fmt.Sprintf("%.0f MB", float64(bytes)/float64(MB))
 	case bytes >= KB:
 		return fmt.Sprintf("%.0f KB", float64(bytes)/float64(KB))
@@ -533,4 +536,19 @@ func RenderReclaimableFooter(safe, medium, risky TierStats, showAll bool) string
 	sb.WriteString(")")
 
 	return sb.String()
+}
+
+// RenderReclaimableFooterCumulative renders the reclaimable space summary in cumulative format.
+// Format: "Reclaimable: 39 MB safe, 219 MB if medium included, 353 MB total"
+// This alternative format shows cumulative totals rather than per-tier breakdowns.
+// Use this when emphasizing total reclaimable space is more important than tier details.
+func RenderReclaimableFooterCumulative(safe, medium, risky TierStats) string {
+	safeTotal := safe.SizeBytes
+	mediumTotal := safe.SizeBytes + medium.SizeBytes
+	totalAll := safe.SizeBytes + medium.SizeBytes + risky.SizeBytes
+
+	return fmt.Sprintf("Reclaimable: %s safe, %s if medium included, %s total",
+		formatSize(safeTotal),
+		formatSize(mediumTotal),
+		formatSize(totalAll))
 }

@@ -156,27 +156,49 @@ func (p *ProgressBar) render() {
 // Spinner displays an animated spinner with a message.
 // Example: |  Analyzing packages...
 type Spinner struct {
-	message string
-	running bool
-	chars   []string
-	mu      sync.Mutex
-	writer  io.Writer
-	ticker  *time.Ticker
-	done    chan struct{}
+	message    string
+	running    bool
+	chars      []string
+	mu         sync.Mutex
+	writer     io.Writer
+	ticker     *time.Ticker
+	done       chan struct{}
+	timeout    time.Duration
+	startTime  time.Time
+	showTiming bool
 }
 
 // NewSpinner creates a new spinner with a message.
 // If stdout is not a TTY, the animation goroutine is skipped and the
 // message is printed once so that log output is not cluttered.
+//
+// Use WithTimeout() before the spinner starts to add time estimates:
+//   spinner := output.NewSpinner("Working...")
+//   spinner.WithTimeout(30 * time.Second)
 func NewSpinner(message string) *Spinner {
 	s := &Spinner{
-		message: message,
-		running: false,
-		chars:   []string{"|", "/", "-", "\\"},
-		writer:  os.Stdout,
-		done:    make(chan struct{}),
+		message:    message,
+		running:    false,
+		chars:      []string{"|", "/", "-", "\\"},
+		writer:     os.Stdout,
+		done:       make(chan struct{}),
+		showTiming: false,
 	}
-	s.Start()
+	// Note: Don't call Start() here - let WithTimeout be called first if needed
+	return s
+}
+
+// WithTimeout configures the spinner to show elapsed time and optionally
+// a timeout duration. If timeout is > 0, displays remaining time format
+// "message (Xs remaining)"; otherwise displays elapsed time format
+// "message (Xs elapsed)".
+//
+// This method must be called before Start(). It returns the spinner for chaining.
+func (s *Spinner) WithTimeout(timeout time.Duration) *Spinner {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.timeout = timeout
+	s.showTiming = true
 	return s
 }
 
@@ -199,6 +221,7 @@ func (s *Spinner) Start() {
 	}
 
 	s.running = true
+	s.startTime = time.Now()
 
 	if !writerIsTTY(s.writer) {
 		// Non-TTY: print message once and return; no goroutine needed.
@@ -218,7 +241,8 @@ func (s *Spinner) Start() {
 					s.mu.Unlock()
 					return
 				}
-				fmt.Fprintf(s.writer, "\r%s  %s", s.chars[idx], s.message)
+				msg := s.formatMessage()
+				fmt.Fprintf(s.writer, "\r%s  %s", s.chars[idx], msg)
 				idx = (idx + 1) % len(s.chars)
 				s.mu.Unlock()
 
@@ -227,6 +251,27 @@ func (s *Spinner) Start() {
 			}
 		}
 	}()
+}
+
+// formatMessage returns the spinner message with optional timing information.
+// Must be called with lock held.
+func (s *Spinner) formatMessage() string {
+	if !s.showTiming {
+		return s.message
+	}
+
+	elapsed := time.Since(s.startTime)
+	if s.timeout > 0 {
+		// Show remaining time format: "message (12s remaining)"
+		remaining := s.timeout - elapsed
+		if remaining < 0 {
+			remaining = 0
+		}
+		return fmt.Sprintf("%s (%ds remaining)", s.message, int(remaining.Seconds()))
+	}
+
+	// Show elapsed time format: "message (5s elapsed)"
+	return fmt.Sprintf("%s (%ds elapsed)", s.message, int(elapsed.Seconds()))
 }
 
 // Stop stops the spinner animation and clears the line.

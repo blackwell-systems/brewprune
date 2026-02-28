@@ -150,6 +150,7 @@ func runUndo(cmd *cobra.Command, args []string) error {
 	// doesn't provide per-package progress
 	progress.Finish() // Clear the progress bar
 	spinner := output.NewSpinner("Restoring packages from snapshot...")
+	spinner.Start()
 	err = snapMgr.RestoreSnapshot(snapshotID)
 	spinner.Stop()
 
