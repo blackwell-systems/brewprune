@@ -19,9 +19,18 @@ func (s *Store) InsertPackage(pkg *brew.Package) error {
 	}
 
 	query := `
-		INSERT OR REPLACE INTO packages
+		INSERT INTO packages
 		(name, installed_at, install_type, version, tap, is_cask, size_bytes, has_binary, binary_paths)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			installed_at = excluded.installed_at,
+			install_type = excluded.install_type,
+			version      = excluded.version,
+			tap          = excluded.tap,
+			is_cask      = excluded.is_cask,
+			size_bytes   = excluded.size_bytes,
+			has_binary   = excluded.has_binary,
+			binary_paths = excluded.binary_paths
 	`
 
 	_, err = s.db.Exec(query,
