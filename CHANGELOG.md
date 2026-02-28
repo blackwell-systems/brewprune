@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Usage scoring was inverted** — packages used today scored 40/40 removal points and appeared as safe-to-remove. Inverted the mapping: recently-used (≤7d) → 0 pts, never-used → 40 pts. Packages now score high only when there is genuine evidence they can be removed.
+- **`explain <package>` double-printed not-found error** and exited 0 on failure; now exits 1 with a single error message
+- **`explain` missing-arg error** was cryptic; improved to a clear usage hint
+- **`explain` table footer** had ANSI padding misalignment causing ragged borders
+- **`doctor` exit codes** were undifferentiated; critical checks now exit 1, warnings exit 2
+- **`scan` spinner** printed garbage escape codes in non-TTY/CI environments; TTY detection added
+- **`scan` re-run** showed "0 shims created" when all shims were already current; now shows "N shims up to date"
+- **`status`** was suggesting `brew services start brewprune` instead of `brewprune watch --daemon`
+- **`quickstart`** treated a daemon already running as a warning; now correctly treated as success
+- **`watch --daemon`** was not idempotent; re-running when daemon is already up now returns cleanly
+- **`remove` Last Used column** showed `never` for all packages due to a wrong helper call
+- **`progress`** printed a duplicate 100% line in non-TTY contexts; spinner is now non-TTY aware
+- **`undo latest`** with no snapshots printed a raw error; now shows a friendly actionable message
+- **`remove` error message** was doubled (once from store, once from caller wrapper)
+- **`undo` no-snapshots path** exited 0 instead of non-zero
+- **`root` bare invocation** printed a short usage stub; now shows full help text
+- **`doctor` action labels** said "Fix:" which implied mandatory action; renamed to "Action:"
+- **`quickstart`** called `brew services` on Linux where it is unavailable; now detects OS and skips to daemon mode
+- **`scan`** showed a stale-daemon warning even when the daemon was already running; suppressed when daemon is active
+- **`status`** showed a confusing PATH-missing + tracking-active contradiction with no explanation; now prints a note clarifying that initial events come from the quickstart self-test, not real shim tracking
+- **`unused --sort age`** had non-deterministic ordering when multiple packages shared the same install date; now stable with alphabetical tiebreaker
+- **`stats`** hide zero-usage packages by default (add `--all` to show them)
+
+### Changed
+- **Casks hidden from `unused` by default** — GUI apps can't be tracked via PATH shims, so they were showing misleading `n/a` data. Now hidden unless `--casks` is passed; count shown in tier summary header.
+- **`unused` shows risky tier by default when no usage data exists** — risky-only mode (no `--all` required) when the database has no tracking data yet, so new users see something useful
+- **ANSI color output** now respects `NO_COLOR` and isatty; piped output and CI logs are clean
+- **`formatTierLabel`** values unified to `✓ safe`, `~ review`, `⚠ risky` — removes `✗ keep` which implied a mandatory action for risky packages
+- **`unused` and `remove` tables** now include a **Score** column (between Size and Uses) showing the numeric removal score as `N/100`
+- **`remove --tier`** added as an explicit flag alias for `--safe` / `--medium` / `--risky`; all three shortcut flags still work
+- **`explain` Points column** renamed to "Score"; wider Detail column (36 → 50 chars); scoring direction note added below the table ("Higher removal score = more confident to remove")
+- **`stats`** prints a "Tip: Run `brewprune explain <pkg>`" hint for packages with zero recorded usage
+- **Root help text** now leads with `brewprune quickstart`; unknown subcommands include a "did you mean?" suggestion
+- **`doctor` action labels** renamed from "Fix:" to "Action:" throughout
+
+### Added
+- **Linux Homebrew prefix** (`/home/linuxbrew/.linuxbrew`) added to shim binary resolution so shims work on Homebrew-on-Linux
+- **Docker sandbox** (`Dockerfile.sandbox`) with real Homebrew installed for user-simulation testing and cold-start UX audits
+- **`stats --all` flag** — show all packages including those with zero usage (previously the default, now opt-in)
+- **`quickstart` PATH note** — completion summary now explains that tracking only activates once the shim directory is in PATH
+
 ## [0.2.2] - 2026-02-27
 
 ### Changed
