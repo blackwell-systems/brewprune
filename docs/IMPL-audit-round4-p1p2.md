@@ -1682,3 +1682,152 @@ The solution is backward compatible, well-tested, and ready for production use.
 
 ---
 
+
+### Agent J — Completion Report
+
+#### 1. Changes Made
+
+**Files modified:**
+- `/Users/dayna.blackwell/code/brewprune/internal/shell/config_test.go`
+
+**Changes:**
+- Added comprehensive idempotency test: `TestEnsurePathEntry_Idempotency`
+- Test coverage for all supported shells: sh, bash, zsh, and fish
+- Verifies that multiple calls to `EnsurePathEntry()` are idempotent:
+  - First call adds entry and returns `added=true`
+  - Subsequent calls detect existing marker and return `added=false`
+  - Config file content remains unchanged after first write
+  - Marker "# brewprune shims" appears exactly once
+
+**Test structure:**
+- Table-driven test with 4 shell variants (sh, bash, zsh, fish)
+- Each variant tests 3 consecutive calls to `EnsurePathEntry()`
+- Verifies correct shell-specific syntax (export PATH vs fish_add_path)
+- Confirms marker count is exactly 1 after multiple calls
+
+**Purpose:**
+Regression test for P0-3 finding (duplicate "brewprune shims" in shell config). The fix was implemented in commit e447983 by adding marker detection (lines 53-60 of config.go). This test ensures the fix works correctly and prevents future regression.
+
+#### 2. Interface Contracts
+
+**No deviations from specified contracts.**
+
+This agent only added test coverage and did not modify any production code. No interface changes were required.
+
+#### 3. Verification Results
+
+All verification gates passed successfully:
+
+```bash
+$ cd /Users/dayna.blackwell/code/brewprune && go build ./...
+# Success - no output
+
+$ cd /Users/dayna.blackwell/code/brewprune && go vet ./...
+# Success - no output
+
+$ cd /Users/dayna.blackwell/code/brewprune && go test ./internal/shell -v
+=== RUN   TestEnsurePathEntry_AlreadyOnPath
+--- PASS: TestEnsurePathEntry_AlreadyOnPath (0.00s)
+=== RUN   TestEnsurePathEntry_AppendsToProfile
+--- PASS: TestEnsurePathEntry_AppendsToProfile (0.00s)
+=== RUN   TestEnsurePathEntry_CreatesFileIfMissing
+--- PASS: TestEnsurePathEntry_CreatesFileIfMissing (0.00s)
+=== RUN   TestEnsurePathEntry_ZshWritesToZprofile
+--- PASS: TestEnsurePathEntry_ZshWritesToZprofile (0.00s)
+=== RUN   TestEnsurePathEntry_FishUsesFishAddPath
+--- PASS: TestEnsurePathEntry_FishUsesFishAddPath (0.00s)
+=== RUN   TestEnsurePathEntry_Idempotency
+=== RUN   TestEnsurePathEntry_Idempotency/sh_profile
+=== RUN   TestEnsurePathEntry_Idempotency/bash_profile
+=== RUN   TestEnsurePathEntry_Idempotency/zsh_profile
+=== RUN   TestEnsurePathEntry_Idempotency/fish_config
+--- PASS: TestEnsurePathEntry_Idempotency (0.01s)
+    --- PASS: TestEnsurePathEntry_Idempotency/sh_profile (0.00s)
+    --- PASS: TestEnsurePathEntry_Idempotency/bash_profile (0.00s)
+    --- PASS: TestEnsurePathEntry_Idempotency/zsh_profile (0.00s)
+    --- PASS: TestEnsurePathEntry_Idempotency/fish_config (0.00s)
+PASS
+ok      github.com/blackwell-systems/brewprune/internal/shell   0.601s
+```
+
+All 6 tests in the shell package pass, including:
+- 5 existing tests for various shell configurations
+- 1 new idempotency test with 4 sub-tests (one per shell type)
+
+#### 4. Out-of-Scope Changes
+
+**No files modified outside ownership.**
+
+All changes were confined to:
+- `internal/shell/config_test.go` (owned by Agent J)
+
+No production code changes were required. The fix for P0-3 was already implemented in commit e447983.
+
+#### 5. Issues Encountered
+
+**No issues encountered.**
+
+The implementation was straightforward:
+- Existing fix (commit e447983) already had proper marker detection in place
+- Test implementation followed existing test patterns in the file
+- All tests passed on first run
+- No edge cases or unexpected behaviors discovered
+
+**Test design decisions:**
+
+1. **Why test all 4 shell variants?**
+   - Different shells write to different config files
+   - Different shells use different PATH syntax (export vs fish_add_path)
+   - Ensures idempotency works correctly across all supported configurations
+   - Table-driven approach makes it easy to verify consistency
+
+2. **Why test 3 consecutive calls?**
+   - First call: establishes baseline (should add entry)
+   - Second call: verifies immediate idempotency (should skip)
+   - Third call: confirms idempotency is stable across multiple invocations
+   - Guards against subtle bugs where second call works but third fails
+
+3. **Why verify marker count?**
+   - Most direct assertion of the fix for P0-3 (no duplicates)
+   - Complements content comparison checks
+   - Easy to understand failure message if duplicates occur
+
+#### 6. Recommendations
+
+**Test coverage is now comprehensive for PATH idempotency.**
+
+The new test suite covers:
+- All supported shells (sh, bash, zsh, fish)
+- Multiple consecutive calls (3+ times)
+- Correct shell-specific syntax verification
+- Exact marker count verification
+- Content stability across calls
+
+**No follow-up work required for this finding.**
+
+The P0-3 finding is fully resolved:
+1. Fix implemented in commit e447983 (marker detection)
+2. Test coverage added by Agent J (regression prevention)
+3. All verification gates pass
+4. No known edge cases or limitations
+
+**Integration with existing test suite:**
+
+The new test integrates cleanly with existing tests:
+- Follows same patterns and naming conventions
+- Uses same test utilities (t.TempDir, t.Setenv, t.Cleanup)
+- Complements existing tests (no redundancy or conflicts)
+- Verbose output clearly shows all 4 shell variants passing
+
+**Educational insight:**
+
+The marker-based idempotency approach is elegant:
+- Simple string search for "# brewprune shims" comment
+- Works across all shells (comment syntax is universal)
+- Doesn't require parsing shell syntax or PATH values
+- Low risk of false positives (specific unique marker)
+- Easy to debug (marker is human-readable in config files)
+
+This is a good example of choosing the simplest solution that reliably solves the problem.
+
+---

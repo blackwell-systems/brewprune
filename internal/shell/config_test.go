@@ -212,3 +212,149 @@ func TestEnsurePathEntry_FishUsesFishAddPath(t *testing.T) {
 		t.Errorf("expected shim dir %q in fish config; got:\n%s", shimDir, content)
 	}
 }
+
+// TestEnsurePathEntry_Idempotency verifies that calling EnsurePathEntry multiple
+// times does not duplicate the brewprune shims entry in the config file.
+// This is a regression test for P0-3 (duplicate "brewprune shims" in shell config).
+func TestEnsurePathEntry_Idempotency(t *testing.T) {
+	tests := []struct {
+		name        string
+		shell       string
+		configFile  string
+		expectFish  bool
+	}{
+		{
+			name:       "sh_profile",
+			shell:      "/bin/sh",
+			configFile: ".profile",
+			expectFish: false,
+		},
+		{
+			name:       "bash_profile",
+			shell:      "/bin/bash",
+			configFile: ".bash_profile",
+			expectFish: false,
+		},
+		{
+			name:       "zsh_profile",
+			shell:      "/bin/zsh",
+			configFile: ".zprofile",
+			expectFish: false,
+		},
+		{
+			name:       "fish_config",
+			shell:      "/usr/local/bin/fish",
+			configFile: ".config/fish/conf.d/brewprune.fish",
+			expectFish: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			shimDir := filepath.Join(tmpDir, "shims")
+
+			t.Setenv("HOME", tmpDir)
+			t.Setenv("SHELL", tt.shell)
+
+			origPath := os.Getenv("PATH")
+			t.Cleanup(func() { os.Setenv("PATH", origPath) })
+			os.Setenv("PATH", "/usr/bin:/bin")
+
+			expectedConfigPath := filepath.Join(tmpDir, tt.configFile)
+
+			// First call: should add the entry.
+			added1, configFile1, err1 := EnsurePathEntry(shimDir)
+			if err1 != nil {
+				t.Fatalf("first call: unexpected error: %v", err1)
+			}
+			if !added1 {
+				t.Errorf("first call: expected added=true, got false")
+			}
+			if configFile1 != expectedConfigPath {
+				t.Errorf("first call: expected configFile=%q, got %q", expectedConfigPath, configFile1)
+			}
+
+			// Read the config after first call.
+			data1, err := os.ReadFile(expectedConfigPath)
+			if err != nil {
+				t.Fatalf("failed to read config after first call: %v", err)
+			}
+			content1 := string(data1)
+
+			// Verify marker and shim directory are present.
+			if !strings.Contains(content1, "# brewprune shims") {
+				t.Errorf("first call: expected marker '# brewprune shims' in config; got:\n%s", content1)
+			}
+			if !strings.Contains(content1, shimDir) {
+				t.Errorf("first call: expected shimDir %q in config; got:\n%s", shimDir, content1)
+			}
+
+			// Verify correct PATH syntax for shell type.
+			if tt.expectFish {
+				if !strings.Contains(content1, "fish_add_path") {
+					t.Errorf("first call: expected 'fish_add_path' in fish config; got:\n%s", content1)
+				}
+				if strings.Contains(content1, "export PATH") {
+					t.Errorf("first call: fish config should not contain 'export PATH'; got:\n%s", content1)
+				}
+			} else {
+				if !strings.Contains(content1, "export PATH") {
+					t.Errorf("first call: expected 'export PATH' in config; got:\n%s", content1)
+				}
+			}
+
+			// Second call: should detect existing entry and not add again.
+			added2, configFile2, err2 := EnsurePathEntry(shimDir)
+			if err2 != nil {
+				t.Fatalf("second call: unexpected error: %v", err2)
+			}
+			if added2 {
+				t.Errorf("second call: expected added=false (idempotent), got true")
+			}
+			if configFile2 != expectedConfigPath {
+				t.Errorf("second call: expected configFile=%q, got %q", expectedConfigPath, configFile2)
+			}
+
+			// Read the config after second call.
+			data2, err := os.ReadFile(expectedConfigPath)
+			if err != nil {
+				t.Fatalf("failed to read config after second call: %v", err)
+			}
+			content2 := string(data2)
+
+			// Verify content is unchanged (idempotent).
+			if content1 != content2 {
+				t.Errorf("second call modified config file (not idempotent):\nAfter first call:\n%s\nAfter second call:\n%s", content1, content2)
+			}
+
+			// Third call: verify idempotency holds across multiple calls.
+			added3, configFile3, err3 := EnsurePathEntry(shimDir)
+			if err3 != nil {
+				t.Fatalf("third call: unexpected error: %v", err3)
+			}
+			if added3 {
+				t.Errorf("third call: expected added=false (idempotent), got true")
+			}
+			if configFile3 != expectedConfigPath {
+				t.Errorf("third call: expected configFile=%q, got %q", expectedConfigPath, configFile3)
+			}
+
+			data3, err := os.ReadFile(expectedConfigPath)
+			if err != nil {
+				t.Fatalf("failed to read config after third call: %v", err)
+			}
+			content3 := string(data3)
+
+			if content1 != content3 {
+				t.Errorf("third call modified config file (not idempotent):\nAfter first call:\n%s\nAfter third call:\n%s", content1, content3)
+			}
+
+			// Verify marker appears exactly once.
+			markerCount := strings.Count(content3, "# brewprune shims")
+			if markerCount != 1 {
+				t.Errorf("expected marker '# brewprune shims' to appear exactly once, found %d times in:\n%s", markerCount, content3)
+			}
+		})
+	}
+}
