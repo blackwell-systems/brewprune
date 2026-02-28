@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **PATH messaging consistency** (Cold-Start Audit Round 5) — `status`, `doctor`, and `quickstart` commands now use consistent three-state messaging: "PATH active ✓" (in current session), "PATH configured (restart shell to activate)" (written to profile but not sourced), or "PATH missing ⚠" (not configured). Previously contradictory messages appeared when PATH was configured but not yet active.
+- **`doctor --fix` flag advertised but not implemented** — removed mention of `--fix` flag from help text (flag doesn't exist)
+- **`quickstart` success message misleading when PATH not active** — now qualifies the success message based on actual PATH status: "Tracking verified" (PATH active), "Self-test passed (tracking will work after shell restart)" (PATH configured but not sourced), or "Self-test passed (run brewprune doctor to check PATH)" (PATH missing)
+
+### Fixed (Earlier)
 - **Usage scoring was inverted** — packages used today scored 40/40 removal points and appeared as safe-to-remove. Inverted the mapping: recently-used (≤7d) → 0 pts, never-used → 40 pts. Packages now score high only when there is genuine evidence they can be removed.
 - **`explain <package>` double-printed not-found error** and exited 0 on failure; now exits 1 with a single error message
 - **`explain` missing-arg error** was cryptic; improved to a clear usage hint
@@ -32,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`stats`** hide zero-usage packages by default (add `--all` to show them)
 
 ### Changed
+- **`unused` terminology consistency** (Cold-Start Audit Round 5) — status labels now consistently use "safe", "medium", "risky" throughout. Previously used "~ review" which has been changed to "~ medium" for consistency with tier names.
+- **`doctor` summary messages color-coded** (Cold-Start Audit Round 5) — final summary now uses ANSI colors: green for success, yellow for warnings, red for critical errors. Previously plain text.
 - **Casks hidden from `unused` by default** — GUI apps can't be tracked via PATH shims, so they were showing misleading `n/a` data. Now hidden unless `--casks` is passed; count shown in tier summary header.
 - **`unused` shows risky tier by default when no usage data exists** — risky-only mode (no `--all` required) when the database has no tracking data yet, so new users see something useful
 - **ANSI color output** now respects `NO_COLOR` and isatty; piped output and CI logs are clean
@@ -44,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`doctor` action labels** renamed from "Fix:" to "Action:" throughout
 
 ### Added
+- **`unused` confidence indicator colors** (Cold-Start Audit Round 5) — confidence assessment footer now uses color-coding: red for LOW confidence (0-2 events), yellow for MEDIUM confidence (3-6 events), green for HIGH confidence (7+ events). Makes confidence levels more visually prominent.
+- **`stats` pagination tip** (Cold-Start Audit Round 5) — when using `--all` flag with 40+ packages, shows tip: "Tip: pipe to less for easier scrolling: brewprune stats --all | less". Only displays in TTY environments.
+- **`explain` ANSI code documentation** (Cold-Start Audit Round 5) — added documentation explaining that ANSI escape codes render correctly in standard terminals but may appear as raw text when output is redirected or in non-ANSI environments. This is expected behavior, not a bug.
 - **Linux Homebrew prefix** (`/home/linuxbrew/.linuxbrew`) added to shim binary resolution so shims work on Homebrew-on-Linux
 - **Docker sandbox** (`Dockerfile.sandbox`) with real Homebrew installed for user-simulation testing and cold-start UX audits
 - **`stats --all` flag** — show all packages including those with zero usage (previously the default, now opt-in)
