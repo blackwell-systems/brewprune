@@ -1,0 +1,52 @@
+# Dockerfile.sandbox — Real Homebrew sandbox for new-user simulation testing
+#
+# This builds a container with REAL Homebrew on Linux, real packages,
+# and brewprune binaries built from source. Unlike the mock-brew test
+# Dockerfile, this exercises brewprune against a genuine Homebrew install.
+#
+# Build time: ~5-10 minutes (Homebrew install + package downloads)
+
+# Stage 1: Build brewprune binaries for Linux
+FROM golang:1.23 AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/brewprune ./cmd/brewprune
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/brewprune-shim ./cmd/brewprune-shim
+
+# Stage 2: Real Homebrew environment
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    build-essential curl file git procps sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user — Homebrew refuses to install as root
+RUN useradd -m -s /bin/bash brewuser && \
+    echo "brewuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER brewuser
+WORKDIR /home/brewuser
+
+# Install Homebrew (takes a few minutes)
+RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}"
+ENV HOMEBREW_NO_AUTO_UPDATE=1
+ENV HOMEBREW_NO_INSTALL_CLEANUP=1
+
+# Install a realistic set of packages (kept small for build speed)
+RUN brew install jq ripgrep fd bat git curl tmux
+
+# Install brewprune binaries from builder stage
+COPY --from=builder --chown=brewuser:brewuser /out/brewprune /home/linuxbrew/.linuxbrew/bin/brewprune
+COPY --from=builder --chown=brewuser:brewuser /out/brewprune-shim /home/linuxbrew/.linuxbrew/bin/brewprune-shim
+
+# Prepare brewprune data directory
+RUN mkdir -p /home/brewuser/.brewprune/bin
+
+# Copy simulation script
+COPY --chown=brewuser:brewuser docker/simulate.sh /home/brewuser/simulate.sh
+
+CMD ["/bin/bash"]

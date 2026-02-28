@@ -1,0 +1,12 @@
+services:
+  sandbox:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.sandbox
+    volumes:
+      - sandbox-data:/home/brewuser/.brewprune
+    stdin_open: true
+    tty: true
+
+volumes:
+  sandbox-data:
