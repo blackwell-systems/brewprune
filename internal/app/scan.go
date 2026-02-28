@@ -129,12 +129,25 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Detect changes: compare package names
 	hasChanges := detectChanges(existingPackages, newPackages)
 
-	// If no changes on re-scan, show terse output and exit
-	if !isFirstScan && !hasChanges && !scanQuiet {
-		if isTTY {
-			spinner.StopWithMessage(fmt.Sprintf("✓ Database up to date (%d packages, 0 changes)", len(newPackages)))
-		} else {
-			fmt.Printf("✓ Database up to date (%d packages, 0 changes)\n", len(newPackages))
+	// If no changes on re-scan, still sync alias shims then exit
+	if !isFirstScan && !hasChanges {
+		aliasCount, aliasErr := generateAliasShims(db)
+		if !scanQuiet {
+			if isTTY {
+				msg := fmt.Sprintf("✓ Database up to date (%d packages, 0 changes)", len(newPackages))
+				if aliasCount > 0 {
+					msg += fmt.Sprintf(", %d alias shims created", aliasCount)
+				}
+				spinner.StopWithMessage(msg)
+			} else {
+				fmt.Printf("✓ Database up to date (%d packages, 0 changes)\n", len(newPackages))
+				if aliasCount > 0 {
+					fmt.Printf("✓ %d alias shims created\n", aliasCount)
+				}
+			}
+			if aliasErr != nil {
+				fmt.Printf("⚠ Alias shim generation incomplete: %v\n", aliasErr)
+			}
 		}
 		return nil
 	}
