@@ -23,10 +23,7 @@ Checks:
   • Database exists and is accessible
   • Daemon is running
   • Usage events are being recorded
-  • Recommends next steps
-
-Note: The --fix flag is not yet implemented. To fix issues automatically,
-re-run 'brewprune quickstart'.`,
+  • Recommends next steps`,
 	RunE: runDoctor,
 }
 
@@ -144,11 +141,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println("✓ Shim binary found:", shimBin)
 
 			// Check 7: Shim directory in PATH — warning only
-			if ok, reason := shim.IsShimSetup(); !ok {
-				fmt.Println("⚠ Shim directory not in PATH — executions won't be intercepted")
-				fmt.Printf("  Action: %s\n", reason)
-				warningIssues++
-			} else {
+			// Use three-state PATH messaging:
+			// 1. PATH active: shim dir is in current $PATH
+			// 2. PATH configured: shim dir is in shell profile but not yet sourced
+			// 3. PATH missing: shim dir is not in shell profile
+			pathOK := isOnPATH(shimDir)
+			if pathOK {
 				// Count symlinks in shim dir
 				entries, err := os.ReadDir(shimDir)
 				if err == nil {
@@ -158,10 +156,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 							symlinkCount++
 						}
 					}
-					fmt.Printf("✓ PATH shims active (%d commands intercepted)\n", symlinkCount)
+					fmt.Printf("✓ PATH active (%d commands intercepted)\n", symlinkCount)
 				} else {
-					fmt.Println("✓ Shim directory in PATH")
+					fmt.Println("✓ PATH active")
 				}
+			} else if isConfiguredInShellProfile(shimDir) {
+				fmt.Println("⚠ PATH configured (restart shell to activate)")
+				fmt.Println("  The shim directory is in your shell profile but not yet active")
+				fmt.Println("  Action: Restart your shell or run: source ~/.zprofile (or ~/.bash_profile)")
+				warningIssues++
+			} else {
+				fmt.Println("⚠ PATH missing — executions won't be intercepted")
+				fmt.Println("  Action: Run 'brewprune quickstart' to configure PATH")
+				warningIssues++
 			}
 		}
 	}
@@ -200,7 +207,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	if criticalIssues == 0 && warningIssues == 0 {
-		fmt.Println("✓ All checks passed!")
+		fmt.Println("\033[32m✓ All checks passed!\033[0m")
 		fmt.Println()
 		fmt.Println("Next steps:")
 		fmt.Println("  • Wait 1-2 weeks for usage data")
@@ -210,12 +217,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	if criticalIssues > 0 {
-		fmt.Printf("Found %d critical issue(s) and %d warning(s).\n", criticalIssues, warningIssues)
+		fmt.Printf("\033[31mFound %d critical issue(s) and %d warning(s).\033[0m\n", criticalIssues, warningIssues)
 		return fmt.Errorf("diagnostics failed")
 	}
 
 	// [DOCTOR-2] Warning-only path: exit 0 since warnings don't prevent usage.
 	// Exit code 0 = success/warnings, exit code 1 = critical failure.
-	fmt.Printf("Found %d warning(s). System is functional but not fully configured.\n", warningIssues)
+	fmt.Printf("\033[33mFound %d warning(s). System is functional but not fully configured.\033[0m\n", warningIssues)
 	return nil
 }

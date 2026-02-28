@@ -267,26 +267,174 @@ func TestDoctorWarningExitsZero(t *testing.T) {
 	// else err == nil means exit 0, which is what we want
 }
 
-// TestDoctorHelpIncludesFixNote verifies `doctor --help` output contains the --fix note.
-func TestDoctorHelpIncludesFixNote(t *testing.T) {
-	// Capture the help output by invoking the command with --help
-	cmd := exec.Command(os.Args[0], "doctor", "--help")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		// --help exits with code 0, but if there's an actual error, fail
-		if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 0 {
-			t.Fatalf("failed to run doctor --help: %v\nOutput: %s", err, out)
-		}
+// TestDoctorHelpNoFixFlag verifies `doctor --help` output does NOT contain --fix flag mention.
+func TestDoctorHelpNoFixFlag(t *testing.T) {
+	// Check the Long description directly instead of running a subprocess
+	// (subprocess approach doesn't work in test context)
+	helpText := doctorCmd.Long
+
+	// Check that --fix flag is NOT mentioned
+	if strings.Contains(helpText, "--fix flag") {
+		t.Errorf("doctor --help should NOT mention '--fix flag', got:\n%s", helpText)
 	}
 
-	helpText := string(out)
+	// Verify it doesn't mention "not yet implemented"
+	if strings.Contains(helpText, "not yet implemented") {
+		t.Errorf("doctor --help should NOT mention 'not yet implemented', got:\n%s", helpText)
+	}
+}
 
-	// Check for the key phrases from the --fix note
-	if !strings.Contains(helpText, "--fix flag is not yet implemented") {
-		t.Errorf("doctor --help should mention '--fix flag is not yet implemented', got:\n%s", helpText)
+// TestDoctorPATHMessaging verifies that doctor uses three-state PATH messaging.
+func TestDoctorPATHMessaging(t *testing.T) {
+	tests := []struct {
+		name                string
+		setupFunc           func(tmpDir string) string // Returns shim dir path
+		expectedOutput      string
+		shouldHaveWarning   bool
+	}{
+		{
+			name: "PATH active",
+			setupFunc: func(tmpDir string) string {
+				// Create shim dir
+				shimDir := filepath.Join(tmpDir, ".brewprune", "bin")
+				if err := os.MkdirAll(shimDir, 0755); err != nil {
+					t.Fatalf("MkdirAll shimDir: %v", err)
+				}
+				// Create shim binary
+				shimBin := filepath.Join(shimDir, "brewprune-shim")
+				if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+					t.Fatalf("WriteFile shimBin: %v", err)
+				}
+				// Add to PATH
+				origPath := os.Getenv("PATH")
+				os.Setenv("PATH", shimDir+":"+origPath)
+				return shimDir
+			},
+			expectedOutput:    "✓ PATH active",
+			shouldHaveWarning: false,
+		},
+		{
+			name: "PATH configured but not sourced",
+			setupFunc: func(tmpDir string) string {
+				// Create shim dir
+				shimDir := filepath.Join(tmpDir, ".brewprune", "bin")
+				if err := os.MkdirAll(shimDir, 0755); err != nil {
+					t.Fatalf("MkdirAll shimDir: %v", err)
+				}
+				// Create shim binary
+				shimBin := filepath.Join(shimDir, "brewprune-shim")
+				if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+					t.Fatalf("WriteFile shimBin: %v", err)
+				}
+				// Create .zprofile with PATH export
+				os.Setenv("SHELL", "/bin/zsh")
+				zprofile := filepath.Join(tmpDir, ".zprofile")
+				profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
+				if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
+					t.Fatalf("WriteFile .zprofile: %v", err)
+				}
+				return shimDir
+			},
+			expectedOutput:    "⚠ PATH configured (restart shell to activate)",
+			shouldHaveWarning: true,
+		},
+		{
+			name: "PATH missing",
+			setupFunc: func(tmpDir string) string {
+				// Create shim dir
+				shimDir := filepath.Join(tmpDir, ".brewprune", "bin")
+				if err := os.MkdirAll(shimDir, 0755); err != nil {
+					t.Fatalf("MkdirAll shimDir: %v", err)
+				}
+				// Create shim binary
+				shimBin := filepath.Join(shimDir, "brewprune-shim")
+				if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+					t.Fatalf("WriteFile shimBin: %v", err)
+				}
+				// Create .zprofile WITHOUT PATH export
+				os.Setenv("SHELL", "/bin/zsh")
+				zprofile := filepath.Join(tmpDir, ".zprofile")
+				if err := os.WriteFile(zprofile, []byte("# empty\n"), 0644); err != nil {
+					t.Fatalf("WriteFile .zprofile: %v", err)
+				}
+				return shimDir
+			},
+			expectedOutput:    "⚠ PATH missing",
+			shouldHaveWarning: true,
+		},
 	}
 
-	if !strings.Contains(helpText, "brewprune quickstart") {
-		t.Errorf("doctor --help should mention 'brewprune quickstart' as fix alternative, got:\n%s", helpText)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp environment
+			tmpDir := t.TempDir()
+			origHome := os.Getenv("HOME")
+			origPath := os.Getenv("PATH")
+			origShell := os.Getenv("SHELL")
+
+			os.Setenv("HOME", tmpDir)
+			defer func() {
+				os.Setenv("HOME", origHome)
+				os.Setenv("PATH", origPath)
+				os.Setenv("SHELL", origShell)
+			}()
+
+			// Create database
+			realDB := filepath.Join(tmpDir, ".brewprune", "brewprune.db")
+			if err := os.MkdirAll(filepath.Dir(realDB), 0755); err != nil {
+				t.Fatalf("MkdirAll: %v", err)
+			}
+			st, err := store.New(realDB)
+			if err != nil {
+				t.Fatalf("store.New: %v", err)
+			}
+			if err := st.CreateSchema(); err != nil {
+				st.Close()
+				t.Fatalf("CreateSchema: %v", err)
+			}
+			pkg := &brew.Package{
+				Name:        "testpkg",
+				Version:     "1.0",
+				InstalledAt: time.Now(),
+				InstallType: "explicit",
+			}
+			if err := st.InsertPackage(pkg); err != nil {
+				st.Close()
+				t.Fatalf("InsertPackage: %v", err)
+			}
+			st.Close()
+
+			// Override global dbPath
+			oldDBPath := dbPath
+			dbPath = realDB
+			defer func() { dbPath = oldDBPath }()
+
+			// Setup test-specific environment
+			_ = tt.setupFunc(tmpDir)
+
+			// Capture output
+			out := captureStdout(t, func() {
+				runDoctor(doctorCmd, []string{}) //nolint:errcheck
+			})
+
+			// Verify expected output
+			if !strings.Contains(out, tt.expectedOutput) {
+				t.Errorf("expected output to contain %q, got:\n%s", tt.expectedOutput, out)
+			}
+		})
 	}
+}
+
+// TestDoctorExitCodes verifies that doctor returns proper exit codes.
+func TestDoctorExitCodes(t *testing.T) {
+	t.Run("exit 0 for warnings only", func(t *testing.T) {
+		// This is already tested by TestRunDoctor_WarningOnlyExitsCode0
+		// and TestDoctorWarningExitsZero
+		t.Skip("Already tested by TestRunDoctor_WarningOnlyExitsCode0")
+	})
+
+	t.Run("exit 1 for critical failures", func(t *testing.T) {
+		// This is already tested by TestRunDoctor_CriticalIssueReturnsError
+		t.Skip("Already tested by TestRunDoctor_CriticalIssueReturnsError")
+	})
 }
