@@ -14,18 +14,20 @@ You have 100+ Homebrew packages installed. You use 20 of them. The rest can quie
 
 ## Quick example
 
-*Score 0–100: higher means safer to remove. See [How it works](#how-it-works).*
+*Risky-tier packages are hidden by default. Use `--all` to show them. See [How it works](#how-it-works) for scoring details.*
 
 ```bash
-$ brewprune unused --tier safe
+$ brewprune unused
 
-Package              Score    Tier       Last Used     Reason
+SAFE: 3 packages (1.2 GB) · MEDIUM: 2 packages (456 MB) · RISKY: 48 packages (hidden, use --all)
+
+Package          Size     Uses (7d)  Last Used        Depended On   Status
 ────────────────────────────────────────────────────────────────────────────────
-node@16              85       SAFE       never         never used, no dependents
-postgresql@14        90       SAFE       never         never used, no dependents
-python@3.9           82       SAFE       6 months ago  rarely used, safe to remove
+node@16          450 MB   0          never            —             SAFE
+postgresql@14    340 MB   0          never            —             SAFE
+python@3.9       420 MB   1          6 months ago     2 packages    MEDIUM
 
-Summary: 3 safe, 2 medium, 1 risky packages
+Reclaimable: 1.2 GB (safe) · 456 MB (medium) · 3.8 GB (risky, hidden)
 ```
 
 ```bash
@@ -121,7 +123,7 @@ If you installed from source and need manual launchd setup, see [Daemon Mode](#d
 | `brewprune status` | Check daemon status and tracking statistics (overall health) |
 | `brewprune scan` | Scan and index installed Homebrew packages |
 | `brewprune watch [--daemon]` | Process shim log and record package usage events |
-| `brewprune unused [--tier safe\|medium\|risky]` | List packages with heuristic scores |
+| `brewprune unused [--tier safe\|medium\|risky] [--all]` | List packages with heuristic scores |
 | `brewprune stats [--days N] [--package NAME]` | Show usage statistics |
 | `brewprune remove [--safe\|--medium\|--risky] [packages...]` | Remove packages (creates snapshot) |
 | `brewprune undo [snapshot-id\|latest]` | Restore from snapshot |
@@ -164,6 +166,8 @@ $ brewprune watch --stop
 - `--tier safe|medium|risky` - Filter by heuristic tier
 - `--min-score N` - Minimum heuristic score (0-100)
 - `--sort score|size|age` - Sort order (score: highest first, size: largest first, age: oldest first)
+- `--all` - Show all tiers including risky (hidden by default)
+- `-v, --verbose` - Show detailed scoring breakdown per package
 
 **`brewprune remove` flags:**
 - `--safe` - Remove only safe-tier packages

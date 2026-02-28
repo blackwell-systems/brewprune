@@ -52,7 +52,13 @@ Core dependencies (git, openssl, etc.) are capped at 70 to prevent accidental re
   # Then: brewprune remove --safe
 
   # Show packages with score >= 70
-  brewprune unused --min-score 70`,
+  brewprune unused --min-score 70
+
+  # Show all packages including hidden risky tier
+  brewprune unused --all
+
+  # Show detailed scoring breakdown
+  brewprune unused --tier safe -v`,
 	RunE: runUnused,
 }
 
