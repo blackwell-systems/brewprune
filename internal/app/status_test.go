@@ -467,3 +467,119 @@ func TestStatusPathActive(t *testing.T) {
 		t.Errorf("should not show 'PATH configured (restart' when PATH is active, got output:\n%s", output)
 	}
 }
+
+// TestStatusPATHMessaging verifies that status.go uses three-state PATH messaging consistently.
+func TestStatusPATHMessaging(t *testing.T) {
+	tests := []struct {
+		name            string
+		pathActive      bool
+		pathConfigured  bool
+		expectedMessage string
+	}{
+		{
+			name:            "PATH active",
+			pathActive:      true,
+			pathConfigured:  true,
+			expectedMessage: "PATH active ✓",
+		},
+		{
+			name:            "PATH configured but not sourced",
+			pathActive:      false,
+			pathConfigured:  true,
+			expectedMessage: "PATH configured (restart shell to activate)",
+		},
+		{
+			name:            "PATH missing",
+			pathActive:      false,
+			pathConfigured:  false,
+			expectedMessage: "PATH missing ⚠",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			origHome := os.Getenv("HOME")
+			origPath := os.Getenv("PATH")
+			origShell := os.Getenv("SHELL")
+
+			if err := os.Setenv("HOME", tmpDir); err != nil {
+				t.Fatalf("failed to set HOME: %v", err)
+			}
+			defer func() {
+				os.Setenv("HOME", origHome)
+				os.Setenv("PATH", origPath)
+				os.Setenv("SHELL", origShell)
+			}()
+
+			// Set shell to zsh for consistent test behavior
+			os.Setenv("SHELL", "/bin/zsh")
+
+			// Create .brewprune directory
+			brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
+			shimDir := fmt.Sprintf("%s/bin", brewpruneDir)
+			if err := os.MkdirAll(shimDir, 0755); err != nil {
+				t.Fatalf("failed to create shim dir: %v", err)
+			}
+
+			// Setup PATH based on test case
+			if tt.pathActive {
+				newPath := fmt.Sprintf("%s:%s", shimDir, origPath)
+				os.Setenv("PATH", newPath)
+			}
+
+			// Setup shell profile based on test case
+			if tt.pathConfigured {
+				zprofile := fmt.Sprintf("%s/.zprofile", tmpDir)
+				profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
+				if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
+					t.Fatalf("failed to write .zprofile: %v", err)
+				}
+			} else {
+				// Create empty .zprofile
+				zprofile := fmt.Sprintf("%s/.zprofile", tmpDir)
+				if err := os.WriteFile(zprofile, []byte("# empty\n"), 0644); err != nil {
+					t.Fatalf("failed to write .zprofile: %v", err)
+				}
+			}
+
+			// Create a real SQLite DB with minimal schema
+			realDB := fmt.Sprintf("%s/brewprune.db", brewpruneDir)
+			st, err := store.New(realDB)
+			if err != nil {
+				t.Fatalf("failed to create store: %v", err)
+			}
+			if err := st.CreateSchema(); err != nil {
+				st.Close()
+				t.Fatalf("failed to create schema: %v", err)
+			}
+			st.Close()
+
+			// Override global dbPath
+			origDBPath := dbPath
+			dbPath = realDB
+			defer func() { dbPath = origDBPath }()
+
+			// Capture stdout
+			origStdout := os.Stdout
+			r, w, pipeErr := os.Pipe()
+			if pipeErr != nil {
+				t.Fatalf("failed to create pipe: %v", pipeErr)
+			}
+			os.Stdout = w
+
+			_ = runStatus(nil, nil)
+
+			w.Close()
+			var buf bytes.Buffer
+			buf.ReadFrom(r)
+			output := buf.String()
+			os.Stdout = origStdout
+
+			// Verify expected message
+			if !strings.Contains(output, tt.expectedMessage) {
+				t.Errorf("expected output to contain %q, got:\n%s", tt.expectedMessage, output)
+			}
+		})
+	}
+}
