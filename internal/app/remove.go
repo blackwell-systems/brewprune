@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
 	"github.com/blackwell-systems/brewprune/internal/brew"
@@ -154,7 +155,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 		// Display table of packages to remove
 		fmt.Printf("\nPackages to remove (%s tier):\n\n", tier)
-		displayConfidenceScores(scores)
+		displayConfidenceScores(st, scores)
 	}
 
 	if len(packagesToRemove) == 0 {
@@ -316,20 +317,29 @@ func getPackagesByTier(anlzr *analyzer.Analyzer, tier string) ([]*analyzer.Confi
 }
 
 // displayConfidenceScores displays packages with confidence scores in a table.
-func displayConfidenceScores(scores []*analyzer.ConfidenceScore) {
+func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore) {
 	if len(scores) == 0 {
 		return
 	}
 
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+
 	// Convert to output-compatible format
 	outputScores := make([]output.ConfidenceScore, len(scores))
 	for i, score := range scores {
+		uses7d, _ := st.GetUsageEventCountSince(score.Package, sevenDaysAgo)
+		depCount, _ := st.GetReverseDependencyCount(score.Package)
+
 		outputScores[i] = output.ConfidenceScore{
-			Package:  score.Package,
-			Score:    score.Score,
-			Tier:     score.Tier,
-			LastUsed: getNeverTime(),
-			Reason:   score.Reason,
+			Package:    score.Package,
+			Score:      score.Score,
+			Tier:       score.Tier,
+			LastUsed:   getNeverTime(),
+			Reason:     score.Reason,
+			SizeBytes:  score.SizeBytes,
+			Uses7d:     uses7d,
+			DepCount:   depCount,
+			IsCritical: score.IsCritical,
 		}
 	}
 

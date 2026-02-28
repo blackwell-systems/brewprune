@@ -529,6 +529,32 @@ func (s *Store) GetEventCount() (int, error) {
 	return count, nil
 }
 
+// GetUsageEventCountSince returns the number of usage events for a package since the given time.
+func (s *Store) GetUsageEventCountSince(pkg string, since time.Time) (int, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM usage_events WHERE package = ? AND timestamp >= ?",
+		pkg, since.Format(time.RFC3339),
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get usage event count for %s: %w", pkg, err)
+	}
+	return count, nil
+}
+
+// GetReverseDependencyCount returns the number of packages that depend on the given package.
+func (s *Store) GetReverseDependencyCount(pkg string) (int, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM dependencies WHERE depends_on = ?",
+		pkg,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get reverse dependency count for %s: %w", pkg, err)
+	}
+	return count, nil
+}
+
 // GetFirstEventTime returns the timestamp of the first usage event recorded.
 // Returns zero time if no events exist.
 func (s *Store) GetFirstEventTime() (time.Time, error) {

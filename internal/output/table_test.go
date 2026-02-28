@@ -81,47 +81,92 @@ func TestRenderConfidenceTable(t *testing.T) {
 			contains: []string{"No confidence scores"},
 		},
 		{
-			name: "single score",
+			name: "single safe score",
 			scores: []ConfidenceScore{
 				{
-					Package:  "node",
-					Score:    85,
-					Tier:     "safe",
-					LastUsed: time.Time{}, // zero time = never
-					Reason:   "No usage in 90 days",
+					Package:   "node",
+					Score:     85,
+					Tier:      "safe",
+					LastUsed:  time.Time{}, // zero time = never
+					SizeBytes: 6291456,     // 6 MB
+					Uses7d:    0,
+					DepCount:  0,
 				},
 			},
-			contains: []string{"node", "85", "SAFE", "never", "No usage"},
+			contains: []string{"node", "6 MB", "0", "never", "0 packages", "SAFE"},
 		},
 		{
-			name: "multiple scores sorted by score",
+			name: "risky score shows keep",
 			scores: []ConfidenceScore{
 				{
-					Package:  "node",
-					Score:    45,
-					Tier:     "risky",
-					LastUsed: now.Add(-2 * time.Hour),
-					Reason:   "Recently used",
+					Package:   "openssl@3",
+					Score:     30,
+					Tier:      "risky",
+					LastUsed:  now.Add(-2 * time.Hour),
+					SizeBytes: 82837504, // 79 MB
+					Uses7d:    0,
+					DepCount:  14,
+				},
+			},
+			contains: []string{"openssl@3", "79 MB", "14 packages", "keep"},
+		},
+		{
+			name: "critical score shows keep",
+			scores: []ConfidenceScore{
+				{
+					Package:    "git",
+					Score:      40,
+					Tier:       "risky",
+					LastUsed:   now.Add(-24 * time.Minute),
+					SizeBytes:  66060288, // 63 MB
+					Uses7d:     8,
+					DepCount:   5,
+					IsCritical: true,
+				},
+			},
+			contains: []string{"git", "63 MB", "8", "5 packages", "keep"},
+		},
+		{
+			name: "medium score",
+			scores: []ConfidenceScore{
+				{
+					Package:   "jq",
+					Score:     65,
+					Tier:      "medium",
+					LastUsed:  now.Add(-24 * time.Minute),
+					SizeBytes: 1048576, // 1 MB
+					Uses7d:    1,
+					DepCount:  0,
+				},
+			},
+			contains: []string{"jq", "1 MB", "1", "0 packages", "MEDIUM"},
+		},
+		{
+			name: "multiple scores with new columns",
+			scores: []ConfidenceScore{
+				{
+					Package:   "ripgrep",
+					Score:     90,
+					Tier:      "safe",
+					LastUsed:  time.Time{},
+					SizeBytes: 6291456,
+					Uses7d:    0,
+					DepCount:  0,
 				},
 				{
-					Package:  "postgresql",
-					Score:    90,
-					Tier:     "safe",
-					LastUsed: time.Time{},
-					Reason:   "Never used",
-				},
-				{
-					Package:  "python",
-					Score:    65,
-					Tier:     "medium",
-					LastUsed: now.Add(-30 * 24 * time.Hour),
-					Reason:   "Occasional use",
+					Package:    "openssl@3",
+					Score:      30,
+					Tier:       "risky",
+					LastUsed:   time.Time{},
+					SizeBytes:  82837504,
+					Uses7d:     0,
+					DepCount:   14,
+					IsCritical: true,
 				},
 			},
 			contains: []string{
-				"postgresql", "90", "SAFE",
-				"python", "65", "MEDIUM",
-				"node", "45", "RISKY",
+				"ripgrep", "6 MB", "0 packages", "SAFE",
+				"openssl@3", "79 MB", "14 packages", "keep",
 			},
 		},
 	}
@@ -473,25 +518,32 @@ func TestVisualConfidenceTable(t *testing.T) {
 	now := time.Now()
 	scores := []ConfidenceScore{
 		{
-			Package:  "node",
-			Score:    85,
-			Tier:     "safe",
-			LastUsed: time.Time{},
-			Reason:   "No usage in 90 days",
+			Package:   "ripgrep",
+			Score:     90,
+			Tier:      "safe",
+			LastUsed:  time.Time{},
+			SizeBytes: 6291456,
+			Uses7d:    0,
+			DepCount:  0,
 		},
 		{
-			Package:  "postgresql@14",
-			Score:    65,
-			Tier:     "medium",
-			LastUsed: now.Add(-60 * 24 * time.Hour),
-			Reason:   "Occasional use",
+			Package:   "jq",
+			Score:     65,
+			Tier:      "medium",
+			LastUsed:  now.Add(-24 * time.Minute),
+			SizeBytes: 1048576,
+			Uses7d:    1,
+			DepCount:  0,
 		},
 		{
-			Package:  "python@3.12",
-			Score:    20,
-			Tier:     "risky",
-			LastUsed: now.Add(-2 * time.Hour),
-			Reason:   "Recently used",
+			Package:    "openssl@3",
+			Score:      30,
+			Tier:       "risky",
+			LastUsed:   time.Time{},
+			SizeBytes:  82837504,
+			Uses7d:     0,
+			DepCount:   14,
+			IsCritical: true,
 		},
 	}
 

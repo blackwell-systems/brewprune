@@ -78,27 +78,50 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%-20s %-8s %-10s %-13s %s\n",
-		"Package", "Score", "Tier", "Last Used", "Reason"))
+	sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s\n",
+		"Package", "Size", "Uses (7d)", "Last Used", "Depended On", ""))
 	sb.WriteString(strings.Repeat("─", 80))
 	sb.WriteString("\n")
 
 	// Rows
 	for _, score := range scores {
-		tierStr := formatTier(score.Tier)
 		lastUsed := formatRelativeTime(score.LastUsed)
+		size := formatSize(score.SizeBytes)
+		depStr := formatDepCount(score.DepCount)
 
-		sb.WriteString(fmt.Sprintf("%-20s %s%-8d%s %-10s %-13s %s\n",
-			truncate(score.Package, 20),
-			getTierColor(score.Tier),
-			score.Score,
-			colorReset,
-			tierStr,
+		// For risky/critical packages, show "keep" instead of tier name
+		tierLabel := formatTierLabel(score.Tier, score.IsCritical)
+		tierColor := getTierColor(score.Tier)
+
+		sb.WriteString(fmt.Sprintf("%-16s %-8s %-10d %-16s %-13s %s%s%s\n",
+			truncate(score.Package, 16),
+			size,
+			score.Uses7d,
 			lastUsed,
-			truncate(score.Reason, 30)))
+			depStr,
+			tierColor,
+			tierLabel,
+			colorReset))
 	}
 
 	return sb.String()
+}
+
+// formatDepCount formats reverse dependency count for display.
+func formatDepCount(count int) string {
+	if count == 1 {
+		return "1 package"
+	}
+	return fmt.Sprintf("%d packages", count)
+}
+
+// formatTierLabel returns the display label for a tier in the table.
+// Risky or critical packages show a cross-mark keep indicator.
+func formatTierLabel(tier string, isCritical bool) string {
+	if isCritical || strings.ToLower(tier) == "risky" {
+		return "\u2717 keep"
+	}
+	return strings.ToUpper(tier)
 }
 
 // VerboseScore contains detailed score information for verbose output.
@@ -359,11 +382,15 @@ func truncate(s string, maxLen int) string {
 // ConfidenceScore represents a package's confidence score for removal.
 // This is a placeholder definition - the actual type will come from analyzer package.
 type ConfidenceScore struct {
-	Package  string
-	Score    int
-	Tier     string // "safe", "medium", "risky"
-	LastUsed time.Time
-	Reason   string
+	Package    string
+	Score      int
+	Tier       string // "safe", "medium", "risky"
+	LastUsed   time.Time
+	Reason     string
+	SizeBytes  int64 // Package size in bytes
+	Uses7d     int   // Usage count in the last 7 days
+	DepCount   int   // Number of reverse dependencies (packages depending on this one)
+	IsCritical bool  // True if package is a core dependency
 }
 
 // UsageStats represents usage statistics for a package.

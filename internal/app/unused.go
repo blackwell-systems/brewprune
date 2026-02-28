@@ -180,14 +180,22 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		fmt.Print(table)
 	} else {
 		// Convert to output format for standard table
+		sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 		outputScores := make([]output.ConfidenceScore, len(scores))
 		for i, s := range scores {
+			uses7d, _ := st.GetUsageEventCountSince(s.Package, sevenDaysAgo)
+			depCount, _ := st.GetReverseDependencyCount(s.Package)
+
 			outputScores[i] = output.ConfidenceScore{
-				Package:  s.Package,
-				Score:    s.Score,
-				Tier:     s.Tier,
-				LastUsed: getLastUsed(st, s.Package),
-				Reason:   s.Reason,
+				Package:    s.Package,
+				Score:      s.Score,
+				Tier:       s.Tier,
+				LastUsed:   getLastUsed(st, s.Package),
+				Reason:     s.Reason,
+				SizeBytes:  s.SizeBytes,
+				Uses7d:     uses7d,
+				DepCount:   depCount,
+				IsCritical: s.IsCritical,
 			}
 		}
 		table := output.RenderConfidenceTable(outputScores)

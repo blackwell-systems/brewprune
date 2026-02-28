@@ -83,18 +83,22 @@ func ExampleRenderSnapshotTable() {
 func ExampleRenderConfidenceTable() {
 	scores := []output.ConfidenceScore{
 		{
-			Package:  "node",
-			Score:    85,
-			Tier:     "safe",
-			LastUsed: time.Time{}, // never used
-			Reason:   "No usage in 90 days",
+			Package:   "node",
+			Score:     85,
+			Tier:      "safe",
+			LastUsed:  time.Time{}, // never used
+			SizeBytes: 6291456,
+			Uses7d:    0,
+			DepCount:  0,
 		},
 		{
-			Package:  "python",
-			Score:    45,
-			Tier:     "risky",
-			LastUsed: time.Now().Add(-2 * time.Hour),
-			Reason:   "Recently used",
+			Package:   "python",
+			Score:     45,
+			Tier:      "risky",
+			LastUsed:  time.Now().Add(-2 * time.Hour),
+			SizeBytes: 52428800,
+			Uses7d:    3,
+			DepCount:  2,
 		},
 	}
 
