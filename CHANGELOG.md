@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`unused` table redesigned for actionable data** — replaced opaque Score and Reason columns with Size (disk usage), Uses (7d) (shim execution count), Depended On (reverse dependency count), and a colored tier tag. Risky and critical packages now show `✗ keep` instead of a tier name. Same layout applied to `remove` confirmation table.
+
+### Added
+- **`GetUsageEventCountSince` store query** — returns usage event count for a package within a time window (used for 7-day column)
+- **`GetReverseDependencyCount` store query** — returns number of packages depending on a given package
+
 ## [0.2.1] - 2026-02-27
 
 ### Fixed
