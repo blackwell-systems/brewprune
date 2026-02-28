@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Alias config for shim tracking coverage** — users can declare shell alias→package mappings in `~/.config/brewprune/aliases` (e.g. `ll=eza`, `rg=ripgrep`) to track usage of tools invoked via aliases. `brewprune scan` generates shims for declared aliases; events are logged against the canonical package name. `brewprune doctor` hints when the file doesn't exist.
+- **XDG config directory support** — config files now live in `$XDG_CONFIG_HOME/brewprune` (default `~/.config/brewprune`), separate from the data directory (`~/.brewprune`).
+
+### Fixed
+- **`*-config` binary invocations no longer inflate usage scores** — build-system probe binaries (`pkg-config`, `Magick++-config`, `freetype-config`, etc.) are now logged as `event_type='probe'` instead of `'exec'` and excluded from all usage scoring queries. Previously these automated probes made library packages appear actively used.
+
 ## [0.2.3] - 2026-02-28
 
 ### Fixed
