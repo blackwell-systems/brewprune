@@ -93,7 +93,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  0,
 				},
 			},
-			contains: []string{"node", "6 MB", "0", "never", "0 packages", "SAFE"},
+			contains: []string{"node", "6 MB", "0", "never", "\u2014", "SAFE"},
 		},
 		{
 			name: "risky score shows keep",
@@ -139,7 +139,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 					DepCount:  0,
 				},
 			},
-			contains: []string{"jq", "1 MB", "1", "0 packages", "MEDIUM"},
+			contains: []string{"jq", "1 MB", "1", "\u2014", "MEDIUM"},
 		},
 		{
 			name: "multiple scores with new columns",
@@ -165,7 +165,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"ripgrep", "6 MB", "0 packages", "SAFE",
+				"ripgrep", "6 MB", "\u2014", "SAFE",
 				"openssl@3", "79 MB", "14 packages", "keep",
 			},
 		},
@@ -548,4 +548,99 @@ func TestVisualConfidenceTable(t *testing.T) {
 	}
 
 	t.Log("\n" + RenderConfidenceTable(scores))
+}
+
+func TestRenderConfidenceTable_CaskDisplay(t *testing.T) {
+	scores := []ConfidenceScore{
+		{
+			Package:   "firefox",
+			Score:     85,
+			Tier:      "safe",
+			LastUsed:  time.Now().Add(-48 * time.Hour),
+			SizeBytes: 209715200, // 200 MB
+			Uses7d:    5,
+			DepCount:  0,
+			IsCask:    true,
+		},
+	}
+
+	result := RenderConfidenceTable(scores)
+
+	// IsCask=true should show "n/a" for both usage columns
+	if !strings.Contains(result, "n/a") {
+		t.Errorf("expected 'n/a' for cask usage columns, got:\n%s", result)
+	}
+
+	// Should NOT contain the numeric uses value or relative time
+	if strings.Contains(result, "2 days ago") {
+		t.Errorf("cask row should show 'n/a' instead of relative time, got:\n%s", result)
+	}
+}
+
+func TestRenderTierSummary_ShowAll(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 45088768}    // ~43 MB
+	medium := TierStats{Count: 19, SizeBytes: 195035136} // ~186 MB
+	risky := TierStats{Count: 143, SizeBytes: 4509715456} // ~4.2 GB
+
+	result := RenderTierSummary(safe, medium, risky, true)
+
+	for _, want := range []string{"SAFE", "5 packages", "MEDIUM", "19", "RISKY", "143"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("RenderTierSummary(showAll=true) missing %q\nGot: %s", want, result)
+		}
+	}
+
+	// When showAll=true, risky should show size, not "hidden"
+	if strings.Contains(result, "hidden") {
+		t.Errorf("RenderTierSummary(showAll=true) should not contain 'hidden'\nGot: %s", result)
+	}
+}
+
+func TestRenderTierSummary_HideRisky(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderTierSummary(safe, medium, risky, false)
+
+	if !strings.Contains(result, "hidden, use --all") {
+		t.Errorf("RenderTierSummary(showAll=false) should contain 'hidden, use --all'\nGot: %s", result)
+	}
+}
+
+func TestRenderReclaimableFooter_ShowAll(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderReclaimableFooter(safe, medium, risky, true)
+
+	if !strings.Contains(result, "Reclaimable:") {
+		t.Errorf("expected 'Reclaimable:' prefix, got: %s", result)
+	}
+	if !strings.Contains(result, "(safe)") || !strings.Contains(result, "(medium)") || !strings.Contains(result, "(risky)") {
+		t.Errorf("expected all tier labels, got: %s", result)
+	}
+	if strings.Contains(result, "hidden") {
+		t.Errorf("showAll=true should not contain 'hidden', got: %s", result)
+	}
+}
+
+func TestRenderReclaimableFooter_HideRisky(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderReclaimableFooter(safe, medium, risky, false)
+
+	if !strings.Contains(result, "risky, hidden") {
+		t.Errorf("showAll=false should contain 'risky, hidden', got: %s", result)
+	}
+}
+
+func TestFormatDepCount_Zero(t *testing.T) {
+	got := formatDepCount(0)
+	if got != "\u2014" {
+		t.Errorf("formatDepCount(0) = %q, want %q", got, "\u2014")
+	}
 }

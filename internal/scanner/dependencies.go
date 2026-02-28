@@ -36,6 +36,7 @@ var coreDependencies = map[string]bool{
 	"git":       true,
 	"curl":      true,
 	"wget":      true,
+	"brewprune": true,
 
 	// Build systems and tools
 	"pkg-config": true,

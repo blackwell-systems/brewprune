@@ -18,6 +18,7 @@ var (
 	unusedMinScore int
 	unusedSort     string
 	unusedVerbose  bool
+	unusedAll      bool
 )
 
 var unusedCmd = &cobra.Command{
@@ -60,6 +61,7 @@ func init() {
 	unusedCmd.Flags().IntVar(&unusedMinScore, "min-score", 0, "Minimum confidence score (0-100)")
 	unusedCmd.Flags().StringVar(&unusedSort, "sort", "score", "Sort by: score, size, age")
 	unusedCmd.Flags().BoolVarP(&unusedVerbose, "verbose", "v", false, "Show detailed explanation for each package")
+	unusedCmd.Flags().BoolVar(&unusedAll, "all", false, "Show all tiers including risky")
 
 	// Register with root command
 	RootCmd.AddCommand(unusedCmd)
@@ -118,8 +120,14 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "⚠  %d new formulae since last scan. Run 'brewprune scan' to update shims.\n\n", newCount)
 	}
 
-	// Compute scores for all packages
-	var scores []*analyzer.ConfidenceScore
+	// Build IsCask lookup from packages list
+	isCaskMap := make(map[string]bool, len(packages))
+	for _, pkg := range packages {
+		isCaskMap[pkg.Name] = pkg.IsCask
+	}
+
+	// Compute scores for all packages (before filtering)
+	var allScores []*analyzer.ConfidenceScore
 	for _, pkg := range packages {
 		score, err := a.ComputeScore(pkg.Name)
 		if err != nil {
@@ -127,18 +135,44 @@ func runUnused(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Warning: failed to score %s: %v\n", pkg.Name, err)
 			continue
 		}
-
-		// Apply filters
-		if unusedTier != "" && score.Tier != unusedTier {
-			continue
-		}
-
-		if score.Score < unusedMinScore {
-			continue
-		}
-
-		scores = append(scores, score)
+		allScores = append(allScores, score)
 	}
+
+	// Compute tier stats from all scores (before any filtering)
+	var safeTier, mediumTier, riskyTier output.TierStats
+	for _, s := range allScores {
+		switch s.Tier {
+		case "safe":
+			safeTier.Count++
+			safeTier.SizeBytes += s.SizeBytes
+		case "medium":
+			mediumTier.Count++
+			mediumTier.SizeBytes += s.SizeBytes
+		case "risky":
+			riskyTier.Count++
+			riskyTier.SizeBytes += s.SizeBytes
+		}
+	}
+
+	// Apply filters
+	var scores []*analyzer.ConfidenceScore
+	for _, s := range allScores {
+		if unusedTier != "" && s.Tier != unusedTier {
+			continue
+		}
+		if s.Score < unusedMinScore {
+			continue
+		}
+		// When --all is not set and no explicit --tier, hide risky packages
+		if !unusedAll && unusedTier == "" && s.Tier == "risky" {
+			continue
+		}
+		scores = append(scores, s)
+	}
+
+	// Print tier summary header
+	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != ""))
+	fmt.Println()
 
 	if len(scores) == 0 {
 		fmt.Println("No packages match the specified criteria.")
@@ -196,17 +230,16 @@ func runUnused(cmd *cobra.Command, args []string) error {
 				Uses7d:     uses7d,
 				DepCount:   depCount,
 				IsCritical: s.IsCritical,
+				IsCask:     isCaskMap[s.Package],
 			}
 		}
 		table := output.RenderConfidenceTable(outputScores)
 		fmt.Print(table)
 	}
 
-	// Show summary
-	summary := computeSummary(scores)
-	fmt.Printf("\nSummary: %d safe, %d medium, %d risky packages\n",
-		summary["safe"], summary["medium"], summary["risky"])
-	fmt.Println("Note: Safe = low observed execution risk. Review medium/risky tiers before removing libraries or daemons.")
+	// Show reclaimable footer (replaces old summary block)
+	fmt.Println()
+	fmt.Println(output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != ""))
 
 	// Add confidence assessment
 	if err := showConfidenceAssessment(st); err != nil {

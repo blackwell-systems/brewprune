@@ -13,6 +13,7 @@ type ConfidenceScore struct {
 	TypeScore   int       // 0-10 points
 	Reason      string    // Human-readable explanation
 	IsCritical  bool      // True if package is a core dependency
+	IsCask      bool      // True if package is a cask (GUI app)
 	SizeBytes   int64     // Package size in bytes (for sorting)
 	InstalledAt time.Time // Installation date (for sorting)
 	Explanation ScoreExplanation

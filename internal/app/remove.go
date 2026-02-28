@@ -330,6 +330,12 @@ func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore
 		uses7d, _ := st.GetUsageEventCountSince(score.Package, sevenDaysAgo)
 		depCount, _ := st.GetReverseDependencyCount(score.Package)
 
+		// Look up IsCask from the store; default to false on error
+		var isCask bool
+		if pkgInfo, err := st.GetPackage(score.Package); err == nil {
+			isCask = pkgInfo.IsCask
+		}
+
 		outputScores[i] = output.ConfidenceScore{
 			Package:    score.Package,
 			Score:      score.Score,
@@ -340,6 +346,7 @@ func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore
 			Uses7d:     uses7d,
 			DepCount:   depCount,
 			IsCritical: score.IsCritical,
+			IsCask:     isCask,
 		}
 	}
 

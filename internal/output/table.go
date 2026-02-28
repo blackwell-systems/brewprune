@@ -85,7 +85,6 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 
 	// Rows
 	for _, score := range scores {
-		lastUsed := formatRelativeTime(score.LastUsed)
 		size := formatSize(score.SizeBytes)
 		depStr := formatDepCount(score.DepCount)
 
@@ -93,10 +92,21 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 		tierLabel := formatTierLabel(score.Tier, score.IsCritical)
 		tierColor := getTierColor(score.Tier)
 
-		sb.WriteString(fmt.Sprintf("%-16s %-8s %-10d %-16s %-13s %s%s%s\n",
+		// Cask packages show "n/a" for usage columns (shim tracking not applicable)
+		var usesStr string
+		var lastUsed string
+		if score.IsCask {
+			usesStr = "n/a"
+			lastUsed = "n/a"
+		} else {
+			usesStr = fmt.Sprintf("%d", score.Uses7d)
+			lastUsed = formatRelativeTime(score.LastUsed)
+		}
+
+		sb.WriteString(fmt.Sprintf("%-16s %-8s %-10s %-16s %-13s %s%s%s\n",
 			truncate(score.Package, 16),
 			size,
-			score.Uses7d,
+			usesStr,
 			lastUsed,
 			depStr,
 			tierColor,
@@ -109,6 +119,9 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 
 // formatDepCount formats reverse dependency count for display.
 func formatDepCount(count int) string {
+	if count == 0 {
+		return "\u2014"
+	}
 	if count == 1 {
 		return "1 package"
 	}
@@ -391,6 +404,13 @@ type ConfidenceScore struct {
 	Uses7d     int   // Usage count in the last 7 days
 	DepCount   int   // Number of reverse dependencies (packages depending on this one)
 	IsCritical bool  // True if package is a core dependency
+	IsCask     bool  // True if package is a cask (GUI app)
+}
+
+// TierStats holds aggregated statistics for a confidence tier.
+type TierStats struct {
+	Count     int
+	SizeBytes int64
 }
 
 // UsageStats represents usage statistics for a package.
@@ -400,4 +420,52 @@ type UsageStats struct {
 	LastUsed  time.Time
 	Frequency string // "daily", "weekly", "monthly", "rarely"
 	Trend     string // "increasing", "stable", "decreasing"
+}
+
+// RenderTierSummary renders a colored one-line tier breakdown header.
+// Format: "SAFE: 5 packages (43 MB) · MEDIUM: 19 (186 MB) · RISKY: 143 (hidden, use --all)"
+// When showAll is true, risky shows its size instead of "hidden".
+func RenderTierSummary(safe, medium, risky TierStats, showAll bool) string {
+	var sb strings.Builder
+
+	// Safe tier
+	sb.WriteString(fmt.Sprintf("%sSAFE%s: %d packages (%s)",
+		colorGreen, colorReset, safe.Count, formatSize(safe.SizeBytes)))
+
+	sb.WriteString(" \u00b7 ")
+
+	// Medium tier
+	sb.WriteString(fmt.Sprintf("%sMEDIUM%s: %d (%s)",
+		colorYellow, colorReset, medium.Count, formatSize(medium.SizeBytes)))
+
+	sb.WriteString(" \u00b7 ")
+
+	// Risky tier
+	if showAll {
+		sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (%s)",
+			colorRed, colorReset, risky.Count, formatSize(risky.SizeBytes)))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (hidden, use --all)",
+			colorRed, colorReset, risky.Count))
+	}
+
+	return sb.String()
+}
+
+// RenderReclaimableFooter renders the reclaimable space summary per tier.
+// Format: "Reclaimable: 43 MB (safe) · 186 MB (medium) · 4.2 GB (risky, hidden)"
+// When showAll is true, risky shows without "hidden".
+func RenderReclaimableFooter(safe, medium, risky TierStats, showAll bool) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("Reclaimable: %s (safe) \u00b7 %s (medium) \u00b7 %s (risky",
+		formatSize(safe.SizeBytes), formatSize(medium.SizeBytes), formatSize(risky.SizeBytes)))
+
+	if !showAll {
+		sb.WriteString(", hidden")
+	}
+
+	sb.WriteString(")")
+
+	return sb.String()
 }
