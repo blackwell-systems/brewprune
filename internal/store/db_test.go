@@ -878,6 +878,104 @@ func TestEmptyBinaryPaths(t *testing.T) {
 	}
 }
 
+func TestGetUsageEventCountSince_ExcludesProbeEvents(t *testing.T) {
+	store := newTestStore(t)
+	defer store.Close()
+
+	pkg := &brew.Package{
+		Name:        "imagemagick",
+		Version:     "7.0.0",
+		InstalledAt: time.Now(),
+		InstallType: "dependency",
+		Tap:         "homebrew/core",
+		IsCask:      false,
+		SizeBytes:   1048576,
+		HasBinary:   true,
+		BinaryPaths: []string{"/opt/homebrew/bin/Magick++-config"},
+	}
+	if err := store.InsertPackage(pkg); err != nil {
+		t.Fatalf("InsertPackage() failed: %v", err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	probeEvent := &UsageEvent{
+		Package:    "imagemagick",
+		EventType:  "probe",
+		BinaryPath: "/opt/homebrew/bin/Magick++-config",
+		Timestamp:  now,
+	}
+	if err := store.InsertUsageEvent(probeEvent); err != nil {
+		t.Fatalf("InsertUsageEvent() failed: %v", err)
+	}
+
+	count, err := store.GetUsageEventCountSince("imagemagick", now.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince() failed: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("GetUsageEventCountSince() = %d, want 0 (probe events must be excluded)", count)
+	}
+
+	execEvent := &UsageEvent{
+		Package:    "imagemagick",
+		EventType:  "exec",
+		BinaryPath: "/opt/homebrew/bin/convert",
+		Timestamp:  now,
+	}
+	if err := store.InsertUsageEvent(execEvent); err != nil {
+		t.Fatalf("InsertUsageEvent() failed: %v", err)
+	}
+
+	count, err = store.GetUsageEventCountSince("imagemagick", now.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince() failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetUsageEventCountSince() = %d, want 1 (exec events must be counted)", count)
+	}
+}
+
+func TestGetLastUsage_ExcludesProbeEvents(t *testing.T) {
+	store := newTestStore(t)
+	defer store.Close()
+
+	pkg := &brew.Package{
+		Name:        "pkg-config",
+		Version:     "0.29.2",
+		InstalledAt: time.Now(),
+		InstallType: "dependency",
+		Tap:         "homebrew/core",
+		IsCask:      false,
+		SizeBytes:   524288,
+		HasBinary:   true,
+		BinaryPaths: []string{"/opt/homebrew/bin/pkg-config"},
+	}
+	if err := store.InsertPackage(pkg); err != nil {
+		t.Fatalf("InsertPackage() failed: %v", err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+
+	probeEvent := &UsageEvent{
+		Package:    "pkg-config",
+		EventType:  "probe",
+		BinaryPath: "/opt/homebrew/bin/pkg-config",
+		Timestamp:  now,
+	}
+	if err := store.InsertUsageEvent(probeEvent); err != nil {
+		t.Fatalf("InsertUsageEvent() failed: %v", err)
+	}
+
+	last, err := store.GetLastUsage("pkg-config")
+	if err != nil {
+		t.Fatalf("GetLastUsage() failed: %v", err)
+	}
+	if last != nil {
+		t.Errorf("GetLastUsage() = %v, want nil (probe events must be excluded)", last)
+	}
+}
+
 func TestNilBinaryPaths(t *testing.T) {
 	store := newTestStore(t)
 	defer store.Close()

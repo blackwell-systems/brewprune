@@ -147,6 +147,75 @@ func TestWriteShimOffsetAtomic_IsCrashSafe(t *testing.T) {
 	}
 }
 
+// ── ProcessUsageLog — probe events for *-config binaries ─────────────────────
+
+// TestProcessUsageLog_ConfigBinariesLoggedAsProbe verifies that shim invocations
+// whose basename matches the *-config pattern are stored with event_type='probe'
+// and do not affect GetUsageEventCountSince or GetLastUsage.
+func TestProcessUsageLog_ConfigBinariesLoggedAsProbe(t *testing.T) {
+	st := newTestStore(t)
+
+	insertPkg(t, st, "imagemagick", []string{"/opt/homebrew/bin/Magick++-config"})
+	insertPkg(t, st, "freetype", []string{"/opt/homebrew/bin/freetype-config"})
+	insertPkg(t, st, "pkg-config", []string{"/opt/homebrew/bin/pkg-config"})
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+
+	ts := int64(1709012345678901234)
+	lines := "" +
+		"1709012345678901234,/home/u/.brewprune/bin/Magick++-config\n" +
+		"1709012345678901235,/home/u/.brewprune/bin/freetype-config\n" +
+		"1709012345678901236,/home/u/.brewprune/bin/pkg-config\n" +
+		"1709012345678901237,/home/u/.brewprune/bin/git\n"
+	_ = ts
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	if err := ProcessUsageLog(st); err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	since := time.Unix(0, 0)
+
+	// *-config packages must show zero usage score events.
+	for _, pkg := range []string{"imagemagick", "freetype", "pkg-config"} {
+		count, err := st.GetUsageEventCountSince(pkg, since)
+		if err != nil {
+			t.Fatalf("GetUsageEventCountSince(%s): %v", pkg, err)
+		}
+		if count != 0 {
+			t.Errorf("GetUsageEventCountSince(%s) = %d, want 0 (probe events must be excluded)", pkg, count)
+		}
+
+		last, err := st.GetLastUsage(pkg)
+		if err != nil {
+			t.Fatalf("GetLastUsage(%s): %v", pkg, err)
+		}
+		if last != nil {
+			t.Errorf("GetLastUsage(%s) = %v, want nil (probe events must be excluded)", pkg, last)
+		}
+	}
+
+	// Regular binary must still show one usage event.
+	count, err := st.GetUsageEventCountSince("git", since)
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince(git): %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetUsageEventCountSince(git) = %d, want 1", count)
+	}
+}
+
 // ── ProcessUsageLog — no-op when log missing ─────────────────────────────────
 
 func TestProcessUsageLog_NoLogFile(t *testing.T) {
@@ -361,6 +430,32 @@ func TestOptPathFallbackToBasename(t *testing.T) {
 	}
 	if pkg != "wget" {
 		t.Errorf("resolved package = %q, want \"wget\"", pkg)
+	}
+}
+
+// ── isConfigProbe ─────────────────────────────────────────────────────────────
+
+func TestIsConfigProbe(t *testing.T) {
+	cases := []struct {
+		name  string
+		probe bool
+	}{
+		{"pkg-config", true},
+		{"freetype-config", true},
+		{"Magick++-config", true},
+		{"ImageMagick-config", true},
+		{"git", false},
+		{"rg", false},
+		{"node", false},
+		{"config", false},
+		{"myconfig", false},
+	}
+
+	for _, tc := range cases {
+		got := isConfigProbe(tc.name)
+		if got != tc.probe {
+			t.Errorf("isConfigProbe(%q) = %v, want %v", tc.name, got, tc.probe)
+		}
 	}
 }
 

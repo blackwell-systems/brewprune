@@ -327,7 +327,7 @@ func (s *Store) GetLastUsage(pkg string) (*time.Time, error) {
 	query := `
 		SELECT timestamp
 		FROM usage_events
-		WHERE package = ?
+		WHERE package = ? AND event_type != 'probe'
 		ORDER BY timestamp DESC
 		LIMIT 1
 	`
@@ -533,7 +533,7 @@ func (s *Store) GetEventCount() (int, error) {
 func (s *Store) GetUsageEventCountSince(pkg string, since time.Time) (int, error) {
 	var count int
 	err := s.db.QueryRow(
-		"SELECT COUNT(*) FROM usage_events WHERE package = ? AND timestamp >= ?",
+		"SELECT COUNT(*) FROM usage_events WHERE package = ? AND timestamp >= ? AND event_type != 'probe'",
 		pkg, since.Format(time.RFC3339),
 	).Scan(&count)
 	if err != nil {

@@ -154,7 +154,11 @@ func ProcessUsageLog(st *store.Store) error {
 	defer stmt.Close()
 
 	for _, e := range events {
-		if _, err := stmt.Exec(e.pkg, "exec", e.binaryPath, e.timestamp.Format("2006-01-02T15:04:05Z07:00")); err != nil {
+		eventType := "exec"
+		if isConfigProbe(filepath.Base(e.binaryPath)) {
+			eventType = "probe"
+		}
+		if _, err := stmt.Exec(e.pkg, eventType, e.binaryPath, e.timestamp.Format("2006-01-02T15:04:05Z07:00")); err != nil {
 			tx.Rollback() //nolint:errcheck
 			return fmt.Errorf("shim_processor: insert event for %s: %w", e.pkg, err)
 		}
@@ -255,6 +259,13 @@ func readShimOffset(offsetPath string) (int64, error) {
 		return 0, fmt.Errorf("parse offset %q: %w", s, err)
 	}
 	return offset, nil
+}
+
+// isConfigProbe reports whether name is a build-system compiler-flag probe
+// binary (e.g. "pkg-config", "freetype-config", "Magick++-config").
+// These are invoked automatically by build systems and must not affect usage scores.
+func isConfigProbe(name string) bool {
+	return name == "pkg-config" || strings.HasSuffix(name, "-config")
 }
 
 // writeShimOffsetAtomic writes newOffset to offsetPath via a temp-file rename,

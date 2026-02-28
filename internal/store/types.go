@@ -23,7 +23,7 @@ type SnapshotPackage struct {
 // UsageEvent records when a package binary was executed.
 type UsageEvent struct {
 	Package    string
-	EventType  string // "exec" or "app_launch"
+	EventType  string // "exec", "app_launch", or "probe"
 	BinaryPath string
 	Timestamp  time.Time
 }
