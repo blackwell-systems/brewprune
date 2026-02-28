@@ -381,18 +381,17 @@ func runRefreshShims(db *store.Store) error {
 	return nil
 }
 
-// generateAliasShims reads ~/.brewprune/aliases, creates a shim symlink for
-// each declared alias, and augments the target package's BinaryPaths in the
+// generateAliasShims reads the XDG config aliases file, creates a shim symlink
+// for each declared alias, and augments the target package's BinaryPaths in the
 // database so the shim processor can resolve the alias name to the canonical
 // package. Returns the number of new symlinks created.
 func generateAliasShims(db *store.Store) (int, error) {
-	home, err := os.UserHomeDir()
+	cfgDir, err := config.Dir()
 	if err != nil {
-		return 0, fmt.Errorf("cannot determine home directory: %w", err)
+		return 0, fmt.Errorf("cannot determine config directory: %w", err)
 	}
 
-	aliasDir := filepath.Join(home, ".brewprune")
-	aliasCfg, err := config.LoadAliases(aliasDir)
+	aliasCfg, err := config.LoadAliases(cfgDir)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load alias config: %w", err)
 	}

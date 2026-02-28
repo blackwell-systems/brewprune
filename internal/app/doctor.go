@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blackwell-systems/brewprune/internal/config"
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
@@ -175,11 +176,11 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Tip: alias config file
-	if shimDirErr == nil {
-		aliasFile := filepath.Join(filepath.Dir(shimDir), "aliases")
+	if cfgDir, err := config.Dir(); err == nil {
+		aliasFile := filepath.Join(cfgDir, "aliases")
 		if _, err := os.Stat(aliasFile); os.IsNotExist(err) {
 			fmt.Println()
-			fmt.Println("Tip: Create ~/.brewprune/aliases to declare alias mappings and improve tracking coverage.")
+			fmt.Println("Tip: Create ~/.config/brewprune/aliases to declare alias mappings and improve tracking coverage.")
 			fmt.Println("     Example: ll=eza")
 			fmt.Println("     See 'brewprune help' for details.")
 		}

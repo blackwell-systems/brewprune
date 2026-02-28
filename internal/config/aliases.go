@@ -8,6 +8,20 @@ import (
 	"strings"
 )
 
+// Dir returns the brewprune config directory, respecting XDG_CONFIG_HOME.
+// Defaults to ~/.config/brewprune if XDG_CONFIG_HOME is not set.
+func Dir() (string, error) {
+	base := os.Getenv("XDG_CONFIG_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, ".config")
+	}
+	return filepath.Join(base, "brewprune"), nil
+}
+
 // AliasConfig holds the alias-to-package mappings declared by the user.
 // Each key is the alias name (as invoked on the command line) and the value
 // is the canonical Homebrew package name whose usage counter should be updated.
