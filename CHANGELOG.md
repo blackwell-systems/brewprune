@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-02-28
+
 ### Fixed
 - **PATH messaging consistency** (Cold-Start Audit Round 5) — `status`, `doctor`, and `quickstart` commands now use consistent three-state messaging: "PATH active ✓" (in current session), "PATH configured (restart shell to activate)" (written to profile but not sourced), or "PATH missing ⚠" (not configured). Previously contradictory messages appeared when PATH was configured but not yet active.
 - **`doctor --fix` flag advertised but not implemented** — removed mention of `--fix` flag from help text (flag doesn't exist)
 - **`quickstart` success message misleading when PATH not active** — now qualifies the success message based on actual PATH status: "Tracking verified" (PATH active), "Self-test passed (tracking will work after shell restart)" (PATH configured but not sourced), or "Self-test passed (run brewprune doctor to check PATH)" (PATH missing)
 
-### Fixed (Earlier)
+### Fixed (Earlier Unreleased)
 - **Usage scoring was inverted** — packages used today scored 40/40 removal points and appeared as safe-to-remove. Inverted the mapping: recently-used (≤7d) → 0 pts, never-used → 40 pts. Packages now score high only when there is genuine evidence they can be removed.
 - **`explain <package>` double-printed not-found error** and exited 0 on failure; now exits 1 with a single error message
 - **`explain` missing-arg error** was cryptic; improved to a clear usage hint
@@ -225,7 +227,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/blackwell-systems/brewprune/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/blackwell-systems/brewprune/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/blackwell-systems/brewprune/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/blackwell-systems/brewprune/compare/v0.1.5...v0.2.0
