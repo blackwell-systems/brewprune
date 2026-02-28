@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -170,6 +171,17 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				fmt.Println("  Action: Run 'brewprune quickstart' to configure PATH")
 				warningIssues++
 			}
+		}
+	}
+
+	// Tip: alias config file
+	if shimDirErr == nil {
+		aliasFile := filepath.Join(filepath.Dir(shimDir), "aliases")
+		if _, err := os.Stat(aliasFile); os.IsNotExist(err) {
+			fmt.Println()
+			fmt.Println("Tip: Create ~/.brewprune/aliases to declare alias mappings and improve tracking coverage.")
+			fmt.Println("     Example: ll=eza")
+			fmt.Println("     See 'brewprune help' for details.")
 		}
 	}
 

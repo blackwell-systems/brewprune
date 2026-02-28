@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/blackwell-systems/brewprune/internal/brew"
+	"github.com/blackwell-systems/brewprune/internal/config"
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/scanner"
 	"github.com/blackwell-systems/brewprune/internal/shim"
@@ -240,6 +241,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 			var shimErr error
 			shimCount, shimErr = shim.GenerateShims(allBinaries)
+			if shimErr == nil {
+				// Generate alias shims from ~/.brewprune/aliases.
+				aliasCount, aliasErr := generateAliasShims(db)
+				if aliasErr != nil && !scanQuiet {
+					fmt.Printf("⚠ Alias shim generation incomplete: %v\n", aliasErr)
+				} else {
+					shimCount += aliasCount
+				}
+			}
 			if !scanQuiet {
 				if shimErr != nil {
 					if isTTY {
@@ -369,6 +379,91 @@ func runRefreshShims(db *store.Store) error {
 	}
 
 	return nil
+}
+
+// generateAliasShims reads ~/.brewprune/aliases, creates a shim symlink for
+// each declared alias, and augments the target package's BinaryPaths in the
+// database so the shim processor can resolve the alias name to the canonical
+// package. Returns the number of new symlinks created.
+func generateAliasShims(db *store.Store) (int, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0, fmt.Errorf("cannot determine home directory: %w", err)
+	}
+
+	aliasDir := filepath.Join(home, ".brewprune")
+	aliasCfg, err := config.LoadAliases(aliasDir)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load alias config: %w", err)
+	}
+
+	if len(aliasCfg.Aliases) == 0 {
+		return 0, nil
+	}
+
+	shimDir, err := shim.GetShimDir()
+	if err != nil {
+		return 0, fmt.Errorf("cannot get shim dir: %w", err)
+	}
+
+	shimBinary := filepath.Join(shimDir, "brewprune-shim")
+	if _, err := os.Stat(shimBinary); os.IsNotExist(err) {
+		return 0, fmt.Errorf(
+			"shim binary not found at %s; run 'brewprune scan' first to build it",
+			shimBinary,
+		)
+	}
+
+	count := 0
+	for alias, pkgName := range aliasCfg.Aliases {
+		symlinkPath := filepath.Join(shimDir, alias)
+
+		// Skip if already correctly shimmed.
+		if existing, err := os.Readlink(symlinkPath); err == nil && existing == shimBinary {
+			// Ensure the alias path is registered in the package's BinaryPaths.
+			registerAliasBinaryPath(db, alias, pkgName)
+			continue
+		}
+
+		// Remove stale symlink or file if present.
+		os.Remove(symlinkPath)
+
+		if err := os.Symlink(shimBinary, symlinkPath); err != nil {
+			return count, fmt.Errorf("failed to create alias shim for %s: %w", alias, err)
+		}
+		count++
+
+		// Register the alias in the package's BinaryPaths so the shim processor
+		// can resolve the alias basename to the canonical package name.
+		registerAliasBinaryPath(db, alias, pkgName)
+	}
+
+	return count, nil
+}
+
+// registerAliasBinaryPath adds a virtual binary path entry (using the Homebrew
+// opt prefix) for the given alias to the named package in the database. This
+// ensures the shim processor's basename lookup resolves alias → package.
+// Errors are silently ignored: alias tracking degrades gracefully if the
+// target package is not yet scanned.
+func registerAliasBinaryPath(db *store.Store, alias, pkgName string) {
+	pkg, err := db.GetPackage(pkgName)
+	if err != nil {
+		return // Package not scanned yet — skip silently.
+	}
+
+	// Virtual path used only for basename resolution by the shim processor.
+	virtualPath := filepath.Join("/opt/homebrew/bin", alias)
+
+	// Avoid adding duplicates.
+	for _, p := range pkg.BinaryPaths {
+		if p == virtualPath {
+			return
+		}
+	}
+
+	pkg.BinaryPaths = append(pkg.BinaryPaths, virtualPath)
+	db.InsertPackage(pkg) //nolint:errcheck — best-effort
 }
 
 // detectChanges compares two package lists and returns true if there are any
