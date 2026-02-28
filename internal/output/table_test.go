@@ -578,8 +578,8 @@ func TestRenderConfidenceTable_CaskDisplay(t *testing.T) {
 }
 
 func TestRenderTierSummary_ShowAll(t *testing.T) {
-	safe := TierStats{Count: 5, SizeBytes: 45088768}    // ~43 MB
-	medium := TierStats{Count: 19, SizeBytes: 195035136} // ~186 MB
+	safe := TierStats{Count: 5, SizeBytes: 45088768}      // ~43 MB
+	medium := TierStats{Count: 19, SizeBytes: 195035136}  // ~186 MB
 	risky := TierStats{Count: 143, SizeBytes: 4509715456} // ~4.2 GB
 
 	result := RenderTierSummary(safe, medium, risky, true)
