@@ -646,7 +646,7 @@ func TestListSnapshots(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InsertSnapshot() failed: %v", err)
 		}
-		ids = append(ids, id)
+		ids = append(ids, id) //nolint:staticcheck
 	}
 
 	// List snapshots

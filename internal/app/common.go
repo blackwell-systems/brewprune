@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 // getSnapshotDir returns the directory for snapshot storage.
@@ -23,11 +22,6 @@ func getSnapshotDir() string {
 	}
 
 	return snapshotDir
-}
-
-// getNeverTime returns a zero time value representing "never used".
-func getNeverTime() time.Time {
-	return time.Time{}
 }
 
 // formatSize converts bytes to human-readable size.

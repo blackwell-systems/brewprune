@@ -158,7 +158,7 @@ func TestRootCommandHelp(t *testing.T) {
 
 	// Help command returns an error in cobra, but it's expected
 	// We just want to make sure it doesn't panic
-	if err != nil && !strings.Contains(err.Error(), "unknown command") {
+	if err != nil && !strings.Contains(err.Error(), "unknown command") { //nolint:staticcheck
 		// Any error other than "unknown command" is acceptable for help
 		// The help text will have been printed
 	}

@@ -306,7 +306,7 @@ func TestRunUnused_CasksNoCasksInstalledMessage(t *testing.T) {
 	if len(scores) == 0 && unusedCasksFlag {
 		if caskCount == 0 {
 			t.Error("expected non-zero caskCount path but got caskCount=0 path")
-		} else {
+		} else { //nolint:staticcheck
 			// correct path: "No casks match the specified criteria (3 cask(s) installed)."
 		}
 	}

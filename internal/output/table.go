@@ -57,8 +57,8 @@ func RenderPackageTable(packages []*brew.Package) string {
 	var sb strings.Builder
 
 	// Header — Version column removed (pkg.Version is never populated from Homebrew metadata)
-	sb.WriteString(fmt.Sprintf("%-20s %-8s %-13s %-13s\n",
-		"Package", "Size", "Installed", "Last Used"))
+	fmt.Fprintf(&sb, "%-20s %-8s %-13s %-13s\n",
+		"Package", "Size", "Installed", "Last Used")
 	sb.WriteString(strings.Repeat("─", 60))
 	sb.WriteString("\n")
 
@@ -68,23 +68,14 @@ func RenderPackageTable(packages []*brew.Package) string {
 		installed := formatRelativeTime(pkg.InstalledAt)
 		lastUsed := "never" // Default, will be overridden by analyzer data
 
-		sb.WriteString(fmt.Sprintf("%-20s %-8s %-13s %-13s\n",
+		fmt.Fprintf(&sb, "%-20s %-8s %-13s %-13s\n",
 			truncate(pkg.Name, 20),
 			size,
 			installed,
-			lastUsed))
+			lastUsed)
 	}
 
 	return sb.String()
-}
-
-// colorize wraps text in the given ANSI color code if color is enabled,
-// otherwise returns the plain text.
-func colorize(color, text string) string {
-	if IsColorEnabled() {
-		return color + text + colorReset
-	}
-	return text
 }
 
 // RenderConfidenceTable renders a table of packages with confidence scores.
@@ -98,8 +89,8 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
-		"Package", "Size", "Score", "Uses (7d)", "Last Used", "Depended On", "Status"))
+	fmt.Fprintf(&sb, "%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
+		"Package", "Size", "Score", "Uses (7d)", "Last Used", "Depended On", "Status")
 	sb.WriteString(strings.Repeat("─", 88))
 	sb.WriteString("\n")
 
@@ -125,7 +116,7 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 		}
 
 		if IsColorEnabled() {
-			sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s%s%s\n",
+			fmt.Fprintf(&sb, "%-16s %-8s %-7s %-10s %-16s %-13s %s%s%s\n",
 				truncate(score.Package, 16),
 				size,
 				scoreStr,
@@ -134,16 +125,16 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 				depStr,
 				tierColor,
 				tierLabel,
-				colorReset))
+				colorReset)
 		} else {
-			sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
+			fmt.Fprintf(&sb, "%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
 				truncate(score.Package, 16),
 				size,
 				scoreStr,
 				usesStr,
 				lastUsed,
 				depStr,
-				tierLabel))
+				tierLabel)
 		}
 	}
 
@@ -212,19 +203,19 @@ func RenderConfidenceTableVerbose(scores []VerboseScore) string {
 		// Header line
 		tierStr := formatTier(score.Tier)
 		tierColor := getTierColor(score.Tier)
-		sb.WriteString(fmt.Sprintf("Package: %s\n", score.Package))
+		fmt.Fprintf(&sb, "Package: %s\n", score.Package)
 		if IsColorEnabled() {
-			sb.WriteString(fmt.Sprintf("Score:   %s%d%s (%s)\n", tierColor, score.Score, colorReset, tierStr))
+			fmt.Fprintf(&sb, "Score:   %s%d%s (%s)\n", tierColor, score.Score, colorReset, tierStr)
 		} else {
-			sb.WriteString(fmt.Sprintf("Score:   %d (%s)\n", score.Score, tierStr))
+			fmt.Fprintf(&sb, "Score:   %d (%s)\n", score.Score, tierStr)
 		}
 
 		// Breakdown section
 		sb.WriteString("\nBreakdown:\n")
-		sb.WriteString(fmt.Sprintf("  Usage:        %2d/40 pts - %s\n", score.UsageScore, score.Explanation.UsageDetail))
-		sb.WriteString(fmt.Sprintf("  Dependencies: %2d/30 pts - %s\n", score.DepsScore, score.Explanation.DepsDetail))
-		sb.WriteString(fmt.Sprintf("  Age:          %2d/20 pts - %s\n", score.AgeScore, score.Explanation.AgeDetail))
-		sb.WriteString(fmt.Sprintf("  Type:         %2d/10 pts - %s\n", score.TypeScore, score.Explanation.TypeDetail))
+		fmt.Fprintf(&sb, "  Usage:        %2d/40 pts - %s\n", score.UsageScore, score.Explanation.UsageDetail)
+		fmt.Fprintf(&sb, "  Dependencies: %2d/30 pts - %s\n", score.DepsScore, score.Explanation.DepsDetail)
+		fmt.Fprintf(&sb, "  Age:          %2d/20 pts - %s\n", score.AgeScore, score.Explanation.AgeDetail)
+		fmt.Fprintf(&sb, "  Type:         %2d/10 pts - %s\n", score.TypeScore, score.Explanation.TypeDetail)
 
 		if score.IsCritical {
 			sb.WriteString("  Critical:     YES      - capped at 70 (core system dependency)\n")
@@ -271,8 +262,8 @@ func RenderUsageTable(stats map[string]UsageStats) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%-20s %-10s %-13s %-13s %s\n",
-		"Package", "Total Runs", "Last Used", "Frequency", "Trend"))
+	fmt.Fprintf(&sb, "%-20s %-10s %-13s %-13s %s\n",
+		"Package", "Total Runs", "Last Used", "Frequency", "Trend")
 	sb.WriteString(strings.Repeat("─", 80))
 	sb.WriteString("\n")
 
@@ -281,12 +272,12 @@ func RenderUsageTable(stats map[string]UsageStats) string {
 		lastUsed := formatRelativeTime(e.stats.LastUsed)
 		trend := formatTrend(e.stats.Trend)
 
-		sb.WriteString(fmt.Sprintf("%-20s %-10d %-13s %-13s %s\n",
+		fmt.Fprintf(&sb, "%-20s %-10d %-13s %-13s %s\n",
 			truncate(e.pkg, 20),
 			e.stats.TotalRuns,
 			lastUsed,
 			e.stats.Frequency,
-			trend))
+			trend)
 	}
 
 	return sb.String()
@@ -308,8 +299,8 @@ func RenderSnapshotTable(snapshots []*store.Snapshot) string {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%-5s %-17s %-10s %s\n",
-		"ID", "Created", "Packages", "Reason"))
+	fmt.Fprintf(&sb, "%-5s %-17s %-10s %s\n",
+		"ID", "Created", "Packages", "Reason")
 	sb.WriteString(strings.Repeat("─", 80))
 	sb.WriteString("\n")
 
@@ -317,11 +308,11 @@ func RenderSnapshotTable(snapshots []*store.Snapshot) string {
 	for _, snap := range sorted {
 		created := formatRelativeTime(snap.CreatedAt)
 
-		sb.WriteString(fmt.Sprintf("%-5d %-17s %-10d %s\n",
+		fmt.Fprintf(&sb, "%-5d %-17s %-10d %s\n",
 			snap.ID,
 			created,
 			snap.PackageCount,
-			truncate(snap.Reason, 40)))
+			truncate(snap.Reason, 40))
 	}
 
 	return sb.String()
@@ -480,22 +471,22 @@ func RenderTierSummary(safe, medium, risky TierStats, showAll bool, caskCount in
 
 	// Safe tier
 	if IsColorEnabled() {
-		sb.WriteString(fmt.Sprintf("%sSAFE%s: %d packages (%s)",
-			colorGreen, colorReset, safe.Count, formatSize(safe.SizeBytes)))
+		fmt.Fprintf(&sb, "%sSAFE%s: %d packages (%s)",
+			colorGreen, colorReset, safe.Count, formatSize(safe.SizeBytes))
 	} else {
-		sb.WriteString(fmt.Sprintf("SAFE: %d packages (%s)",
-			safe.Count, formatSize(safe.SizeBytes)))
+		fmt.Fprintf(&sb, "SAFE: %d packages (%s)",
+			safe.Count, formatSize(safe.SizeBytes))
 	}
 
 	sb.WriteString(" \u00b7 ")
 
 	// Medium tier
 	if IsColorEnabled() {
-		sb.WriteString(fmt.Sprintf("%sMEDIUM%s: %d (%s)",
-			colorYellow, colorReset, medium.Count, formatSize(medium.SizeBytes)))
+		fmt.Fprintf(&sb, "%sMEDIUM%s: %d (%s)",
+			colorYellow, colorReset, medium.Count, formatSize(medium.SizeBytes))
 	} else {
-		sb.WriteString(fmt.Sprintf("MEDIUM: %d (%s)",
-			medium.Count, formatSize(medium.SizeBytes)))
+		fmt.Fprintf(&sb, "MEDIUM: %d (%s)",
+			medium.Count, formatSize(medium.SizeBytes))
 	}
 
 	sb.WriteString(" \u00b7 ")
@@ -503,24 +494,24 @@ func RenderTierSummary(safe, medium, risky TierStats, showAll bool, caskCount in
 	// Risky tier
 	if showAll {
 		if IsColorEnabled() {
-			sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (%s)",
-				colorRed, colorReset, risky.Count, formatSize(risky.SizeBytes)))
+			fmt.Fprintf(&sb, "%sRISKY%s: %d (%s)",
+				colorRed, colorReset, risky.Count, formatSize(risky.SizeBytes))
 		} else {
-			sb.WriteString(fmt.Sprintf("RISKY: %d (%s)",
-				risky.Count, formatSize(risky.SizeBytes)))
+			fmt.Fprintf(&sb, "RISKY: %d (%s)",
+				risky.Count, formatSize(risky.SizeBytes))
 		}
 	} else {
 		if IsColorEnabled() {
-			sb.WriteString(fmt.Sprintf("%sRISKY%s: %d (hidden, use --all)",
-				colorRed, colorReset, risky.Count))
+			fmt.Fprintf(&sb, "%sRISKY%s: %d (hidden, use --all)",
+				colorRed, colorReset, risky.Count)
 		} else {
-			sb.WriteString(fmt.Sprintf("RISKY: %d (hidden, use --all)",
-				risky.Count))
+			fmt.Fprintf(&sb, "RISKY: %d (hidden, use --all)",
+				risky.Count)
 		}
 	}
 
 	if caskCount > 0 {
-		sb.WriteString(fmt.Sprintf(" \u00b7 %d casks (not tracked)", caskCount))
+		fmt.Fprintf(&sb, " \u00b7 %d casks (not tracked)", caskCount)
 	}
 
 	return sb.String()
@@ -532,8 +523,8 @@ func RenderTierSummary(safe, medium, risky TierStats, showAll bool, caskCount in
 func RenderReclaimableFooter(safe, medium, risky TierStats, showAll bool) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("Reclaimable: %s (safe) \u00b7 %s (medium) \u00b7 %s (risky",
-		formatSize(safe.SizeBytes), formatSize(medium.SizeBytes), formatSize(risky.SizeBytes)))
+	fmt.Fprintf(&sb, "Reclaimable: %s (safe) \u00b7 %s (medium) \u00b7 %s (risky",
+		formatSize(safe.SizeBytes), formatSize(medium.SizeBytes), formatSize(risky.SizeBytes))
 
 	if !showAll {
 		sb.WriteString(", hidden")

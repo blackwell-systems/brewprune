@@ -107,7 +107,7 @@ func TestWatchCommandHelp(t *testing.T) {
 	// Capture the help output
 	// The command will return an error but that's expected
 	err := watchCmd.Execute()
-	if err != nil && !strings.Contains(err.Error(), "help") {
+	if err != nil && !strings.Contains(err.Error(), "help") { //nolint:staticcheck
 		// Some error is expected when running help
 	}
 }

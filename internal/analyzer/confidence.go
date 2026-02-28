@@ -9,11 +9,11 @@ import (
 
 // ComputeScore calculates the confidence score for removing a package.
 // Score components:
-// - Usage (40 points): Last 7d=0, 30d=10, 90d=20, 1yr=30, never=40
-//   0 = recently used (keep), 40 = never used (safe to remove)
-// - Dependencies (30 points): No deps=30, 1-3 unused=20, 1-3 used=10, 4+=0
-// - Age (20 points): >180d=20, >90d=15, >30d=10, <30d=0
-// - Type (10 points): Leaf with bins=10, lib no bins=5, core=0
+//   - Usage (40 points): Last 7d=0, 30d=10, 90d=20, 1yr=30, never=40
+//     0 = recently used (keep), 40 = never used (safe to remove)
+//   - Dependencies (30 points): No deps=30, 1-3 unused=20, 1-3 used=10, 4+=0
+//   - Age (20 points): >180d=20, >90d=15, >30d=10, <30d=0
+//   - Type (10 points): Leaf with bins=10, lib no bins=5, core=0
 func (a *Analyzer) ComputeScore(pkg string) (*ConfidenceScore, error) {
 	// Get package info
 	pkgInfo, err := a.store.GetPackage(pkg)
@@ -214,11 +214,12 @@ func (a *Analyzer) generateExplanation(score *ConfidenceScore, pkg string, depen
 		explanation.UsageDetail = "never observed execution"
 	} else {
 		daysSince := int(time.Since(*lastUsed).Hours() / 24)
-		if daysSince == 0 {
+		switch daysSince {
+		case 0:
 			explanation.UsageDetail = "used today"
-		} else if daysSince == 1 {
+		case 1:
 			explanation.UsageDetail = "last used 1 day ago"
-		} else {
+		default:
 			explanation.UsageDetail = fmt.Sprintf("last used %d days ago", daysSince)
 		}
 	}
@@ -260,11 +261,12 @@ func (a *Analyzer) generateExplanation(score *ConfidenceScore, pkg string, depen
 
 	// Age detail
 	daysSince := int(time.Since(pkgInfo.InstalledAt).Hours() / 24)
-	if daysSince == 0 {
+	switch daysSince {
+	case 0:
 		explanation.AgeDetail = "installed today"
-	} else if daysSince == 1 {
+	case 1:
 		explanation.AgeDetail = "installed 1 day ago"
-	} else {
+	default:
 		explanation.AgeDetail = fmt.Sprintf("installed %d days ago", daysSince)
 	}
 

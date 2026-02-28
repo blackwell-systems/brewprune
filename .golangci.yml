@@ -1,3 +1,5 @@
+version: "2"
+
 linters:
   disable:
     - errcheck
@@ -7,18 +9,19 @@ linters:
     - staticcheck
 
 issues:
-  exclude-use-default: true
   exclude:
+    # Allow WriteString(fmt.Sprintf) pattern in output formatting
+    - "QF1012"
+    # Tagged switch suggestions are style preferences
+    - "QF1003"
     # Empty branch checks in test files are fine (testing error paths)
-    - 'SA9003.*empty branch'
-    # Deprecated filepath.HasPrefix is OK for /Applications check
-    - 'SA1019.*filepath\.HasPrefix'
-    # Unused mock functions in tests are fine
-    - 'func mock.* is unused'
-    # Allow WriteString(fmt.Sprintf) pattern
-    - 'QF1012.*Use fmt.Fprintf'
+    - "SA9003"
     # Append result not used in test is fine
-    - 'SA4010.*this result of append'
+    - "SA4010"
+    # Deprecated filepath.HasPrefix is OK for /Applications check
+    - "SA1019.*filepath\\.HasPrefix"
+    # Unused mock functions in tests are fine
+    - "func mock.* is unused"
 
 run:
   timeout: 5m
