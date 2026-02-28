@@ -478,16 +478,20 @@ After each wave completes:
 
 ## Status
 
-- [ ] Wave 1 Agent A - Doctor command improvements (4 findings)
-- [ ] Wave 1 Agent B - Unused command improvements (5 findings)
-- [ ] Wave 1 Agent C - Status PATH messages (1 finding)
-- [ ] Wave 1 Agent D - Stats command improvements (2 findings)
-- [ ] Wave 1 Agent E - Explain command improvements (2 findings)
-- [ ] Wave 1 Agent F - Remove/Undo polish (3 findings)
+- [x] Wave 1 Agent A - Doctor command improvements (4 findings) - COMPLETE (3 already done, 1 fixed)
+- [x] Wave 1 Agent B - Unused command improvements (5 findings) - COMPLETE (1 already done, 4 fixed)
+- [x] Wave 1 Agent C - Status PATH messages (1 finding) - COMPLETE (already done)
+- [x] Wave 1 Agent D - Stats command improvements (2 findings) - COMPLETE (1 already done, 1 fixed)
+- [x] Wave 1 Agent E - Explain command improvements (2 findings) - COMPLETE (2 fixed)
+- [x] Wave 1 Agent F - Remove/Undo polish (3 findings) - COMPLETE (1 already done, 2 fixed)
 - [ ] Wave 2 Agent G - Size formatting consistency (2 findings)
 - [ ] Wave 2 Agent H - Progress time estimates (1 finding)
 - [ ] Wave 2 Agent I - Confidence classification (1 finding)
 - [ ] Wave 3 Agent J - PATH idempotency tests (1 finding)
+
+**Wave 1 committed:** 6b9c86d - 17 findings resolved (7 already implemented, 10 new fixes), +1753/-150 lines across 15 files.
+
+**Post-merge integration fix:** Updated `root_test.go` expectations to match P0 behavioral changes (SilenceErrors=false, bare invocation exits 0).
 
 ---
 
