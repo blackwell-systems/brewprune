@@ -484,14 +484,18 @@ After each wave completes:
 - [x] Wave 1 Agent D - Stats command improvements (2 findings) - COMPLETE (1 already done, 1 fixed)
 - [x] Wave 1 Agent E - Explain command improvements (2 findings) - COMPLETE (2 fixed)
 - [x] Wave 1 Agent F - Remove/Undo polish (3 findings) - COMPLETE (1 already done, 2 fixed)
-- [ ] Wave 2 Agent G - Size formatting consistency (2 findings)
-- [ ] Wave 2 Agent H - Progress time estimates (1 finding)
-- [ ] Wave 2 Agent I - Confidence classification (1 finding)
+- [x] Wave 2 Agent G - Size formatting consistency (2 findings) - COMPLETE (2 fixed)
+- [x] Wave 2 Agent H - Progress time estimates (1 finding) - COMPLETE (1 fixed, API changes)
+- [x] Wave 2 Agent I - Confidence classification (1 finding) - COMPLETE (1 fixed)
 - [ ] Wave 3 Agent J - PATH idempotency tests (1 finding)
 
 **Wave 1 committed:** 6b9c86d - 17 findings resolved (7 already implemented, 10 new fixes), +1753/-150 lines across 15 files.
 
-**Post-merge integration fix:** Updated `root_test.go` expectations to match P0 behavioral changes (SilenceErrors=false, bare invocation exits 0).
+**Wave 1 post-merge fix:** Updated `root_test.go` expectations to match P0 behavioral changes (SilenceErrors=false, bare invocation exits 0).
+
+**Wave 2 committed:** feba378 - 4 findings resolved (all new fixes), +979/-17 lines across 13 files.
+
+**Wave 2 API change:** Agent H fixed Spinner design flaw (NewSpinner now requires explicit Start()), updated 13 call sites across 5 commands.
 
 ---
 
