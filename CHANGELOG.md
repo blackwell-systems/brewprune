@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-02-27
+
 ### Changed
 - **`unused` table redesigned for actionable data** — replaced opaque Score and Reason columns with Size (disk usage), Uses (7d) (shim execution count), Depended On (reverse dependency count), and a colored tier tag. Risky and critical packages now show `✗ keep` instead of a tier name. Same layout applied to `remove` confirmation table.
 - **Risky packages hidden by default** — 143+ transitive dependency packages no longer clutter the output. Use `--all` to show them. Explicit `--tier risky` still works.
@@ -154,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/blackwell-systems/brewprune/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/blackwell-systems/brewprune/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/blackwell-systems/brewprune/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/blackwell-systems/brewprune/compare/v0.1.4...v0.1.5
