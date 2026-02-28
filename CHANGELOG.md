@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **`unused` table redesigned for actionable data** — replaced opaque Score and Reason columns with Size (disk usage), Uses (7d) (shim execution count), Depended On (reverse dependency count), and a colored tier tag. Risky and critical packages now show `✗ keep` instead of a tier name. Same layout applied to `remove` confirmation table.
+- **Risky packages hidden by default** — 143+ transitive dependency packages no longer clutter the output. Use `--all` to show them. Explicit `--tier risky` still works.
+- **Casks show `n/a` for usage columns** — GUI apps can't be tracked via shims; `n/a` replaces misleading `0`/`never`.
+- **Zero deps show `—`** — em dash replaces noisy `0 packages` for cleaner display.
+- **Tier summary header** — per-tier package counts and sizes shown before the table.
+- **Reclaimable space footer** — per-tier disk space totals shown after the table.
 
 ### Added
+- **`--all` flag for `unused`** — shows all tiers including risky (hidden by default)
 - **`GetUsageEventCountSince` store query** — returns usage event count for a package within a time window (used for 7-day column)
 - **`GetReverseDependencyCount` store query** — returns number of packages depending on a given package
+- **`brewprune` added to core dependencies** — no longer recommends removing itself
 
 ## [0.2.1] - 2026-02-27
 

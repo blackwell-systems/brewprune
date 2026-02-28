@@ -245,4 +245,4 @@ After the wave completes:
 
 ### Status
 
-- [ ] Wave 1 Agent A - Rendering UX overhaul (table.go, unused.go, remove.go + tests)
+- [x] Wave 1 Agent A - Rendering UX overhaul (table.go, unused.go, remove.go + tests)
