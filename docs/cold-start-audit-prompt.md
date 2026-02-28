@@ -1,227 +1,407 @@
-You are performing a UX audit of brewprune - a tool that tracks Homebrew package
-usage and provides heuristic-scored removal recommendations with automatic snapshots
-for easy rollback. It works by installing PATH shims that log command usage, running
-a background daemon to process that log, and computing confidence scores (0-100) for
-each package based on usage patterns, dependencies, age, and type.
+# Cold-Start UX Audit Report - Round 5
+
+**Metadata:**
+- Audit Date: 2026-02-28
+- Tool Version: brewprune version dev (commit: unknown, built: unknown)
+- Container: brewprune-r5
+- Environment: Ubuntu 22.04 with Homebrew
+
+---
+
+You are performing a UX audit of **brewprune** - a tool that tracks Homebrew package usage and provides heuristic-scored removal recommendations with automatic snapshots for easy rollback.
 
 You are acting as a **new user** encountering this tool for the first time.
 
-You have access to a Docker container called `bp-audit4` with brewprune installed
-at `/home/linuxbrew/.linuxbrew/bin/brewprune` and the following packages available:
+You have access to a Docker container called `brewprune-r5` with brewprune installed and the following packages available:
 
 ```
-acl, bat, brotli, bzip2, ca-certificates, curl, cyrus-sasl, expat, fd, gettext,
-git, jq, keyutils, krb5, libedit, libevent, libgit2, libidn2, libnghttp2,
-libnghttp3, libngtcp2, libssh2, libunistring, libxcrypt, libxml2, lz4, ncurses,
-oniguruma, openldap, openssl@3, pcre2, readline, ripgrep, sqlite, tmux, utf8proc,
-util-linux, xz, zlib-ng-compat, zstd
+acl, bat, brotli, bzip2, ca-certificates, curl, cyrus-sasl, expat, fd,
+gettext, git, jq, keyutils, krb5, libedit, libevent, libgit2, libidn2,
+libnghttp2, libnghttp3, libngtcp2, libssh2, libunistring, libxcrypt,
+libxml2, lz4, ncurses, oniguruma, openldap, openssl@3, pcre2, readline,
+ripgrep, sqlite, tmux, utf8proc, util-linux, xz, zlib-ng-compat, zstd
 ```
 
-Run all commands using: `docker exec bp-audit4 <command>`
+Run all commands using: `docker exec brewprune-r5 <command>`
 
 ---
 
 ## Audit Areas
 
-### 1. Discovery
+### 1. Discovery & Help System
 
-Explore the top-level help and all subcommand help pages as a new user would.
+Test how a new user discovers brewprune's capabilities.
 
-```bash
-docker exec bp-audit4 brewprune
-docker exec bp-audit4 brewprune --help
-docker exec bp-audit4 brewprune --version
-docker exec bp-audit4 brewprune quickstart --help
-docker exec bp-audit4 brewprune scan --help
-docker exec bp-audit4 brewprune watch --help
-docker exec bp-audit4 brewprune status --help
-docker exec bp-audit4 brewprune unused --help
-docker exec bp-audit4 brewprune stats --help
-docker exec bp-audit4 brewprune explain --help
-docker exec bp-audit4 brewprune remove --help
-docker exec bp-audit4 brewprune undo --help
-docker exec bp-audit4 brewprune doctor --help
-docker exec bp-audit4 brewprune completion --help
-docker exec bp-audit4 brewprune blorp
-```
+**Commands:**
+- `docker exec brewprune-r5 brewprune --help`
+- `docker exec brewprune-r5 brewprune --version`
+- `docker exec brewprune-r5 brewprune -v`
+- `docker exec brewprune-r5 brewprune help`
+- `docker exec brewprune-r5 brewprune`
+- `docker exec brewprune-r5 brewprune completion --help`
+- `docker exec brewprune-r5 brewprune doctor --help`
+- `docker exec brewprune-r5 brewprune explain --help`
+- `docker exec brewprune-r5 brewprune quickstart --help`
+- `docker exec brewprune-r5 brewprune remove --help`
+- `docker exec brewprune-r5 brewprune scan --help`
+- `docker exec brewprune-r5 brewprune stats --help`
+- `docker exec brewprune-r5 brewprune status --help`
+- `docker exec brewprune-r5 brewprune undo --help`
+- `docker exec brewprune-r5 brewprune unused --help`
+- `docker exec brewprune-r5 brewprune watch --help`
 
-Check exit codes:
-```bash
-docker exec bp-audit4 sh -c 'brewprune; echo "Exit code: $?"'
-docker exec bp-audit4 sh -c 'brewprune blorp; echo "Exit code: $?"'
-```
-
-### 2. Setup / Onboarding
-
-Run the quickstart command and observe the setup workflow:
-
-```bash
-docker exec bp-audit4 brewprune quickstart
-```
-
-After quickstart, check the status:
-
-```bash
-docker exec bp-audit4 brewprune status
-```
-
-Then run diagnostics:
-
-```bash
-docker exec bp-audit4 brewprune doctor
-docker exec bp-audit4 brewprune doctor --fix
-```
-
-Check PATH detection:
-
-```bash
-docker exec bp-audit4 sh -c 'echo $PATH'
-docker exec bp-audit4 sh -c 'grep brewprune ~/.bashrc ~/.bash_profile ~/.zshrc ~/.profile 2>/dev/null || echo "Not found in shell configs"'
-```
-
-### 3. Core Feature: Unused Package Detection
-
-Explore the primary feature - finding unused packages:
-
-```bash
-docker exec bp-audit4 brewprune unused
-docker exec bp-audit4 brewprune unused --verbose
-docker exec bp-audit4 brewprune unused --all
-docker exec bp-audit4 brewprune unused --tier safe
-docker exec bp-audit4 brewprune unused --tier medium
-docker exec bp-audit4 brewprune unused --tier risky
-docker exec bp-audit4 brewprune unused --tier invalid
-docker exec bp-audit4 brewprune unused --min-score 70
-docker exec bp-audit4 brewprune unused --min-score 70 --all
-docker exec bp-audit4 brewprune unused --min-score 0
-docker exec bp-audit4 brewprune unused --tier safe --min-score 90
-```
-
-### 4. Data / Tracking
-
-Test the usage tracking system:
-
-```bash
-docker exec bp-audit4 brewprune status
-docker exec bp-audit4 brewprune watch --daemon
-docker exec bp-audit4 sh -c 'sleep 2 && brewprune status'
-docker exec bp-audit4 sh -c 'git --version && jq --version && fd --version'
-docker exec bp-audit4 sh -c 'sleep 35 && brewprune status'
-docker exec bp-audit4 brewprune scan
-docker exec bp-audit4 sh -c 'brewprune scan && echo "---" && brewprune scan'
-```
-
-### 5. Explanation / Detail
-
-Drill down into specific packages:
-
-```bash
-docker exec bp-audit4 brewprune explain git
-docker exec bp-audit4 brewprune explain jq
-docker exec bp-audit4 brewprune explain openssl@3
-docker exec bp-audit4 brewprune explain nonexistent-package
-docker exec bp-audit4 brewprune explain
-docker exec bp-audit4 brewprune stats
-docker exec bp-audit4 brewprune stats --package git
-docker exec bp-audit4 brewprune stats --package jq
-docker exec bp-audit4 brewprune stats --package git --days 7
-docker exec bp-audit4 brewprune stats --all
-```
-
-### 6. Diagnostics
-
-Test the diagnostic and health check features:
-
-```bash
-docker exec bp-audit4 brewprune doctor
-docker exec bp-audit4 brewprune status
-docker exec bp-audit4 sh -c 'pkill -f "brewprune watch" && sleep 1 && brewprune doctor'
-docker exec bp-audit4 sh -c 'brewprune doctor && echo "Exit code: $?"'
-```
-
-### 7. Destructive / Write Operations
-
-Test removal operations (always with --dry-run first):
-
-```bash
-docker exec bp-audit4 brewprune remove --help
-docker exec bp-audit4 brewprune remove --tier safe --dry-run
-docker exec bp-audit4 brewprune remove --dry-run nonexistent-package
-docker exec bp-audit4 brewprune undo --list
-docker exec bp-audit4 brewprune undo latest
-docker exec bp-audit4 brewprune undo 999
-```
-
-### 8. Edge Cases
-
-Test boundary conditions and error handling:
-
-```bash
-docker exec bp-audit4 brewprune
-docker exec bp-audit4 brewprune invalid-command
-docker exec bp-audit4 brewprune --invalid-flag
-docker exec bp-audit4 brewprune unused --tier invalid-tier
-docker exec bp-audit4 brewprune explain
-docker exec bp-audit4 brewprune stats --package
-docker exec bp-audit4 brewprune remove
-docker exec bp-audit4 brewprune undo
-docker exec bp-audit4 brewprune --db /nonexistent/path.db status
-```
-
-### 9. Output Review
-
-Examine all output for:
-
-- **Table alignment**: Do columns line up? Are headers clear?
-- **Colors**: What colors are used? Are they semantic (green=good, red=bad)?
-- **Headers/footers**: Are summaries helpful? Is context provided?
-- **Terminology**: Is language consistent? Are abbreviations explained?
-- **Error messages**: Are errors actionable? Do they suggest next steps?
-- **Progress indicators**: Is long-running work indicated clearly?
-- **Empty states**: What happens when no data exists? Is it clear vs. alarming?
+**Evaluate:**
+- Is the Quick Start section clear and actionable?
+- Do help messages explain prerequisites and dependencies between commands?
+- Are examples realistic and helpful?
+- Is terminology consistent (daemon vs service, score vs confidence, etc)?
+- Are flags documented clearly?
 
 ---
 
-## Instructions
+### 2. Setup & Onboarding (First-Run Experience)
 
-1. **Run ALL commands** listed above via `docker exec bp-audit4 <command>`. Do not skip areas.
+Test the recommended path for a new user setting up brewprune.
 
-2. **Note exact output** at each step:
-   - What appears on screen (full text for errors, summaries for tables)
-   - Color usage (e.g., "package names in bold white, tiers in green/yellow/red")
-   - Exit codes for commands that should fail
-   - Table formatting and alignment
-   - Progress indicators and wait times
+**Commands (Quickstart Path):**
+- `docker exec brewprune-r5 brewprune quickstart`
+- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r5 cat ~/.brewprune/watch.log`
+- `docker exec brewprune-r5 ls -la ~/.brewprune/`
+- `docker exec brewprune-r5 brewprune doctor`
 
-3. **Act as a new user**:
-   - What's confusing or unclear?
-   - What behavior is surprising?
-   - What's missing that you'd expect?
-   - What works well and should be preserved?
+**Commands (Manual Path):**
+- `docker exec brewprune-r5 brewprune scan`
+- `docker exec brewprune-r5 brewprune watch --daemon`
+- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r5 brewprune doctor`
 
-4. **Document findings** using this format:
+**Evaluate:**
+- Does quickstart provide clear feedback at each step?
+- Are errors or warnings actionable?
+- Does status clearly show daemon is running?
+- Does doctor provide helpful diagnostics?
+- Is the PATH setup requirement clear?
+
+---
+
+### 3. Core Feature: Unused Package Discovery
+
+Test the primary value proposition - identifying unused packages.
+
+**Commands (No usage data yet):**
+- `docker exec brewprune-r5 brewprune unused`
+- `docker exec brewprune-r5 brewprune unused --all`
+- `docker exec brewprune-r5 brewprune unused --tier safe`
+- `docker exec brewprune-r5 brewprune unused --tier medium`
+- `docker exec brewprune-r5 brewprune unused --tier risky`
+- `docker exec brewprune-r5 brewprune unused --min-score 70`
+- `docker exec brewprune-r5 brewprune unused --min-score 50`
+- `docker exec brewprune-r5 brewprune unused --sort score`
+- `docker exec brewprune-r5 brewprune unused --sort size`
+- `docker exec brewprune-r5 brewprune unused --sort age`
+- `docker exec brewprune-r5 brewprune unused --casks`
+- `docker exec brewprune-r5 brewprune unused --verbose`
+- `docker exec brewprune-r5 brewprune unused --tier safe --verbose`
+
+**Evaluate:**
+- Is the output table readable and well-aligned?
+- Are column headers clear?
+- Does the tool explain when usage data is missing?
+- Are tier labels (safe/medium/risky) color-coded consistently?
+- Does --verbose add clarity or overwhelm?
+- Is the default view (no flags) appropriate for new users?
+- Does the warning banner about missing usage data appear when appropriate?
+
+---
+
+### 4. Data Collection & Tracking
+
+Test the usage tracking mechanism that feeds the scoring system.
+
+**Commands (Setup):**
+- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r5 brewprune watch --daemon`
+- `docker exec brewprune-r5 cat ~/.brewprune/watch.pid`
+- `docker exec brewprune-r5 ps aux | grep brewprune`
+
+**Commands (Generate usage):**
+- `docker exec brewprune-r5 git --version`
+- `docker exec brewprune-r5 jq --version`
+- `docker exec brewprune-r5 bat --version`
+- `docker exec brewprune-r5 fd --version`
+- `docker exec brewprune-r5 ripgrep --version`
+- `docker exec brewprune-r5 sleep 35`
+- `docker exec brewprune-r5 cat ~/.brewprune/usage.log`
+
+**Commands (Verify tracking):**
+- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r5 brewprune stats`
+- `docker exec brewprune-r5 brewprune stats --days 1`
+- `docker exec brewprune-r5 brewprune stats --package git`
+- `docker exec brewprune-r5 brewprune stats --all`
+
+**Commands (Stop daemon):**
+- `docker exec brewprune-r5 brewprune watch --stop`
+- `docker exec brewprune-r5 brewprune status`
+
+**Evaluate:**
+- Does status clearly show daemon state (running/stopped)?
+- Are usage events being recorded and visible?
+- Does stats output explain what the data means?
+- Is the 30-second polling interval explained anywhere?
+- Does watch --stop provide confirmation feedback?
+- Are error messages helpful if the daemon isn't running?
+
+---
+
+### 5. Package Explanation & Detail View
+
+Test the per-package drill-down feature.
+
+**Commands (Valid packages):**
+- `docker exec brewprune-r5 brewprune explain git`
+- `docker exec brewprune-r5 brewprune explain jq`
+- `docker exec brewprune-r5 brewprune explain bat`
+- `docker exec brewprune-r5 brewprune explain openssl@3`
+- `docker exec brewprune-r5 brewprune explain curl`
+
+**Commands (Invalid packages):**
+- `docker exec brewprune-r5 brewprune explain nonexistent-package`
+- `docker exec brewprune-r5 brewprune explain`
+- `docker exec brewprune-r5 brewprune explain --help`
+
+**Evaluate:**
+- Does explain show a clear scoring breakdown?
+- Are the score components (usage, dependencies, age, type) explained?
+- Is the reasoning actionable?
+- Are error messages helpful for invalid packages?
+- Does the output match the terminology used in unused --verbose?
+
+---
+
+### 6. Diagnostics (Doctor)
+
+Test the health check and diagnostic system.
+
+**Commands (After quickstart):**
+- `docker exec brewprune-r5 brewprune doctor`
+
+**Commands (With stopped daemon):**
+- `docker exec brewprune-r5 brewprune watch --stop`
+- `docker exec brewprune-r5 brewprune doctor`
+
+**Commands (Before any setup):**
+- `docker exec brewprune-r5 rm -rf ~/.brewprune`
+- `docker exec brewprune-r5 brewprune doctor`
+
+**Evaluate:**
+- Does doctor clearly identify issues?
+- Are recommendations actionable?
+- Does it check all critical components (DB, daemon, usage events)?
+- Is the output color-coded for pass/fail?
+- Does the --fix flag mention appear helpful or confusing?
+
+---
+
+### 7. Destructive Operations (Remove & Undo)
+
+Test package removal and rollback features with safety mechanisms.
+
+**Commands (Dry-run first):**
+- `docker exec brewprune-r5 brewprune remove --safe --dry-run`
+- `docker exec brewprune-r5 brewprune remove --medium --dry-run`
+- `docker exec brewprune-r5 brewprune remove --risky --dry-run`
+- `docker exec brewprune-r5 brewprune remove --tier safe --dry-run`
+- `docker exec brewprune-r5 brewprune remove bat fd --dry-run`
+
+**Commands (Snapshots):**
+- `docker exec brewprune-r5 brewprune undo --list`
+
+**Commands (Actual removal - if safe packages exist):**
+- `docker exec brewprune-r5 brewprune remove --safe --yes`
+- `docker exec brewprune-r5 brewprune undo --list`
+- `docker exec brewprune-r5 brewprune status`
+
+**Commands (Rollback):**
+- `docker exec brewprune-r5 brewprune undo latest`
+- `docker exec brewprune-r5 brewprune undo latest --yes`
+
+**Commands (Invalid operations):**
+- `docker exec brewprune-r5 brewprune remove nonexistent-package`
+- `docker exec brewprune-r5 brewprune remove --safe --medium`
+- `docker exec brewprune-r5 brewprune undo 999`
+- `docker exec brewprune-r5 brewprune undo`
+
+**Evaluate:**
+- Does --dry-run clearly state it's a preview?
+- Are confirmation prompts clear and safe?
+- Does snapshot creation provide feedback?
+- Is the undo process intuitive and safe?
+- Are error messages for invalid operations helpful?
+- Does --yes skip confirmations as expected?
+- Is the --no-snapshot warning sufficiently scary?
+
+---
+
+### 8. Edge Cases & Error Handling
+
+Test boundary conditions and invalid input handling.
+
+**Commands (No arguments):**
+- `docker exec brewprune-r5 brewprune`
+- `docker exec brewprune-r5 brewprune unused`
+- `docker exec brewprune-r5 brewprune stats`
+- `docker exec brewprune-r5 brewprune remove`
+- `docker exec brewprune-r5 brewprune explain`
+- `docker exec brewprune-r5 brewprune undo`
+
+**Commands (Unknown subcommands):**
+- `docker exec brewprune-r5 brewprune blorp`
+- `docker exec brewprune-r5 brewprune list`
+- `docker exec brewprune-r5 brewprune prune`
+
+**Commands (Invalid flags):**
+- `docker exec brewprune-r5 brewprune unused --invalid-flag`
+- `docker exec brewprune-r5 brewprune remove --safe --medium --risky`
+- `docker exec brewprune-r5 brewprune stats --days -1`
+- `docker exec brewprune-r5 brewprune stats --days abc`
+- `docker exec brewprune-r5 brewprune unused --tier invalid`
+- `docker exec brewprune-r5 brewprune unused --min-score 200`
+- `docker exec brewprune-r5 brewprune unused --sort invalid`
+
+**Commands (Conflicting flags):**
+- `docker exec brewprune-r5 brewprune remove --safe --tier medium`
+- `docker exec brewprune-r5 brewprune unused --tier safe --all`
+- `docker exec brewprune-r5 brewprune watch --daemon --stop`
+
+**Commands (Missing prerequisites):**
+- `docker exec brewprune-r5 rm -rf ~/.brewprune`
+- `docker exec brewprune-r5 brewprune unused`
+- `docker exec brewprune-r5 brewprune stats`
+- `docker exec brewprune-r5 brewprune remove --safe`
+
+**Evaluate:**
+- Are error messages specific and actionable?
+- Do unknown subcommands suggest valid alternatives?
+- Are invalid enum values listed with valid options?
+- Does the tool gracefully handle missing database/daemon?
+- Are validation errors shown before any destructive action?
+
+---
+
+### 9. Output Quality & Visual Design
+
+Review the overall presentation, formatting, and consistency.
+
+**Commands (Capture all output modes):**
+- `docker exec brewprune-r5 brewprune --help`
+- `docker exec brewprune-r5 brewprune unused --all`
+- `docker exec brewprune-r5 brewprune unused --tier safe --verbose`
+- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r5 brewprune stats`
+- `docker exec brewprune-r5 brewprune explain git`
+- `docker exec brewprune-r5 brewprune doctor`
+- `docker exec brewprune-r5 brewprune undo --list`
+- `docker exec brewprune-r5 brewprune remove --safe --dry-run`
+
+**Evaluate:**
+- **Tables:** Are columns aligned? Do headers stand out? Is data truncated gracefully?
+- **Colors:** Are colors used consistently? Do they enhance readability? Are tier colors intuitive (green=safe, red=risky)?
+- **Formatting:** Is bold/italic used appropriately? Are lists and bullets clear?
+- **Spacing:** Is whitespace used effectively? Are sections visually separated?
+- **Terminology:** Is language consistent across all commands (e.g., daemon vs service, score vs confidence, snapshot vs backup)?
+- **Symbols:** Are emoji/unicode characters used? Are they helpful or distracting?
+- **Headers/Footers:** Do outputs include helpful context (e.g., "Showing 10 of 40 packages")?
+- **Errors vs Warnings:** Are severity levels visually distinct?
+
+---
+
+## Instructions for Audit Execution
+
+Run **ALL** commands in sequence. Do not skip areas.
+
+For each command, note:
+1. **Exact output** (copy full text)
+2. **Exit code** (0 for success, non-zero for error)
+3. **Color usage** (e.g., "package names in bold white, tier labels in green/yellow/red")
+4. **Behavior** (e.g., "prompts for confirmation", "writes to ~/.brewprune/usage.log")
+
+Describe visual formatting precisely:
+- "Table with 4 columns: Package, Score, Tier, Last Used"
+- "Tier column shows 'safe' in green, 'medium' in yellow, 'risky' in red"
+- "Warning banner in yellow with warning symbol"
+- "Error messages prefixed with 'Error:' in red"
+
+---
+
+## Findings Format
+
+For each issue found, use this template:
 
 ### [AREA] Finding Title
+
 - **Severity**: UX-critical / UX-improvement / UX-polish
 - **What happens**: What the user actually sees
 - **Expected**: What better behavior looks like
 - **Repro**: Exact command(s)
 
-**Severity guide:**
+### Severity Guide
+
 - **UX-critical**: Broken, misleading, or completely missing behavior that blocks the user
 - **UX-improvement**: Confusing or unhelpful behavior that a user would notice and dislike
 - **UX-polish**: Minor friction, inconsistency, or missed opportunity for clarity
 
-5. **Write the complete report** to `docs/cold-start-audit.md` using the Write tool:
-   - Include a summary table at the top with counts by severity
-   - Group findings by area (Discovery, Setup, Core Feature, etc.)
-   - Include the environment details (container name, packages, date)
+---
+
+## Report Structure
+
+Your final report should include:
+
+1. **Summary Table** at the top:
+   ```
+   | Severity       | Count |
+   |----------------|-------|
+   | UX-critical    | X     |
+   | UX-improvement | Y     |
+   | UX-polish      | Z     |
+   | **Total**      | N     |
+   ```
+
+2. **Findings by Area** (one section per audit area):
+   - Area 1: Discovery & Help System
+   - Area 2: Setup & Onboarding
+   - Area 3: Core Feature
+   - Area 4: Data Collection & Tracking
+   - Area 5: Package Explanation
+   - Area 6: Diagnostics
+   - Area 7: Destructive Operations
+   - Area 8: Edge Cases
+   - Area 9: Output Quality
+
+3. **Positive Observations** (optional but encouraged):
+   - Highlight what works well
+   - Note improvements from previous rounds (if applicable)
+
+4. **Recommendations Summary** (optional):
+   - High-level themes or patterns
+   - Suggested priorities for fixes
+
+---
+
+## Final Steps
+
+Write the complete audit report to:
+
+**`/Users/dayna.blackwell/code/brewprune/docs/cold-start-audit-r5.md`**
+
+Use the **Write** tool to create this file.
 
 ---
 
 ## IMPORTANT
 
-- Run ALL commands via `docker exec bp-audit4 <command>` - never run brewprune directly on the host
+- Run ALL commands via `docker exec brewprune-r5 <command>` - never run brewprune directly on the host
 - Capture exact error messages and exit codes
 - Note timing (e.g., "took 3 seconds", "no progress indicator for 45s")
 - Be thorough - this audit drives the next round of fixes
