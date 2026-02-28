@@ -287,10 +287,10 @@ func TestDoctorHelpNoFixFlag(t *testing.T) {
 // TestDoctorPATHMessaging verifies that doctor uses three-state PATH messaging.
 func TestDoctorPATHMessaging(t *testing.T) {
 	tests := []struct {
-		name                string
-		setupFunc           func(tmpDir string) string // Returns shim dir path
-		expectedOutput      string
-		shouldHaveWarning   bool
+		name              string
+		setupFunc         func(tmpDir string) string // Returns shim dir path
+		expectedOutput    string
+		shouldHaveWarning bool
 	}{
 		{
 			name: "PATH active",
