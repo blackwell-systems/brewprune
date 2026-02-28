@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-27
+
+### Fixed
+- **Scan destroyed all usage history** — `InsertPackage` used `INSERT OR REPLACE` which deletes the existing row before inserting, triggering `ON DELETE CASCADE` on `usage_events`. Every `brewprune scan` silently wiped all collected usage data. Switched to `INSERT ... ON CONFLICT(name) DO UPDATE SET` which updates in-place without cascade deletes.
+
 ## [0.2.0] - 2026-02-27
 
 ### Added
@@ -135,7 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 12,676 lines of code (4,797 implementation + 7,879 tests)
 - 83% test coverage across all packages
 
-[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/blackwell-systems/brewprune/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/blackwell-systems/brewprune/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/blackwell-systems/brewprune/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/blackwell-systems/brewprune/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/blackwell-systems/brewprune/compare/v0.1.3...v0.1.4
