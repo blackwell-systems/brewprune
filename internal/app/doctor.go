@@ -34,27 +34,31 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println("Running brewprune diagnostics...")
 	fmt.Println()
 
-	issues := 0
+	// [DOCTOR-1] Track critical vs warning-level issues separately so we can
+	// exit with code 2 for warnings-only (no double-print) and exit 1 for
+	// critical failures.
+	criticalIssues := 0
+	warningIssues := 0
 
 	// Check 1: Database exists
 	resolvedDBPath, err := getDBPath()
 	if err != nil {
 		fmt.Println("✗ Database path error:", err)
-		issues++
+		criticalIssues++
 	} else if _, err := os.Stat(resolvedDBPath); os.IsNotExist(err) {
 		fmt.Println("✗ Database not found at:", resolvedDBPath)
 		fmt.Println("  Fix: Run 'brewprune scan' to create database")
-		issues++
+		criticalIssues++
 	} else {
 		fmt.Println("✓ Database found:", resolvedDBPath)
 	}
 
 	// Check 2: Database accessible
-	if issues == 0 {
+	if criticalIssues == 0 {
 		db, err := store.New(resolvedDBPath)
 		if err != nil {
 			fmt.Println("✗ Cannot open database:", err)
-			issues++
+			criticalIssues++
 		} else {
 			defer db.Close()
 			fmt.Println("✓ Database is accessible")
@@ -63,48 +67,49 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			packages, err := db.ListPackages()
 			if err != nil {
 				fmt.Println("✗ Cannot read packages:", err)
-				issues++
+				criticalIssues++
 			} else if len(packages) == 0 {
 				fmt.Println("✗ No packages in database")
 				fmt.Println("  Fix: Run 'brewprune scan'")
-				issues++
+				criticalIssues++
 			} else {
 				fmt.Printf("✓ %d packages tracked\n", len(packages))
 			}
 
-			// Check 4: Events recorded
+			// Check 4: Events recorded — warning only
 			var eventCount int
 			row := db.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
 			if err := row.Scan(&eventCount); err != nil {
-				fmt.Println("✗ Cannot read events:", err)
-				issues++
+				fmt.Println("⚠ Cannot read events:", err)
+				warningIssues++
 			} else if eventCount == 0 {
 				fmt.Println("⚠ No usage events recorded yet")
 				fmt.Println("  This is normal for new installations")
+				warningIssues++
 			} else {
 				fmt.Printf("✓ %d usage events recorded\n", eventCount)
 			}
 		}
 	}
 
-	// Check 5: Daemon running
+	// Check 5: Daemon running — warning only
 	pidFile, err := getDefaultPIDFile()
 	if err != nil {
-		fmt.Println("✗ Failed to get PID file path:", err)
-		issues++
+		fmt.Println("⚠ Failed to get PID file path:", err)
+		warningIssues++
 	} else if _, err := os.Stat(pidFile); os.IsNotExist(err) {
-		fmt.Println("✗ Daemon not running (no PID file)")
+		fmt.Println("⚠ Daemon not running (no PID file)")
 		fmt.Println("  Fix: Run 'brewprune watch --daemon'")
-		issues++
+		warningIssues++
 	} else {
 		running, err := watcher.IsDaemonRunning(pidFile)
 		if err != nil {
-			fmt.Println("✗ Failed to check daemon status:", err)
-			issues++
+			fmt.Println("⚠ Failed to check daemon status:", err)
+			warningIssues++
 		} else if !running {
-			fmt.Println("✗ Daemon not running (stale PID file)")
+			fmt.Println("⚠ Daemon not running (stale PID file)")
 			fmt.Println("  Fix: Run 'brewprune watch --daemon'")
-			issues++
+			warningIssues++
 		} else {
 			// Get PID if daemon is running
 			pidData, err := os.ReadFile(pidFile)
@@ -118,25 +123,25 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check 6: Shim binary exists
+	// Check 6: Shim binary exists — critical
 	shimDir, shimDirErr := shim.GetShimDir()
 	if shimDirErr != nil {
 		fmt.Println("✗ Cannot determine shim directory:", shimDirErr)
-		issues++
+		criticalIssues++
 	} else {
 		shimBin := shimDir + "/brewprune-shim"
 		if _, err := os.Stat(shimBin); os.IsNotExist(err) {
 			fmt.Println("✗ Shim binary not found — usage tracking disabled")
 			fmt.Println("  Fix: Run 'brewprune scan' to build it")
-			issues++
+			criticalIssues++
 		} else {
 			fmt.Println("✓ Shim binary found:", shimBin)
 
-			// Check 7: Shim directory in PATH
+			// Check 7: Shim directory in PATH — warning only
 			if ok, reason := shim.IsShimSetup(); !ok {
-				fmt.Println("✗ Shim directory not in PATH — executions won't be intercepted")
+				fmt.Println("⚠ Shim directory not in PATH — executions won't be intercepted")
 				fmt.Printf("  Fix: %s\n", reason)
-				issues++
+				warningIssues++
 			} else {
 				// Count symlinks in shim dir
 				entries, err := os.ReadDir(shimDir)
@@ -155,13 +160,13 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check 8: End-to-end pipeline test (only when all prior checks pass)
-	if issues == 0 {
+	// Check 8: End-to-end pipeline test (only when no critical issues)
+	if criticalIssues == 0 {
 		pipelineStart := time.Now()
 		db2, dbErr := store.New(resolvedDBPath)
 		if dbErr != nil {
 			fmt.Println("✗ Pipeline test: cannot open database:", dbErr)
-			issues++
+			criticalIssues++
 		} else {
 			defer db2.Close()
 			pipelineErr := RunShimTest(db2, 35*time.Second)
@@ -170,7 +175,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				fmt.Printf("✗ Pipeline test: fail (%v)\n", pipelineElapsed)
 				fmt.Printf("  %v\n", pipelineErr)
 				fmt.Println("  Fix: Run 'brewprune scan' to rebuild shims and restart the daemon")
-				issues++
+				criticalIssues++
 			} else {
 				fmt.Printf("✓ Pipeline test: pass (%v)\n", pipelineElapsed)
 			}
@@ -178,17 +183,24 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	if issues == 0 {
+	if criticalIssues == 0 && warningIssues == 0 {
 		fmt.Println("✓ All checks passed!")
 		fmt.Println()
 		fmt.Println("Next steps:")
 		fmt.Println("  • Wait 1-2 weeks for usage data")
 		fmt.Println("  • Check status: brewprune status")
 		fmt.Println("  • View recommendations: brewprune unused --tier safe")
-	} else {
-		fmt.Printf("Found %d issue(s). Follow the fixes above.\n", issues)
+		return nil
+	}
+
+	if criticalIssues > 0 {
+		fmt.Printf("Found %d critical issue(s) and %d warning(s).\n", criticalIssues, warningIssues)
 		return fmt.Errorf("diagnostics failed")
 	}
 
-	return nil
+	// [DOCTOR-2] Warning-only path: use os.Exit(2) so main.go's error handler
+	// is never reached, eliminating the double-print of the error message.
+	fmt.Printf("Found %d warning(s). System is functional but not fully configured.\n", warningIssues)
+	os.Exit(2)
+	return nil // unreachable; satisfies compiler
 }

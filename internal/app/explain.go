@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
@@ -20,7 +21,13 @@ Shows component scores, reasoning, and recommendations for the package.`,
 
   # Explain score for node
   brewprune explain node`,
-	Args: cobra.ExactArgs(1),
+	// [EXPLAIN-2] Custom Args validator with a friendly error message.
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("missing package name. Usage: brewprune explain <package>")
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	RunE: runExplain,
 }
 
@@ -48,9 +55,12 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	a := analyzer.New(st)
 
 	// Check if package exists
-	pkg, err := st.GetPackage(packageName)
+	// [EXPLAIN-1] Print directly to stderr and return nil so main.go's error
+	// handler is never reached, guaranteeing exactly one print.
+	_, err = st.GetPackage(packageName)
 	if err != nil {
-		return fmt.Errorf("package not found: %s\nRun 'brewprune scan' to update package database", packageName)
+		fmt.Fprintf(os.Stderr, "Error: package not found: %s\nRun 'brewprune scan' to update package database\n", packageName)
+		return nil
 	}
 
 	// Compute score
@@ -59,8 +69,16 @@ func runExplain(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to compute score: %w", err)
 	}
 
+	// We need the package install date; fetch it again (GetPackage already
+	// succeeded above so this is safe).
+	pkg, _ := st.GetPackage(packageName)
+	installedDate := ""
+	if pkg != nil {
+		installedDate = pkg.InstalledAt.Format("2006-01-02")
+	}
+
 	// Display detailed explanation
-	renderExplanation(score, pkg.InstalledAt.Format("2006-01-02"))
+	renderExplanation(score, installedDate)
 
 	return nil
 }
@@ -114,10 +132,14 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 	}
 
 	fmt.Println("├─────────────────────┼─────────┼──────────────────────────────────────┤")
-	fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%-36s%s │\n",
+	// [EXPLAIN-3] Compute padding on plain string first, then wrap with color
+	// to avoid ANSI codes inflating the fmt width count.
+	tierLabel := truncateDetail(strings.ToUpper(score.Tier)+" tier", 36)
+	paddedLabel := fmt.Sprintf("%-36s", tierLabel)
+	fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%s%s │\n",
 		colorBold, colorReset,
 		tierColor, score.Score, colorReset,
-		tierColor, truncateDetail(strings.ToUpper(score.Tier)+" tier", 36), colorReset)
+		tierColor, paddedLabel, colorReset)
 	fmt.Println("└─────────────────────┴─────────┴──────────────────────────────────────┘")
 
 	// Why this tier

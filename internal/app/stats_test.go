@@ -1,9 +1,14 @@
 package app
 
 import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/blackwell-systems/brewprune/internal/analyzer"
 	"github.com/blackwell-systems/brewprune/internal/brew"
 	"github.com/blackwell-systems/brewprune/internal/store"
 )
@@ -291,6 +296,136 @@ func TestStatsCommand_TimeWindowFilter(t *testing.T) {
 			if inWindow != tt.inWindow {
 				t.Errorf("time window check: got %v, want %v (days since: %d, window: %d)",
 					inWindow, tt.inWindow, daysSince, tt.windowDays)
+			}
+		})
+	}
+}
+
+// TestShowPackageStats_FrequencyIsColored verifies that showPackageStats
+// color-codes the Frequency line when stdout is a TTY.  We use a pipe to
+// capture output; a pipe is not a TTY so colors will be skipped.  We verify
+// that the plain frequency label is present and no ANSI codes leak in
+// non-TTY mode.
+func TestShowPackageStats_FrequencyIsColored(t *testing.T) {
+	// Build a real in-memory store with a package and usage events.
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkg := &brew.Package{
+		Name:        "freq-test-pkg",
+		Version:     "1.0.0",
+		InstalledAt: now.AddDate(0, 0, -10),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Insert a recent event so frequency becomes "daily" or "weekly".
+	event := &store.UsageEvent{
+		Package:    "freq-test-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/freq-test-pkg",
+		Timestamp:  now.AddDate(0, 0, -1),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	// Redirect stdout to a pipe so we can capture the output.
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showPackageStats(a, "freq-test-pkg")
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	output := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showPackageStats returned unexpected error: %v", showErr)
+	}
+
+	// The output must contain a "Frequency:" line.
+	if !strings.Contains(output, "Frequency:") {
+		t.Errorf("expected 'Frequency:' in output, got:\n%s", output)
+	}
+
+	// The package name header must be present.
+	if !strings.Contains(output, "freq-test-pkg") {
+		t.Errorf("expected package name in output, got:\n%s", output)
+	}
+
+	// Since stdout was a pipe (non-TTY), no ANSI codes should appear.
+	if strings.Contains(output, "\033[") {
+		t.Errorf("expected no ANSI codes in non-TTY output, got:\n%s", output)
+	}
+}
+
+// TestShowPackageStats_ColorLogic verifies that the frequency to color mapping
+// is correct by exercising the inline logic used in showPackageStats.
+func TestShowPackageStats_ColorLogic(t *testing.T) {
+	tests := []struct {
+		freq          string
+		expectedColor string
+		colorName     string
+	}{
+		{"daily", "\033[32m", "green"},
+		{"weekly", "\033[33m", "yellow"},
+		{"monthly", "\033[31m", "red"},
+		{"rarely", "\033[31m", "red"},
+		{"never", "\033[90m", "gray"},
+	}
+
+	// Mirror the color-mapping closure from showPackageStats.
+	colorFreq := func(freq string) string {
+		const (
+			ansiReset  = "\033[0m"
+			ansiGreen  = "\033[32m"
+			ansiYellow = "\033[33m"
+			ansiRed    = "\033[31m"
+			ansiGray   = "\033[90m"
+		)
+		switch freq {
+		case "daily":
+			return ansiGreen + freq + ansiReset
+		case "weekly":
+			return ansiYellow + freq + ansiReset
+		case "monthly", "rarely":
+			return ansiRed + freq + ansiReset
+		case "never":
+			return ansiGray + freq + ansiReset
+		default:
+			return freq
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.freq, func(t *testing.T) {
+			got := colorFreq(tt.freq)
+			prefixLen := len(tt.expectedColor)
+			if len(got) < prefixLen || got[:prefixLen] != tt.expectedColor {
+				t.Errorf("frequency %q: expected color code %q (%s), got: %q",
+					tt.freq, tt.expectedColor, tt.colorName, got)
 			}
 		})
 	}

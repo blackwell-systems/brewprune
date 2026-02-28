@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/blackwell-systems/brewprune/internal/output"
@@ -155,7 +157,9 @@ func startWatchDaemon(w *watcher.Watcher) error {
 	}
 
 	if running {
-		return fmt.Errorf("daemon already running (PID file: %s)", watchPIDFile)
+		pid := readPIDFromFile(watchPIDFile)
+		fmt.Printf("Daemon already running (PID %d). Nothing to do.\n", pid)
+		return nil
 	}
 
 	spinner := output.NewSpinner("Starting daemon...")
@@ -177,6 +181,19 @@ func runWatchDaemonChild(w *watcher.Watcher) error {
 	// This runs as the daemon child process
 	// It should not print to stdout/stderr as they're redirected to log file
 	return w.RunDaemon(watchPIDFile)
+}
+
+// readPIDFromFile reads and parses the PID from a PID file, returning 0 on error.
+func readPIDFromFile(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return pid
 }
 
 func runWatchForeground(w *watcher.Watcher) error {

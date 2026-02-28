@@ -81,17 +81,21 @@ func runUndo(cmd *cobra.Command, args []string) error {
 	var snapshotID int64
 	if strings.ToLower(snapshotArg) == "latest" {
 		// Get latest snapshot
-		snapshots, err := snapMgr.ListSnapshots()
-		if err != nil {
-			return fmt.Errorf("failed to list snapshots: %w", err)
+		snaps, listErr := snapMgr.ListSnapshots()
+		if listErr != nil {
+			return fmt.Errorf("failed to list snapshots: %w", listErr)
 		}
 
-		if len(snapshots) == 0 {
-			return fmt.Errorf("no snapshots available")
+		// [UNDO-1] Friendly message when no snapshots exist instead of an error.
+		if len(snaps) == 0 {
+			fmt.Println("No snapshots available.")
+			fmt.Println("\nSnapshots are automatically created before package removal.")
+			fmt.Println("Use 'brewprune remove' to remove packages and create snapshots.")
+			return nil
 		}
 
 		// Snapshots are ordered by creation time (newest first)
-		snapshotID = snapshots[0].ID
+		snapshotID = snaps[0].ID
 		fmt.Printf("Using latest snapshot: ID %d\n", snapshotID)
 	} else {
 		// Parse snapshot ID
@@ -170,12 +174,12 @@ func runUndo(cmd *cobra.Command, args []string) error {
 
 // listSnapshots displays all available snapshots.
 func listSnapshots(snapMgr *snapshots.Manager) error {
-	snapshots, err := snapMgr.ListSnapshots()
+	snaps, err := snapMgr.ListSnapshots()
 	if err != nil {
 		return fmt.Errorf("failed to list snapshots: %w", err)
 	}
 
-	if len(snapshots) == 0 {
+	if len(snaps) == 0 {
 		fmt.Println("No snapshots available.")
 		fmt.Println("\nSnapshots are automatically created before package removal.")
 		fmt.Println("Use 'brewprune remove' to remove packages and create snapshots.")
@@ -183,7 +187,7 @@ func listSnapshots(snapMgr *snapshots.Manager) error {
 	}
 
 	fmt.Printf("\nAvailable snapshots:\n\n")
-	fmt.Print(output.RenderSnapshotTable(snapshots))
+	fmt.Print(output.RenderSnapshotTable(snaps))
 
 	fmt.Printf("\nRestore with: brewprune undo <id>\n")
 

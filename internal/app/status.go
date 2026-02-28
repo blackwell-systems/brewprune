@@ -114,7 +114,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		pidSince := daemonSince(pidFile)
 		fmt.Printf(label+"running (since %s, PID %d)\n", "Tracking:", pidSince, pid)
 	} else {
-		fmt.Printf(label+"stopped  (run 'brew services start brewprune')\n", "Tracking:")
+		fmt.Printf(label+"stopped  (run 'brewprune watch --daemon')\n", "Tracking:")
 	}
 
 	// Events line

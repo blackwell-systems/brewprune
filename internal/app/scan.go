@@ -9,6 +9,7 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/scanner"
 	"github.com/blackwell-systems/brewprune/internal/shim"
 	"github.com/blackwell-systems/brewprune/internal/store"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
@@ -83,40 +84,60 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Scan packages
-	spinner := output.NewSpinner("Discovering packages...")
+	isTTY := isatty.IsTerminal(os.Stdout.Fd())
+	var spinner *output.Spinner
+	if isTTY {
+		spinner = output.NewSpinner("Discovering packages...")
+	} else {
+		fmt.Println("Discovering packages...")
+	}
 	if err := s.ScanPackages(); err != nil {
-		spinner.Stop()
+		if isTTY {
+			spinner.Stop()
+		}
 		return fmt.Errorf("failed to scan packages: %w", err)
 	}
-	spinner.StopWithMessage("✓ Packages discovered")
+	if isTTY {
+		spinner.StopWithMessage("✓ Packages discovered")
+	}
 
 	// Build dependency graph
 	if !scanQuiet {
-		spinner = output.NewSpinner("Building dependency graph...")
+		if isTTY {
+			spinner = output.NewSpinner("Building dependency graph...")
+		} else {
+			fmt.Println("Building dependency graph...")
+		}
 	}
 	depGraph, err := s.BuildDependencyGraph()
 	if err != nil {
-		if !scanQuiet {
+		if !scanQuiet && isTTY {
 			spinner.Stop()
 		}
 		return fmt.Errorf("failed to build dependency graph: %w", err)
 	}
 	if !scanQuiet {
-		spinner.StopWithMessage(fmt.Sprintf("✓ Dependency graph built (%d packages)", len(depGraph)))
+		if isTTY {
+			spinner.StopWithMessage(fmt.Sprintf("✓ Dependency graph built (%d packages)", len(depGraph)))
+		}
 	}
 
 	// Refresh binary paths if requested
 	if scanRefreshBinaries {
 		if !scanQuiet {
-			spinner = output.NewSpinner("Refreshing binary paths...")
+			if isTTY {
+				spinner = output.NewSpinner("Refreshing binary paths...")
+			} else {
+				fmt.Println("Refreshing binary paths...")
+			}
 		}
 		if err := s.RefreshBinaryPaths(); err != nil {
-			if !scanQuiet {
+			if !scanQuiet && isTTY {
 				spinner.Stop()
 			}
 			return fmt.Errorf("failed to refresh binary paths: %w", err)
 		}
-		if !scanQuiet {
+		if !scanQuiet && isTTY {
 			spinner.StopWithMessage("✓ Binary paths refreshed")
 		}
 	}
@@ -138,17 +159,27 @@ func runScan(cmd *cobra.Command, args []string) error {
 	var shimCount int
 	if scanRefreshBinaries {
 		if !scanQuiet {
-			spinner = output.NewSpinner("Building shim binary...")
+			if isTTY {
+				spinner = output.NewSpinner("Building shim binary...")
+			} else {
+				fmt.Println("Building shim binary...")
+			}
 		}
 		if err := shim.BuildShimBinary(); err != nil {
 			if !scanQuiet {
-				spinner.Stop()
+				if isTTY {
+					spinner.Stop()
+				}
 				fmt.Printf("⚠ Could not build shim binary (usage tracking unavailable): %v\n", err)
 			}
 		} else {
 			if !scanQuiet {
-				spinner.StopWithMessage("✓ Shim binary built")
-				spinner = output.NewSpinner("Generating PATH shims...")
+				if isTTY {
+					spinner.StopWithMessage("✓ Shim binary built")
+					spinner = output.NewSpinner("Generating PATH shims...")
+				} else {
+					fmt.Println("Generating PATH shims...")
+				}
 			}
 
 			var allBinaries []string
@@ -160,10 +191,27 @@ func runScan(cmd *cobra.Command, args []string) error {
 			shimCount, shimErr = shim.GenerateShims(allBinaries)
 			if !scanQuiet {
 				if shimErr != nil {
-					spinner.Stop()
+					if isTTY {
+						spinner.Stop()
+					}
 					fmt.Printf("⚠ Shim generation incomplete: %v\n", shimErr)
 				} else {
-					spinner.StopWithMessage(fmt.Sprintf("✓ %d command shims created", shimCount))
+					shimDir, shimDirErr := shim.GetShimDir()
+					var shimMsg string
+					if shimCount == 0 {
+						existing := 0
+						if shimDirErr == nil {
+							existing = countSymlinks(shimDir)
+						}
+						shimMsg = fmt.Sprintf("✓ %d shims up to date (0 new)", existing)
+					} else {
+						shimMsg = fmt.Sprintf("✓ %d command shims created", shimCount)
+					}
+					if isTTY {
+						spinner.StopWithMessage(shimMsg)
+					} else {
+						fmt.Println(shimMsg)
+					}
 				}
 			}
 		}
@@ -179,11 +227,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 				fmt.Printf("\n⚠ Usage tracking requires one more step:\n  %s\n", reason)
 				fmt.Println("  Then restart your shell and run: brewprune watch --daemon")
 			} else {
-				fmt.Println("\n⚠️  NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
+				fmt.Println("\n⚠ NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
 				fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
 			}
 		} else {
-			fmt.Println("\n⚠️  NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
+			fmt.Println("\n⚠ NEXT STEP: Start usage tracking with 'brewprune watch --daemon'")
 			fmt.Println("   Wait 1-2 weeks for meaningful recommendations.")
 		}
 		fmt.Println()

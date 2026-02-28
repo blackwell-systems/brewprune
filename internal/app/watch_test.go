@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -273,5 +275,61 @@ func TestWatchCommandLongDescription(t *testing.T) {
 		if !strings.Contains(strings.ToLower(longDesc), strings.ToLower(keyword)) {
 			t.Errorf("expected long description to mention '%s'", keyword)
 		}
+	}
+}
+
+// TestStartWatchDaemon_AlreadyRunningIsIdempotent verifies that
+// startWatchDaemon returns nil (not an error) when the daemon is already
+// running, and prints an informational message instead of failing.
+func TestStartWatchDaemon_AlreadyRunningIsIdempotent(t *testing.T) {
+	// Write the current process PID into a temp PID file.
+	// watcher.IsDaemonRunning uses kill(pid,0) to test liveness; the
+	// current test process is guaranteed to be alive.
+	tmpDir := t.TempDir()
+	pidFile := fmt.Sprintf("%s/watch.pid", tmpDir)
+	selfPID := fmt.Sprintf("%d\n", os.Getpid())
+	if err := os.WriteFile(pidFile, []byte(selfPID), 0644); err != nil {
+		t.Fatalf("failed to write PID file: %v", err)
+	}
+
+	// Override the global watchPIDFile so startWatchDaemon uses our temp file.
+	origPIDFile := watchPIDFile
+	watchPIDFile = pidFile
+	defer func() { watchPIDFile = origPIDFile }()
+
+	// Capture stdout to verify the informational message.
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+
+	// startWatchDaemon takes a *watcher.Watcher but we will not reach the
+	// w.StartDaemon call when running==true, so nil is safe.
+	gotErr := startWatchDaemon(nil)
+
+	w.Close()
+	var buf strings.Builder
+	tmp := make([]byte, 4096)
+	for {
+		n, readErr := r.Read(tmp)
+		if n > 0 {
+			buf.Write(tmp[:n])
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	os.Stdout = origStdout
+
+	output := buf.String()
+
+	if gotErr != nil {
+		t.Errorf("expected startWatchDaemon to return nil when daemon already running, got: %v", gotErr)
+	}
+
+	if !strings.Contains(output, "already running") && !strings.Contains(output, "Nothing to do") {
+		t.Errorf("expected informational 'already running' message, got: %q", output)
 	}
 }

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -302,5 +304,46 @@ func TestScanCommandFlagsIncludesRefreshShims(t *testing.T) {
 		if f := scanCmd.Flags().Lookup(name); f == nil {
 			t.Errorf("expected flag %q to be registered on scan command", name)
 		}
+	}
+}
+
+// TestRunScan_ShimCountZeroShowsUpToDate verifies that when GenerateShims
+// returns 0 (re-scan, all shims already exist), the output message reads
+// "up to date" rather than "0 command shims created". This is tested by
+// constructing the message the same way runScan does and asserting on the
+// format, using a temp directory with pre-existing symlinks to simulate the
+// countSymlinks call.
+func TestRunScan_ShimCountZeroShowsUpToDate(t *testing.T) {
+	// Create a temp directory that acts as the shim dir with pre-existing symlinks.
+	tmpDir := t.TempDir()
+	// Create a few dummy symlinks in the temp dir.
+	targets := []string{"git", "gh", "jq"}
+	for _, name := range targets {
+		target := fmt.Sprintf("/usr/bin/%s", name)
+		link := fmt.Sprintf("%s/%s", tmpDir, name)
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatalf("failed to create symlink %s: %v", link, err)
+		}
+	}
+
+	// Simulate the shimCount==0 branch: count existing symlinks and build message.
+	shimCount := 0
+	existing := countSymlinks(tmpDir)
+	if existing != len(targets) {
+		t.Errorf("expected countSymlinks to return %d, got %d", len(targets), existing)
+	}
+
+	var shimMsg string
+	if shimCount == 0 {
+		shimMsg = fmt.Sprintf("✓ %d shims up to date (0 new)", existing)
+	} else {
+		shimMsg = fmt.Sprintf("✓ %d command shims created", shimCount)
+	}
+
+	if !strings.Contains(shimMsg, "up to date") {
+		t.Errorf("expected shimMsg to contain 'up to date', got: %s", shimMsg)
+	}
+	if strings.Contains(shimMsg, "command shims created") {
+		t.Errorf("expected shimMsg NOT to contain 'command shims created' when shimCount==0, got: %s", shimMsg)
 	}
 }

@@ -2,7 +2,10 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"time"
+
+	isatty "github.com/mattn/go-isatty"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
 	"github.com/blackwell-systems/brewprune/internal/output"
@@ -83,14 +86,52 @@ func runStats(cmd *cobra.Command, args []string) error {
 }
 
 // showPackageStats displays detailed statistics for a single package.
+// [STATS-2] Applies minimal styling: bold package name header, color-coded
+// frequency value. Colors are guarded by isatty.IsTerminal so non-TTY output
+// (pipes, CI) stays plain.
 func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 	stats, err := a.GetUsageStats(pkg)
 	if err != nil {
 		return fmt.Errorf("failed to get stats for %s: %w", pkg, err)
 	}
 
-	// Display detailed stats
-	fmt.Printf("Package: %s\n", stats.Package)
+	// Inline ANSI constants — no shared file dependency.
+	const (
+		ansiReset  = "\033[0m"
+		ansiBold   = "\033[1m"
+		ansiGreen  = "\033[32m"
+		ansiYellow = "\033[33m"
+		ansiRed    = "\033[31m"
+		ansiGray   = "\033[90m"
+	)
+
+	useColors := isatty.IsTerminal(os.Stdout.Fd())
+
+	bold := func(s string) string {
+		if useColors {
+			return ansiBold + s + ansiReset
+		}
+		return s
+	}
+	colorFreq := func(freq string) string {
+		if !useColors {
+			return freq
+		}
+		switch freq {
+		case "daily":
+			return ansiGreen + freq + ansiReset
+		case "weekly":
+			return ansiYellow + freq + ansiReset
+		case "monthly", "rarely":
+			return ansiRed + freq + ansiReset
+		case "never":
+			return ansiGray + freq + ansiReset
+		default:
+			return freq
+		}
+	}
+
+	fmt.Printf("Package: %s\n", bold(stats.Package))
 	fmt.Printf("Total Uses: %d\n", stats.TotalUses)
 
 	if stats.LastUsed != nil {
@@ -102,12 +143,15 @@ func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 	}
 
 	fmt.Printf("First Seen: %s\n", formatTime(stats.FirstSeen))
-	fmt.Printf("Frequency: %s\n", stats.Frequency)
+	fmt.Printf("Frequency: %s\n", colorFreq(stats.Frequency))
 
 	return nil
 }
 
 // showUsageTrends displays usage trends for all packages.
+// NOTE: RenderUsageTable is expected to sort by TotalRuns desc + LastUsed desc
+// as a secondary sort. Agent C (Wave 2) will add the secondary sort by LastUsed
+// to output/table.go.
 func showUsageTrends(a *analyzer.Analyzer, days int) error {
 	trends, err := a.GetUsageTrends(days)
 	if err != nil {

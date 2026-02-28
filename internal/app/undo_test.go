@@ -1,8 +1,13 @@
 package app
 
 import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
 	"testing"
 
+	"github.com/blackwell-systems/brewprune/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -152,6 +157,64 @@ func TestUndoSnapshotIDParsing(t *testing.T) {
 			// Other inputs would be parsed as int64
 			// We just verify the test cases are reasonable
 		})
+	}
+}
+
+// TestRunUndo_LatestNoSnapshotsFriendlyMessage verifies that when
+// `brewprune undo latest` is invoked and there are no snapshots, the command
+// prints a friendly multi-line message and returns nil (no error).
+func TestRunUndo_LatestNoSnapshotsFriendlyMessage(t *testing.T) {
+	// Use a temp file DB with the full schema so ListSnapshots returns an
+	// empty slice (not an error due to missing table).
+	tmpDir := t.TempDir()
+	tmpDB := tmpDir + "/undo_test.db"
+
+	st, stErr := store.New(tmpDB)
+	if stErr != nil {
+		t.Fatalf("failed to create store: %v", stErr)
+	}
+	if schemaErr := st.CreateSchema(); schemaErr != nil {
+		st.Close()
+		t.Fatalf("failed to create schema: %v", schemaErr)
+	}
+	st.Close()
+
+	oldDBPath := dbPath
+	dbPath = tmpDB
+	defer func() { dbPath = oldDBPath }()
+
+	// Capture stdout.
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	cmd := &cobra.Command{}
+	runErr := runUndo(cmd, []string{"latest"})
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, copyErr := io.Copy(&buf, r); copyErr != nil {
+		t.Fatalf("failed to read captured output: %v", copyErr)
+	}
+	output := buf.String()
+
+	if runErr != nil {
+		t.Errorf("expected runUndo to return nil when no snapshots, got: %v", runErr)
+	}
+
+	expectedPhrases := []string{
+		"No snapshots available",
+		"brewprune remove",
+	}
+	for _, phrase := range expectedPhrases {
+		if !strings.Contains(output, phrase) {
+			t.Errorf("expected output to contain %q, got:\n%s", phrase, output)
+		}
 	}
 }
 
