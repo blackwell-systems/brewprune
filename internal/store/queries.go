@@ -3,11 +3,17 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/brew"
 )
+
+// ErrNotInitialized is returned when queries are run against a database
+// whose schema has not been created yet (i.e., before 'brewprune scan').
+var ErrNotInitialized = errors.New("database not initialized — run 'brewprune scan' to create the database")
 
 // Package operations
 
@@ -80,6 +86,9 @@ func (s *Store) GetPackage(name string) (*brew.Package, error) {
 		return nil, fmt.Errorf("package %s not found", name)
 	}
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return nil, ErrNotInitialized
+		}
 		return nil, fmt.Errorf("failed to get package %s: %w", name, err)
 	}
 
@@ -107,6 +116,9 @@ func (s *Store) ListPackages() ([]*brew.Package, error) {
 
 	rows, err := s.db.Query(query)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return nil, ErrNotInitialized
+		}
 		return nil, fmt.Errorf("failed to list packages: %w", err)
 	}
 	defer rows.Close()
@@ -286,6 +298,9 @@ func (s *Store) GetUsageEvents(pkg string, since time.Time) ([]*UsageEvent, erro
 
 	rows, err := s.db.Query(query, pkg, since.Format(time.RFC3339))
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return nil, ErrNotInitialized
+		}
 		return nil, fmt.Errorf("failed to get usage events for %s: %w", pkg, err)
 	}
 	defer rows.Close()
