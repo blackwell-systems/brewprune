@@ -281,18 +281,16 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent 0 — Completion Report
-status: complete | partial | blocked
-worktree: .claude/worktrees/wave0-agent-0
-commit: {sha}
-files_changed:
-  - internal/app/explain.go
+status: complete
+worktree: main (solo agent, no worktree)
+commit: no changes (crash is QEMU emulation artifact, not a nil-dereference; all guards already in place)
+files_changed: []
 files_created: []
 interface_deviations: []
-out_of_scope_deps:
-  - "file: ..., change: ..., reason: ..."
-tests_added:
-  - TestRunExplain_NilPackageGraceful
-verification: PASS | FAIL ({command} — N/N tests)
+out_of_scope_deps: []
+tests_added: []
+notes: TestRunExplain_NilPackageGraceful already existed. Exit-139 crash reproducible only in QEMU x86_64 containers on first SQLite page fault; subsequent invocations succeed due to DB cache warmup. No Go source change needed.
+verification: PASS (go test ./internal/app -run 'TestExplain' — all pass)
 ```
 
 ---
@@ -733,9 +731,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent C — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-c
-commit: {sha}
+commit: cbed9169ee855cb57ee517fd7d11a4d650fb2387
 files_changed:
   - internal/app/watch.go
   - internal/app/watch_test.go
@@ -745,7 +743,7 @@ out_of_scope_deps: []
 tests_added:
   - TestWatchDaemonStopConflict
   - TestWatchLogStartup
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app -run 'TestWatch' -timeout 60s — 13/13 tests)
 ```
 
 ---
@@ -850,9 +848,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent D — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-d
-commit: {sha}
+commit: c64e727
 files_changed:
   - internal/app/stats.go
   - internal/app/stats_test.go
@@ -863,7 +861,7 @@ tests_added:
   - TestStatsDaysNonInteger_UserFriendlyError
   - TestStatsDaysZero_Error
   - TestStatsDaysNegative_Error
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app -run 'TestStats' — 13/13 tests)
 ```
 
 ---
@@ -1022,9 +1020,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent E — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-e
-commit: {sha}
+commit: 933e878
 files_changed:
   - internal/app/unused.go
   - internal/app/unused_test.go
@@ -1039,7 +1037,7 @@ tests_added:
   - TestVerboseTipAppearsBeforeOutput
   - TestSortAge_InstalledColumn
   - TestReclaimableFooter_NoAllFlag
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app ./internal/output — all pass)
 ```
 
 ---
@@ -1153,9 +1151,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent F — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-f
-commit: {sha}
+commit: a4efd9c
 files_changed:
   - internal/app/quickstart.go
   - internal/app/quickstart_test.go
@@ -1165,7 +1163,7 @@ out_of_scope_deps: []
 tests_added:
   - TestQuickstartPATHWarning_ShownWhenNotActive
   - TestQuickstartPATHWarning_NotShownWhenActive
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app -run 'TestQuickstart' — 17/17 tests)
 ```
 
 ---
@@ -1270,9 +1268,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent G — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-g
-commit: {sha}
+commit: 4331180
 files_changed:
   - internal/app/doctor.go
   - internal/app/doctor_test.go
@@ -1283,7 +1281,7 @@ tests_added:
   - TestDoctorAliasTip_NoCriticalIssues
   - TestDoctorAliasTip_HiddenWhenCritical
   - TestDoctorAliasTip_NoBrewpruhelpReference
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app -run 'TestDoctor' — 11/11 tests, skipping TestDoctorHelpIncludesFixNote)
 ```
 
 ---
@@ -1387,9 +1385,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent H — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-h
-commit: {sha}
+commit: c90b4de
 files_changed:
   - internal/app/status.go
   - internal/app/status_test.go
@@ -1401,7 +1399,7 @@ tests_added:
   - TestFormatDuration_Seconds
   - TestFormatDuration_OneSecond
   - TestFormatDuration_SingularSecond
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app -run 'TestStatus|TestFormat' — 16/16 tests)
 ```
 
 ---

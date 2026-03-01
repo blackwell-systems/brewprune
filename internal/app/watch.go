@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/output"
 	"github.com/blackwell-systems/brewprune/internal/store"
@@ -84,9 +85,9 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		watchLogFile = defaultLog
 	}
 
-	// Warn when mutually exclusive flags are combined; stop takes precedence.
+	// Return an error when mutually exclusive flags are combined.
 	if watchDaemon && watchStop {
-		fmt.Fprintln(os.Stderr, "Warning: --daemon and --stop are mutually exclusive; stopping daemon.")
+		return fmt.Errorf("--daemon and --stop are mutually exclusive: use one or the other")
 	}
 
 	// Handle stop command
@@ -152,6 +153,13 @@ func stopWatchDaemon() error {
 	}
 	spinner.StopWithMessage("✓ Daemon stopped")
 
+	if watchLogFile != "" {
+		if f, err := os.OpenFile(watchLogFile, os.O_APPEND|os.O_WRONLY, 0644); err == nil {
+			fmt.Fprintf(f, "%s brewprune-watch: daemon stopped\n", time.Now().Format(time.RFC3339))
+			f.Close()
+		}
+	}
+
 	return nil
 }
 
@@ -185,8 +193,15 @@ func startWatchDaemon(w *watcher.Watcher) error {
 }
 
 func runWatchDaemonChild(w *watcher.Watcher) error {
-	// This runs as the daemon child process
-	// It should not print to stdout/stderr as they're redirected to log file
+	// Write startup event to watch.log for debugging
+	if watchLogFile != "" {
+		if f, err := os.OpenFile(watchLogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			fmt.Fprintf(f, "%s brewprune-watch: daemon started (PID %d)\n",
+				time.Now().Format(time.RFC3339), os.Getpid())
+			f.Close()
+		}
+		// Failure to write log is non-fatal; proceed with daemon
+	}
 	return w.RunDaemon(watchPIDFile)
 }
 
