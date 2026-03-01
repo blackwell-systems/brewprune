@@ -81,16 +81,31 @@ func RenderPackageTable(packages []*brew.Package) string {
 // RenderConfidenceTable renders a table of packages with confidence scores.
 // The ConfidenceScore type will be defined by the analyzer package.
 // Note: Does not sort - expects scores to be pre-sorted by caller.
+// When any score has a non-zero InstalledAt, the "Last Used" column is replaced
+// with "Installed" showing the install date in YYYY-MM-DD format.
 func RenderConfidenceTable(scores []ConfidenceScore) string {
 	if len(scores) == 0 {
 		return "No confidence scores available.\n"
 	}
 
+	// Detect whether to show "Installed" column instead of "Last Used"
+	showInstalled := false
+	for _, s := range scores {
+		if !s.InstalledAt.IsZero() {
+			showInstalled = true
+			break
+		}
+	}
+
 	var sb strings.Builder
 
-	// Header
+	// Header — use "Installed" column header when showInstalled is true
+	timeColHeader := "Last Used"
+	if showInstalled {
+		timeColHeader = "Installed"
+	}
 	fmt.Fprintf(&sb, "%-16s %-8s %-7s %-10s %-16s %-13s %s\n",
-		"Package", "Size", "Score", "Uses (7d)", "Last Used", "Depended On", "Status")
+		"Package", "Size", "Score", "Uses (7d)", timeColHeader, "Depended On", "Status")
 	sb.WriteString(strings.Repeat("─", 88))
 	sb.WriteString("\n")
 
@@ -106,13 +121,20 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 
 		// Cask packages show "n/a" for usage columns (shim tracking not applicable)
 		var usesStr string
-		var lastUsed string
+		var timeCol string
 		if score.IsCask {
 			usesStr = "n/a"
-			lastUsed = "n/a"
+			timeCol = "n/a"
+		} else if showInstalled {
+			usesStr = fmt.Sprintf("%d", score.Uses7d)
+			if score.InstalledAt.IsZero() {
+				timeCol = "unknown"
+			} else {
+				timeCol = score.InstalledAt.Format("2006-01-02")
+			}
 		} else {
 			usesStr = fmt.Sprintf("%d", score.Uses7d)
-			lastUsed = formatRelativeTime(score.LastUsed)
+			timeCol = formatRelativeTime(score.LastUsed)
 		}
 
 		if IsColorEnabled() {
@@ -121,7 +143,7 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 				size,
 				scoreStr,
 				usesStr,
-				lastUsed,
+				timeCol,
 				depStr,
 				tierColor,
 				tierLabel,
@@ -132,7 +154,7 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 				size,
 				scoreStr,
 				usesStr,
-				lastUsed,
+				timeCol,
 				depStr,
 				tierLabel)
 		}
@@ -445,16 +467,17 @@ func truncate(s string, maxLen int) string {
 // ConfidenceScore represents a package's confidence score for removal.
 // This is a placeholder definition - the actual type will come from analyzer package.
 type ConfidenceScore struct {
-	Package    string
-	Score      int
-	Tier       string // "safe", "medium", "risky"
-	LastUsed   time.Time
-	Reason     string
-	SizeBytes  int64 // Package size in bytes
-	Uses7d     int   // Usage count in the last 7 days
-	DepCount   int   // Number of reverse dependencies (packages depending on this one)
-	IsCritical bool  // True if package is a core dependency
-	IsCask     bool  // True if package is a cask (GUI app)
+	Package     string
+	Score       int
+	Tier        string // "safe", "medium", "risky"
+	LastUsed    time.Time
+	Reason      string
+	SizeBytes   int64 // Package size in bytes
+	Uses7d      int   // Usage count in the last 7 days
+	DepCount    int   // Number of reverse dependencies (packages depending on this one)
+	IsCritical  bool  // True if package is a core dependency
+	IsCask      bool  // True if package is a cask (GUI app)
+	InstalledAt time.Time // Non-zero signals "show Installed column"; set when sort=age
 }
 
 // TierStats holds aggregated statistics for a confidence tier.

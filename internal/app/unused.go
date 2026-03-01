@@ -95,7 +95,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// UNUSED-4: --all and --tier conflict check
 	if unusedAll && unusedTier != "" {
-		return fmt.Errorf("Error: --all and --tier cannot be used together; --tier already filters to a specific tier")
+		return fmt.Errorf("--all and --tier cannot be used together; --tier already filters to a specific tier")
 	}
 
 	if unusedMinScore < 0 || unusedMinScore > 100 {
@@ -300,6 +300,16 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Render table
 	if unusedVerbose {
+		// Suggest pagination for long output BEFORE the verbose rendering block
+		if len(scores) > 10 {
+			fi, _ := os.Stdout.Stat()
+			if fi != nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+				fmt.Println("Tip: For easier viewing of long output, pipe to less:")
+				fmt.Println("     brewprune unused --verbose | less")
+				fmt.Println()
+			}
+		}
+
 		// Verbose mode - show detailed breakdown
 		verboseScores := make([]output.VerboseScore, len(scores))
 		for i, s := range scores {
@@ -328,13 +338,6 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		}
 		table := output.RenderConfidenceTableVerbose(verboseScores)
 		fmt.Print(table)
-
-		// Suggest pagination for long output
-		if len(scores) > 10 {
-			fmt.Println()
-			fmt.Println("Tip: For easier viewing of long output, pipe to less:")
-			fmt.Println("     brewprune unused --verbose | less")
-		}
 	} else {
 		// Convert to output format for standard table
 		sevenDaysAgo := time.Now().AddDate(0, 0, -7)
@@ -357,17 +360,23 @@ func runUnused(cmd *cobra.Command, args []string) error {
 				lastUsed = time.Unix(1, 0) // Special marker for "no tracking data yet"
 			}
 
+			var installedAt time.Time
+			if unusedSort == "age" {
+				installedAt = s.InstalledAt
+			}
+
 			outputScores[i] = output.ConfidenceScore{
-				Package:    s.Package,
-				Score:      s.Score,
-				Tier:       s.Tier,
-				LastUsed:   lastUsed,
-				Reason:     s.Reason,
-				SizeBytes:  s.SizeBytes,
-				Uses7d:     uses7d,
-				DepCount:   depCount,
-				IsCritical: s.IsCritical,
-				IsCask:     isCaskMap[s.Package],
+				Package:     s.Package,
+				Score:       s.Score,
+				Tier:        s.Tier,
+				LastUsed:    lastUsed,
+				Reason:      s.Reason,
+				SizeBytes:   s.SizeBytes,
+				Uses7d:      uses7d,
+				DepCount:    depCount,
+				IsCritical:  s.IsCritical,
+				IsCask:      isCaskMap[s.Package],
+				InstalledAt: installedAt,
 			}
 		}
 		table := output.RenderConfidenceTable(outputScores)
