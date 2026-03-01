@@ -125,11 +125,12 @@ func runUndo(cmd *cobra.Command, args []string) error {
 	if len(snapshotPackages) > 0 {
 		fmt.Println("Packages to restore:")
 		for _, pkg := range snapshotPackages {
+			nameDisplay := formatPackageDisplay(pkg.PackageName, pkg.Version)
 			explicitStr := ""
 			if pkg.WasExplicit {
 				explicitStr = " (explicit)"
 			}
-			fmt.Printf("  - %s@%s%s\n", pkg.PackageName, pkg.Version, explicitStr)
+			fmt.Printf("  - %s%s\n", nameDisplay, explicitStr)
 		}
 		fmt.Println()
 	}
@@ -163,9 +164,18 @@ func runUndo(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n✓ Restored %d packages from snapshot %d\n", len(snapshotPackages), snapshotID)
-	fmt.Println("\nRun 'brewprune scan' to update the package database.")
+	fmt.Println("\n⚠  Run 'brewprune scan' to update the package database before running 'brewprune remove'.")
 
 	return nil
+}
+
+// formatPackageDisplay returns the display name for a package, including the
+// version suffix only when Version is non-empty (avoids trailing "@").
+func formatPackageDisplay(name, version string) string {
+	if version != "" {
+		return name + "@" + version
+	}
+	return name
 }
 
 // listSnapshots displays all available snapshots.
