@@ -661,10 +661,10 @@ func TestDoctorAliasTip_NoBrewpruneHelpReference(t *testing.T) {
 }
 
 // TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive verifies that when
-// the pipeline test fails with the daemon running and the shim directory
-// configured in the shell profile but NOT in the active $PATH, the action
-// message tells the user to source their profile (or restart their shell),
-// rather than blaming the daemon.
+// the daemon is running and the shim directory is configured in the shell profile
+// but NOT in the active $PATH, the output tells the user to source their profile
+// (or restart their shell), rather than blaming the daemon. With the pipeline
+// SKIPPED for this state, the PATH check itself carries the source action hint.
 func TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive(t *testing.T) {
 	tmpHome := setupMinimalEnv(t)
 
@@ -701,15 +701,134 @@ func TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive(t *testing.T) {
 	}
 
 	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — warnings expected
+	})
+
+	// The PATH check or pipeline skip message must mention source/shell restart.
+	if !strings.Contains(out, "source") && !strings.Contains(out, "restart your shell") {
+		t.Errorf("expected output to mention 'source' or 'restart your shell', got:\n%s", out)
+	}
+	if strings.Contains(out, "watch --daemon") {
+		t.Errorf("output must NOT mention 'watch --daemon' when daemon is running, got:\n%s", out)
+	}
+}
+
+// TestDoctor_PipelineSkippedWhenPathNotActive verifies that when shims are
+// configured in the shell profile but the shim directory is NOT in the active
+// $PATH, the pipeline test is reported as SKIPPED (not FAIL) and the output
+// does NOT contain "CRITICAL ISSUES".
+func TestDoctor_PipelineSkippedWhenPathNotActive(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+
+	// Write a .zprofile that exports the shim dir so isConfiguredInShellProfile
+	// returns true, but do NOT add shimDir to $PATH so isOnPATH returns false.
+	os.Setenv("SHELL", "/bin/zsh")
+	t.Cleanup(func() { os.Unsetenv("SHELL") })
+	zprofile := filepath.Join(tmpHome, ".zprofile")
+	profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
+	if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
+		t.Fatalf("WriteFile .zprofile: %v", err)
+	}
+
+	// Ensure shimDir is NOT in $PATH.
+	origPath := os.Getenv("PATH")
+	parts := strings.Split(origPath, ":")
+	filtered := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != shimDir {
+			filtered = append(filtered, p)
+		}
+	}
+	os.Setenv("PATH", strings.Join(filtered, ":"))
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	// Create a PID file pointing at the current process so daemon appears running.
+	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+	pidContent := fmt.Sprintf("%d", os.Getpid())
+	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+		t.Fatalf("WriteFile pidFile: %v", err)
+	}
+
+	var doctorErr error
+	out := captureStdout(t, func() {
+		doctorErr = runDoctor(doctorCmd, []string{})
+	})
+
+	// Pipeline test must be SKIPPED, not FAIL.
+	if !strings.Contains(out, "SKIPPED") {
+		t.Errorf("expected pipeline test to be SKIPPED when PATH not active, got:\n%s", out)
+	}
+	if strings.Contains(out, "FAIL") {
+		t.Errorf("pipeline test must not show FAIL when PATH not active, got:\n%s", out)
+	}
+
+	// Must NOT report critical issues — this is expected post-install state.
+	if strings.Contains(out, "CRITICAL ISSUES") || strings.Contains(out, "critical issue") {
+		t.Errorf("doctor must not report critical issues for PATH-not-yet-active state, got:\n%s", out)
+	}
+	if doctorErr != nil && strings.Contains(doctorErr.Error(), "diagnostics failed") {
+		t.Errorf("doctor must not return diagnostics-failed error for PATH-not-yet-active state, got: %v", doctorErr)
+	}
+}
+
+// TestDoctor_PathActiveShowsActiveCheck verifies that when the shim directory
+// is in the active $PATH, the doctor output contains a passing PATH check
+// indicating the PATH is active.
+func TestDoctor_PathActiveShowsActiveCheck(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+
+	// Add shimDir to $PATH so isOnPATH returns true.
+	origPath := os.Getenv("PATH")
+	os.Setenv("PATH", shimDir+":"+origPath)
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+	})
+
+	// Must show PATH active check.
+	if !strings.Contains(out, "PATH active") {
+		t.Errorf("expected output to contain 'PATH active' when shim dir is in PATH, got:\n%s", out)
+	}
+}
+
+// TestDoctor_PipelineFailsNormallyWhenPathActive verifies that when the shim
+// PATH IS active but the pipeline test fails (e.g., shim doesn't record
+// events), the output shows FAIL (not SKIPPED).
+func TestDoctor_PipelineFailsNormallyWhenPathActive(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+
+	// Add shimDir to $PATH so isOnPATH returns true — PATH is active.
+	origPath := os.Getenv("PATH")
+	os.Setenv("PATH", shimDir+":"+origPath)
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	// Create a PID file pointing at the current process so daemon appears running
+	// and the pipeline test runs.
+	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+	pidContent := fmt.Sprintf("%d", os.Getpid())
+	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+		t.Fatalf("WriteFile pidFile: %v", err)
+	}
+
+	out := captureStdout(t, func() {
 		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure expected
 	})
 
-	// The action message must mention source/shell restart, not watch --daemon.
-	if !strings.Contains(out, "source") && !strings.Contains(out, "restart your shell") {
-		t.Errorf("expected action message to mention 'source' or 'restart your shell', got:\n%s", out)
+	// Pipeline must attempt to run (not be skipped) — it will fail since the
+	// stub shim can't record real events, but it must show "fail" not "SKIPPED".
+	if strings.Contains(out, "Pipeline test: SKIPPED") {
+		t.Errorf("pipeline test must not be SKIPPED when PATH is active, got:\n%s", out)
 	}
-	if strings.Contains(out, "watch --daemon") {
-		t.Errorf("action message must NOT mention 'watch --daemon' when daemon is running, got:\n%s", out)
+	// The pipeline test should reach the spinner and show progress or failure.
+	if !strings.Contains(out, "Running pipeline test") && !strings.Contains(out, "fail") {
+		t.Errorf("expected pipeline test to run (show progress or fail) when PATH is active, got:\n%s", out)
 	}
 }
 
