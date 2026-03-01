@@ -18,9 +18,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X github.com/blackwell-systems/brewprune/internal/app.Version={{.Version}}
+      - -X github.com/blackwell-systems/brewprune/internal/app.GitCommit={{.Commit}}
+      - -X github.com/blackwell-systems/brewprune/internal/app.BuildDate={{.Date}}
 
   - id: brewprune-shim
     main: ./cmd/brewprune-shim
