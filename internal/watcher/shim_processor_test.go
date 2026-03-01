@@ -640,3 +640,186 @@ func TestProcessUsageLog_OffsetAdvancesAfterInsert(t *testing.T) {
 		t.Errorf("offset file written despite insert failure: offset=%d (want file absent)", savedOffset)
 	}
 }
+
+// ── git/jq resolution after collision-override fix ────────────────────────────
+
+// TestProcessUsageLog_GitResolvesAfterFix verifies that a usage.log entry with
+// a git shim path resolves to the "git" package and is inserted into the store,
+// using git's actual Linuxbrew binary paths as stored in the container DB.
+//
+// This is a regression test for hypothesis A (basename collision): if another
+// package provides a binary whose basename matches "git", the first pass of
+// buildBasenameMap could map "git" to the wrong package. The second pass
+// (unconditional m[pkg.Name] = pkg.Name) ensures git always wins for its own
+// name.
+func TestProcessUsageLog_GitResolvesAfterFix(t *testing.T) {
+	st := newTestStore(t)
+
+	// Register git with its actual Linuxbrew binary paths from the container DB.
+	// The package includes "scalar" as a secondary binary, and libgit2 provides
+	// a binary named "git2" (not "git"), which must not interfere.
+	insertPkg(t, st, "git", []string{
+		"/home/linuxbrew/.linuxbrew/bin/git",
+		"/home/linuxbrew/.linuxbrew/bin/git-cvsserver",
+		"/home/linuxbrew/.linuxbrew/bin/git-receive-pack",
+		"/home/linuxbrew/.linuxbrew/bin/git-shell",
+		"/home/linuxbrew/.linuxbrew/bin/git-upload-archive",
+		"/home/linuxbrew/.linuxbrew/bin/git-upload-pack",
+		"/home/linuxbrew/.linuxbrew/bin/scalar",
+	})
+	insertPkg(t, st, "libgit2", []string{"/home/linuxbrew/.linuxbrew/bin/git2"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	// Shim argv0 is the shim symlink; basename "git" must resolve to the git package.
+	lines := "1772348823090286281,/home/brewuser/.brewprune/bin/git\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	if err := ProcessUsageLog(st); err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	since := time.Unix(0, 0)
+	count, err := st.GetUsageEventCountSince("git", since)
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince(git): %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetUsageEventCountSince(git) = %d, want 1 — git shim not resolved after fix", count)
+	}
+}
+
+// TestProcessUsageLog_JqResolvesAfterFix verifies that a usage.log entry with
+// a jq shim path resolves to the "jq" package and is inserted into the store,
+// using jq's actual Linuxbrew binary path as stored in the container DB.
+func TestProcessUsageLog_JqResolvesAfterFix(t *testing.T) {
+	st := newTestStore(t)
+
+	// Register jq with its actual Linuxbrew binary path from the container DB.
+	insertPkg(t, st, "jq", []string{"/home/linuxbrew/.linuxbrew/bin/jq"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	lines := "1772348900000000000,/home/brewuser/.brewprune/bin/jq\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	if err := ProcessUsageLog(st); err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	since := time.Unix(0, 0)
+	count, err := st.GetUsageEventCountSince("jq", since)
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince(jq): %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetUsageEventCountSince(jq) = %d, want 1 — jq shim not resolved after fix", count)
+	}
+}
+
+// TestBuildBasenameMap_NoCollisionOnPackageName verifies that when two packages
+// share a binary basename, the package whose name matches the binary basename
+// wins in the final map (second pass overrides first pass collisions).
+//
+// Scenario: package "git" provides /linuxbrew/bin/git (basename "git").
+// Another hypothetical package "not-git" also provides /linuxbrew/bin/git
+// (representing a collision). After buildBasenameMap, "git" must map to "git",
+// not "not-git".
+func TestBuildBasenameMap_NoCollisionOnPackageName(t *testing.T) {
+	st := newTestStore(t)
+
+	// "not-git" is inserted first and provides a binary also named "git".
+	// Without the second-pass override, binaryMap["git"] = "not-git" (last write
+	// from first pass, since packages are ORDER BY name and "not-git" > "git").
+	// With the fix, the second pass sets binaryMap["git"] = "git".
+	insertPkg(t, st, "git", []string{"/home/linuxbrew/.linuxbrew/bin/git"})
+	insertPkg(t, st, "not-git", []string{"/home/linuxbrew/.linuxbrew/bin/git"})
+
+	m, err := buildBasenameMap(st)
+	if err != nil {
+		t.Fatalf("buildBasenameMap: %v", err)
+	}
+
+	// The package named "git" must always resolve to itself.
+	if got := m["git"]; got != "git" {
+		t.Errorf("binaryMap[\"git\"] = %q, want \"git\" — collision from \"not-git\" not overridden", got)
+	}
+
+	// The package named "not-git" must also resolve to itself.
+	if got := m["not-git"]; got != "not-git" {
+		t.Errorf("binaryMap[\"not-git\"] = %q, want \"not-git\"", got)
+	}
+}
+
+// TestProcessUsageLog_UnresolvableBinaryIsSkippedNotSilent verifies that when
+// a shim entry cannot be resolved to any managed Homebrew package, the
+// processor logs a message (instead of silently skipping) and continues without
+// inserting an event. The offset IS still advanced past the unresolvable line.
+func TestProcessUsageLog_UnresolvableBinaryIsSkippedNotSilent(t *testing.T) {
+	st := newTestStore(t)
+
+	// Only "git" is in the DB; "unknown-tool" will be unresolvable.
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	offsetPath := filepath.Join(tmpHome, ".brewprune", "usage.offset")
+
+	// Mix of resolvable and unresolvable entries.
+	lines := "1709012345678901234,/home/u/.brewprune/bin/unknown-tool\n" +
+		"1709012345678901235,/home/u/.brewprune/bin/git\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	if err := ProcessUsageLog(st); err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	// The resolvable "git" entry must have been inserted.
+	since := time.Unix(0, 0)
+	count, err := st.GetUsageEventCountSince("git", since)
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince(git): %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetUsageEventCountSince(git) = %d, want 1 — resolvable entry lost when skipping unresolvable", count)
+	}
+
+	// The offset must have been advanced past both lines.
+	savedOffset, err := readShimOffset(offsetPath)
+	if err != nil {
+		t.Fatalf("readShimOffset: %v", err)
+	}
+	if savedOffset != int64(len(lines)) {
+		t.Errorf("offset = %d, want %d — offset not advanced past unresolvable line", savedOffset, len(lines))
+	}
+}

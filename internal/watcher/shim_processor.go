@@ -149,6 +149,7 @@ func ProcessUsageLog(st *store.Store) error {
 			pkg, found = optPathMap["/home/linuxbrew/.linuxbrew/bin/"+basename]
 		}
 		if !found {
+			log.Printf("shim_processor: no package found for binary %q (tried opt paths and basename map)", basename)
 			continue // Not a managed Homebrew binary.
 		}
 
@@ -203,6 +204,19 @@ func ProcessUsageLog(st *store.Store) error {
 // all packages stored in the database.
 //
 // Example: {"git": "git", "rg": "ripgrep", "node": "node"}
+//
+// Two passes are used to guarantee correctness:
+//
+//  1. First pass: map each binary path's basename to its owning package.
+//     This handles the common case and also covers cases where multiple
+//     packages share a basename (last-write wins, but overridden in pass 2).
+//
+//  2. Second pass: unconditionally map pkg.Name → pkg.Name, overriding any
+//     collision from pass 1. This is safe because the package name IS the
+//     canonical identity of the package; if another package happened to ship a
+//     binary with the same basename, the owning package must win when shim
+//     argv0 uses the package's own name. It also handles the case where
+//     BinaryPaths is empty (the package name itself serves as the fallback key).
 func buildBasenameMap(st *store.Store) (map[string]string, error) {
 	packages, err := st.ListPackages()
 	if err != nil {
@@ -210,17 +224,22 @@ func buildBasenameMap(st *store.Store) (map[string]string, error) {
 	}
 
 	m := make(map[string]string, len(packages)*2)
+
+	// First pass: map binary basenames to package names.
 	for _, pkg := range packages {
-		// Map each stored binary path's basename to this package.
 		for _, binPath := range pkg.BinaryPaths {
 			m[filepath.Base(binPath)] = pkg.Name
 		}
-		// Fallback: also map the package name itself (handles packages where
-		// BinaryPaths wasn't populated but the main binary matches the name).
-		if _, exists := m[pkg.Name]; !exists {
-			m[pkg.Name] = pkg.Name
-		}
 	}
+
+	// Second pass: ensure each package name maps to itself, regardless of
+	// whether another package's binary collided with this package's name in
+	// the first pass. This guarantees that shim invocations whose argv0
+	// basename matches the package name are always attributed correctly.
+	for _, pkg := range packages {
+		m[pkg.Name] = pkg.Name
+	}
+
 	return m, nil
 }
 
