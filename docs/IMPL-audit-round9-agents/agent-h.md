@@ -187,3 +187,16 @@ verification: PASS | FAIL
 ---
 
 ### Agent H — Completion Report
+status: complete
+worktree: .claude/worktrees/wave1-agent-h
+commit: 972cebb
+files_changed:
+  - internal/app/undo.go
+  - internal/app/undo_test.go
+files_created: []
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestUndo_ProgressBarRemovedFromOutput
+  - TestUndo_PostUndoWarningMentionsAllCommands
+verification: PASS

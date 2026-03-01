@@ -155,11 +155,11 @@ After each wave completes:
 
 ## Status
 
-- [ ] Wave 0 Agent A — segfault investigation + fix (explain.go, stats.go)
-- [ ] Wave 0 Agent B — shim processor git/jq resolution (shim_processor.go)
-- [ ] Wave 1 Agent C — doctor pipeline WARN + active-PATH check (doctor.go)
-- [ ] Wave 1 Agent D — quickstart PATH warning ordering + self-test duration (quickstart.go)
-- [ ] Wave 1 Agent E — unused sort footer + casks banner skip (unused.go)
-- [ ] Wave 1 Agent F — remove nonexistent error + error chain (remove.go)
-- [ ] Wave 1 Agent G — status shims "0 commands" label (status.go)
-- [ ] Wave 1 Agent H — undo progress rendering + stale DB warning (undo.go)
+- [x] Wave 0 Agent A — segfault investigation + fix (explain.go, stats.go)
+- [x] Wave 0 Agent B — shim processor git/jq resolution (shim_processor.go)
+- [x] Wave 1 Agent C — doctor pipeline WARN + active-PATH check (doctor.go)
+- [x] Wave 1 Agent D — quickstart PATH warning ordering + self-test duration (quickstart.go)
+- [x] Wave 1 Agent E — unused sort footer + casks banner skip (unused.go)
+- [x] Wave 1 Agent F — remove nonexistent error + error chain (remove.go)
+- [x] Wave 1 Agent G — status shims "0 commands" label (status.go)
+- [x] Wave 1 Agent H — undo progress rendering + stale DB warning (undo.go)

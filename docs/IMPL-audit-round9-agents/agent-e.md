@@ -212,3 +212,24 @@ verification: PASS | FAIL
 ---
 
 ### Agent E — Completion Report
+status: complete
+worktree: .claude/worktrees/wave1-agent-e
+commit: db7cff3
+files_changed:
+  - internal/app/unused.go
+  - internal/app/unused_test.go
+files_created: []
+interface_deviations:
+  - checkUsageWarning signature changed from (st, showRiskyImplicit bool) to (st, showRiskyImplicit bool, skipIfNoCasks bool);
+    the single call site in unused.go was updated; existing tests updated accordingly.
+out_of_scope_deps: []
+tests_added:
+  - TestUnused_SortSizeShowsFooter
+  - TestUnused_SortScoreShowsFooter
+  - TestUnused_SortAgeFooterUnchanged
+  - TestUnused_CasksWithNoCasksSkipsWarning
+verification: PASS
+notes:
+  - Tests must be run with GOWORK=off (e.g. GOWORK=off go test ./internal/app ...) because
+    the parent repo go.work maps the module to the main worktree, causing Go to compile the
+    parent's source files instead of the worktree's when GOWORK is active.

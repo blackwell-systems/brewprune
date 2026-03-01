@@ -187,3 +187,16 @@ verification: PASS | FAIL
 ---
 
 ### Agent F — Completion Report
+status: complete
+worktree: .claude/worktrees/wave1-agent-f
+commit: f81828c7cce5e3ab7355c5aafebbc55a2b26fc09
+files_changed:
+  - internal/app/remove.go
+  - internal/app/remove_test.go
+files_created: []
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestRemove_NonexistentPackageHelpfulError
+  - TestRemove_NoDatabaseErrorUnwrapped
+verification: PASS

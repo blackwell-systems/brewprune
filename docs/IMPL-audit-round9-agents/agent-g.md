@@ -186,3 +186,17 @@ verification: PASS | FAIL
 ---
 
 ### Agent G — Completion Report
+status: complete
+worktree: .claude/worktrees/wave1-agent-g
+commit: a8835ef
+files_changed:
+  - internal/app/status.go
+  - internal/app/status_test.go
+files_created: []
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestStatus_ShimsLabelWhenZeroShimsPathConfigured
+  - TestStatus_ShimsLabelWhenShimsPresent
+  - TestStatus_ShimDirMissingShowsNotInstalled
+verification: PASS

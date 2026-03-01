@@ -188,3 +188,33 @@ verification: PASS | FAIL
 ---
 
 ### Agent C — Completion Report
+status: complete
+worktree: .claude/worktrees/wave1-agent-c
+commit: 52cf79d
+files_changed:
+  - internal/app/doctor.go
+  - internal/app/doctor_test.go
+files_created: []
+interface_deviations:
+  - The task brief described two approaches (skip pipeline vs. increment warningIssues). Chose
+    SKIP approach (as in the system prompt v2): when shimPathConfigured && !shimPathActive,
+    the pipeline test block is skipped entirely with a yellow SKIPPED message. criticalIssues
+    is not incremented. This is cleaner UX than running the test and reporting a warning.
+  - The active-PATH check was not separated into a new block (Check 7b) because the existing
+    Check 7 already has the three-state PATH messaging (active / configured / missing). Adding
+    a duplicate check would have violated the dont-duplicate-existing-logic constraint. The
+    existing PATH configured (restart shell to activate) warning in Check 7 serves the same
+    purpose. The pipeline SKIP message reinforces it.
+  - TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive was updated: now that the
+    pipeline is SKIPPED (not run) when PATH is configured but not active, the test comment
+    was corrected and assertions remain valid (the source hint comes from Check 7 instead).
+out_of_scope_deps: []
+tests_added:
+  - TestDoctor_PipelineSkippedWhenPathNotActive
+  - TestDoctor_PathActiveShowsActiveCheck
+  - TestDoctor_PipelineFailsNormallyWhenPathActive
+verification: PASS
+notes: >
+  go.work in the main brewprune directory makes go test github.com/... use the main
+  worktree source. Tests must be run with GOWORK=off go test ./internal/app/ from the
+  worktree directory to pick up the worktree modified files. All 16 TestDoctor* tests pass.
