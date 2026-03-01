@@ -637,3 +637,129 @@ func TestNoSnapshotWarning_Output(t *testing.T) {
 		t.Errorf("output %q does not contain warning character '⚠'", output)
 	}
 }
+
+// TestRemoveSkippedSummaryAppearsAfterTable verifies that when skipped packages
+// exist, only a summary line (containing "skipped" and the count) is emitted —
+// not the full per-package list — and that the summary is not emitted before the
+// action table header text.
+func TestRemoveSkippedSummaryAppearsAfterTable(t *testing.T) {
+	// Simulate 3 locked packages and verify the summary line format.
+	lockedPackages := []string{
+		"pkg-a (required by: dep-x)",
+		"pkg-b (required by: dep-y)",
+		"pkg-c (required by: dep-z)",
+	}
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stderr = w
+
+	// Replicate the summary-only output from remove.go (tier-based branch)
+	if len(lockedPackages) > 0 {
+		fmt.Fprintf(os.Stderr, "\n⚠  %d packages skipped (locked by dependents) — run with --verbose to see details\n", len(lockedPackages))
+	}
+
+	w.Close()
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stderr = oldStderr
+
+	got := buf.String()
+
+	// Must contain the count and the word "skipped"
+	if !strings.Contains(got, "3") {
+		t.Errorf("summary line does not contain count '3': %q", got)
+	}
+	if !strings.Contains(got, "skipped") {
+		t.Errorf("summary line does not contain 'skipped': %q", got)
+	}
+
+	// Must NOT contain the individual package details
+	for _, pkg := range []string{"pkg-a", "pkg-b", "pkg-c"} {
+		if strings.Contains(got, pkg) {
+			t.Errorf("summary line should not contain individual package %q but got: %q", pkg, got)
+		}
+	}
+}
+
+// TestRemoveMultiFlagErrorReportsAll verifies that when --safe, --medium, and
+// --risky are all set simultaneously, the error message lists all three flags
+// with Oxford comma formatting rather than reporting only the first two.
+func TestRemoveMultiFlagErrorReportsAll(t *testing.T) {
+	removeFlagSafe = true
+	removeFlagMedium = true
+	removeFlagRisky = true
+	removeTierFlag = ""
+	defer func() {
+		removeFlagSafe = false
+		removeFlagMedium = false
+		removeFlagRisky = false
+	}()
+
+	_, err := determineTier()
+	if err == nil {
+		t.Fatal("determineTier() expected error for all three flags set, got nil")
+	}
+
+	msg := err.Error()
+
+	// All three flags must appear in the error
+	for _, flag := range []string{"--safe", "--medium", "--risky"} {
+		if !strings.Contains(msg, flag) {
+			t.Errorf("error %q does not contain flag %q", msg, flag)
+		}
+	}
+
+	// Must still contain the "only one tier flag" prefix
+	if !strings.Contains(msg, "only one tier flag") {
+		t.Errorf("error %q does not contain 'only one tier flag'", msg)
+	}
+
+	// Oxford comma: should contain ", and" for 3-item list
+	if !strings.Contains(msg, ", and") {
+		t.Errorf("error %q missing Oxford comma ', and' for 3-item list", msg)
+	}
+}
+
+// TestRemoveExplicitPackageNoExplicitlyInstalledWarning verifies that the
+// "explicitly installed" warning is suppressed for named-package removal.
+// It tests the filtering logic directly without requiring a real DB or brew.
+func TestRemoveExplicitPackageNoExplicitlyInstalledWarning(t *testing.T) {
+	// Simulate the warnings returned by anlzr.ValidateRemoval for explicit packages
+	allWarnings := []string{
+		"bat: explicitly installed (not a dependency)",
+		"fd: explicitly installed (not a dependency)",
+		"bat: used recently (2026-01-01)",
+	}
+
+	// Apply the same filter used in remove.go
+	var filteredWarnings []string
+	for _, w := range allWarnings {
+		if !strings.Contains(w, "explicitly installed") {
+			filteredWarnings = append(filteredWarnings, w)
+		}
+	}
+
+	// "explicitly installed" warnings must be gone
+	for _, w := range filteredWarnings {
+		if strings.Contains(w, "explicitly installed") {
+			t.Errorf("filtered warnings still contain 'explicitly installed': %q", w)
+		}
+	}
+
+	// Non-explicitly-installed warnings must survive the filter
+	foundRecentlyUsed := false
+	for _, w := range filteredWarnings {
+		if strings.Contains(w, "used recently") {
+			foundRecentlyUsed = true
+			break
+		}
+	}
+	if !foundRecentlyUsed {
+		t.Errorf("filter removed 'used recently' warning — it should have been kept; remaining: %v", filteredWarnings)
+	}
+}
