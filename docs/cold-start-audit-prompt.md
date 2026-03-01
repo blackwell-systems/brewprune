@@ -1,9 +1,9 @@
-# Cold-Start UX Audit Report - Round 5
+# Cold-Start UX Audit Report - Round 6
 
 **Metadata:**
 - Audit Date: 2026-02-28
 - Tool Version: brewprune version dev (commit: unknown, built: unknown)
-- Container: brewprune-r5
+- Container: brewprune-r6
 - Environment: Ubuntu 22.04 with Homebrew
 
 ---
@@ -12,7 +12,7 @@ You are performing a UX audit of **brewprune** - a tool that tracks Homebrew pac
 
 You are acting as a **new user** encountering this tool for the first time.
 
-You have access to a Docker container called `brewprune-r5` with brewprune installed and the following packages available:
+You have access to a Docker container called `brewprune-r6` with brewprune installed and the following packages available:
 
 ```
 acl, bat, brotli, bzip2, ca-certificates, curl, cyrus-sasl, expat, fd,
@@ -22,7 +22,7 @@ libxml2, lz4, ncurses, oniguruma, openldap, openssl@3, pcre2, readline,
 ripgrep, sqlite, tmux, utf8proc, util-linux, xz, zlib-ng-compat, zstd
 ```
 
-Run all commands using: `docker exec brewprune-r5 <command>`
+Run all commands using: `docker exec brewprune-r6 <command>`
 
 ---
 
@@ -33,22 +33,22 @@ Run all commands using: `docker exec brewprune-r5 <command>`
 Test how a new user discovers brewprune's capabilities.
 
 **Commands:**
-- `docker exec brewprune-r5 brewprune --help`
-- `docker exec brewprune-r5 brewprune --version`
-- `docker exec brewprune-r5 brewprune -v`
-- `docker exec brewprune-r5 brewprune help`
-- `docker exec brewprune-r5 brewprune`
-- `docker exec brewprune-r5 brewprune completion --help`
-- `docker exec brewprune-r5 brewprune doctor --help`
-- `docker exec brewprune-r5 brewprune explain --help`
-- `docker exec brewprune-r5 brewprune quickstart --help`
-- `docker exec brewprune-r5 brewprune remove --help`
-- `docker exec brewprune-r5 brewprune scan --help`
-- `docker exec brewprune-r5 brewprune stats --help`
-- `docker exec brewprune-r5 brewprune status --help`
-- `docker exec brewprune-r5 brewprune undo --help`
-- `docker exec brewprune-r5 brewprune unused --help`
-- `docker exec brewprune-r5 brewprune watch --help`
+- `docker exec brewprune-r6 brewprune --help`
+- `docker exec brewprune-r6 brewprune --version`
+- `docker exec brewprune-r6 brewprune -v`
+- `docker exec brewprune-r6 brewprune help`
+- `docker exec brewprune-r6 brewprune`
+- `docker exec brewprune-r6 brewprune completion --help`
+- `docker exec brewprune-r6 brewprune doctor --help`
+- `docker exec brewprune-r6 brewprune explain --help`
+- `docker exec brewprune-r6 brewprune quickstart --help`
+- `docker exec brewprune-r6 brewprune remove --help`
+- `docker exec brewprune-r6 brewprune scan --help`
+- `docker exec brewprune-r6 brewprune stats --help`
+- `docker exec brewprune-r6 brewprune status --help`
+- `docker exec brewprune-r6 brewprune undo --help`
+- `docker exec brewprune-r6 brewprune unused --help`
+- `docker exec brewprune-r6 brewprune watch --help`
 
 **Evaluate:**
 - Is the Quick Start section clear and actionable?
@@ -64,17 +64,17 @@ Test how a new user discovers brewprune's capabilities.
 Test the recommended path for a new user setting up brewprune.
 
 **Commands (Quickstart Path):**
-- `docker exec brewprune-r5 brewprune quickstart`
-- `docker exec brewprune-r5 brewprune status`
-- `docker exec brewprune-r5 cat ~/.brewprune/watch.log`
-- `docker exec brewprune-r5 ls -la ~/.brewprune/`
-- `docker exec brewprune-r5 brewprune doctor`
+- `docker exec brewprune-r6 brewprune quickstart`
+- `docker exec brewprune-r6 brewprune status`
+- `docker exec brewprune-r6 cat ~/.brewprune/watch.log`
+- `docker exec brewprune-r6 ls -la ~/.brewprune/`
+- `docker exec brewprune-r6 brewprune doctor`
 
 **Commands (Manual Path):**
-- `docker exec brewprune-r5 brewprune scan`
-- `docker exec brewprune-r5 brewprune watch --daemon`
-- `docker exec brewprune-r5 brewprune status`
-- `docker exec brewprune-r5 brewprune doctor`
+- `docker exec brewprune-r6 brewprune scan`
+- `docker exec brewprune-r6 brewprune watch --daemon`
+- `docker exec brewprune-r6 brewprune status`
+- `docker exec brewprune-r6 brewprune doctor`
 
 **Evaluate:**
 - Does quickstart provide clear feedback at each step?
@@ -90,19 +90,19 @@ Test the recommended path for a new user setting up brewprune.
 Test the primary value proposition - identifying unused packages.
 
 **Commands (No usage data yet):**
-- `docker exec brewprune-r5 brewprune unused`
-- `docker exec brewprune-r5 brewprune unused --all`
-- `docker exec brewprune-r5 brewprune unused --tier safe`
-- `docker exec brewprune-r5 brewprune unused --tier medium`
-- `docker exec brewprune-r5 brewprune unused --tier risky`
-- `docker exec brewprune-r5 brewprune unused --min-score 70`
-- `docker exec brewprune-r5 brewprune unused --min-score 50`
-- `docker exec brewprune-r5 brewprune unused --sort score`
-- `docker exec brewprune-r5 brewprune unused --sort size`
-- `docker exec brewprune-r5 brewprune unused --sort age`
-- `docker exec brewprune-r5 brewprune unused --casks`
-- `docker exec brewprune-r5 brewprune unused --verbose`
-- `docker exec brewprune-r5 brewprune unused --tier safe --verbose`
+- `docker exec brewprune-r6 brewprune unused`
+- `docker exec brewprune-r6 brewprune unused --all`
+- `docker exec brewprune-r6 brewprune unused --tier safe`
+- `docker exec brewprune-r6 brewprune unused --tier medium`
+- `docker exec brewprune-r6 brewprune unused --tier risky`
+- `docker exec brewprune-r6 brewprune unused --min-score 70`
+- `docker exec brewprune-r6 brewprune unused --min-score 50`
+- `docker exec brewprune-r6 brewprune unused --sort score`
+- `docker exec brewprune-r6 brewprune unused --sort size`
+- `docker exec brewprune-r6 brewprune unused --sort age`
+- `docker exec brewprune-r6 brewprune unused --casks`
+- `docker exec brewprune-r6 brewprune unused --verbose`
+- `docker exec brewprune-r6 brewprune unused --tier safe --verbose`
 
 **Evaluate:**
 - Is the output table readable and well-aligned?
@@ -120,30 +120,30 @@ Test the primary value proposition - identifying unused packages.
 Test the usage tracking mechanism that feeds the scoring system.
 
 **Commands (Setup):**
-- `docker exec brewprune-r5 brewprune status`
-- `docker exec brewprune-r5 brewprune watch --daemon`
-- `docker exec brewprune-r5 cat ~/.brewprune/watch.pid`
-- `docker exec brewprune-r5 ps aux | grep brewprune`
+- `docker exec brewprune-r6 brewprune status`
+- `docker exec brewprune-r6 brewprune watch --daemon`
+- `docker exec brewprune-r6 cat ~/.brewprune/watch.pid`
+- `docker exec brewprune-r6 ps aux | grep brewprune`
 
 **Commands (Generate usage):**
-- `docker exec brewprune-r5 git --version`
-- `docker exec brewprune-r5 jq --version`
-- `docker exec brewprune-r5 bat --version`
-- `docker exec brewprune-r5 fd --version`
-- `docker exec brewprune-r5 ripgrep --version`
-- `docker exec brewprune-r5 sleep 35`
-- `docker exec brewprune-r5 cat ~/.brewprune/usage.log`
+- `docker exec brewprune-r6 git --version`
+- `docker exec brewprune-r6 jq --version`
+- `docker exec brewprune-r6 bat --version`
+- `docker exec brewprune-r6 fd --version`
+- `docker exec brewprune-r6 ripgrep --version`
+- `docker exec brewprune-r6 sleep 35`
+- `docker exec brewprune-r6 cat ~/.brewprune/usage.log`
 
 **Commands (Verify tracking):**
-- `docker exec brewprune-r5 brewprune status`
-- `docker exec brewprune-r5 brewprune stats`
-- `docker exec brewprune-r5 brewprune stats --days 1`
-- `docker exec brewprune-r5 brewprune stats --package git`
-- `docker exec brewprune-r5 brewprune stats --all`
+- `docker exec brewprune-r6 brewprune status`
+- `docker exec brewprune-r6 brewprune stats`
+- `docker exec brewprune-r6 brewprune stats --days 1`
+- `docker exec brewprune-r6 brewprune stats --package git`
+- `docker exec brewprune-r6 brewprune stats --all`
 
 **Commands (Stop daemon):**
-- `docker exec brewprune-r5 brewprune watch --stop`
-- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r6 brewprune watch --stop`
+- `docker exec brewprune-r6 brewprune status`
 
 **Evaluate:**
 - Does status clearly show daemon state (running/stopped)?
@@ -160,16 +160,16 @@ Test the usage tracking mechanism that feeds the scoring system.
 Test the per-package drill-down feature.
 
 **Commands (Valid packages):**
-- `docker exec brewprune-r5 brewprune explain git`
-- `docker exec brewprune-r5 brewprune explain jq`
-- `docker exec brewprune-r5 brewprune explain bat`
-- `docker exec brewprune-r5 brewprune explain openssl@3`
-- `docker exec brewprune-r5 brewprune explain curl`
+- `docker exec brewprune-r6 brewprune explain git`
+- `docker exec brewprune-r6 brewprune explain jq`
+- `docker exec brewprune-r6 brewprune explain bat`
+- `docker exec brewprune-r6 brewprune explain openssl@3`
+- `docker exec brewprune-r6 brewprune explain curl`
 
 **Commands (Invalid packages):**
-- `docker exec brewprune-r5 brewprune explain nonexistent-package`
-- `docker exec brewprune-r5 brewprune explain`
-- `docker exec brewprune-r5 brewprune explain --help`
+- `docker exec brewprune-r6 brewprune explain nonexistent-package`
+- `docker exec brewprune-r6 brewprune explain`
+- `docker exec brewprune-r6 brewprune explain --help`
 
 **Evaluate:**
 - Does explain show a clear scoring breakdown?
@@ -185,15 +185,15 @@ Test the per-package drill-down feature.
 Test the health check and diagnostic system.
 
 **Commands (After quickstart):**
-- `docker exec brewprune-r5 brewprune doctor`
+- `docker exec brewprune-r6 brewprune doctor`
 
 **Commands (With stopped daemon):**
-- `docker exec brewprune-r5 brewprune watch --stop`
-- `docker exec brewprune-r5 brewprune doctor`
+- `docker exec brewprune-r6 brewprune watch --stop`
+- `docker exec brewprune-r6 brewprune doctor`
 
 **Commands (Before any setup):**
-- `docker exec brewprune-r5 rm -rf ~/.brewprune`
-- `docker exec brewprune-r5 brewprune doctor`
+- `docker exec brewprune-r6 rm -rf ~/.brewprune`
+- `docker exec brewprune-r6 brewprune doctor`
 
 **Evaluate:**
 - Does doctor clearly identify issues?
@@ -209,29 +209,29 @@ Test the health check and diagnostic system.
 Test package removal and rollback features with safety mechanisms.
 
 **Commands (Dry-run first):**
-- `docker exec brewprune-r5 brewprune remove --safe --dry-run`
-- `docker exec brewprune-r5 brewprune remove --medium --dry-run`
-- `docker exec brewprune-r5 brewprune remove --risky --dry-run`
-- `docker exec brewprune-r5 brewprune remove --tier safe --dry-run`
-- `docker exec brewprune-r5 brewprune remove bat fd --dry-run`
+- `docker exec brewprune-r6 brewprune remove --safe --dry-run`
+- `docker exec brewprune-r6 brewprune remove --medium --dry-run`
+- `docker exec brewprune-r6 brewprune remove --risky --dry-run`
+- `docker exec brewprune-r6 brewprune remove --tier safe --dry-run`
+- `docker exec brewprune-r6 brewprune remove bat fd --dry-run`
 
 **Commands (Snapshots):**
-- `docker exec brewprune-r5 brewprune undo --list`
+- `docker exec brewprune-r6 brewprune undo --list`
 
 **Commands (Actual removal - if safe packages exist):**
-- `docker exec brewprune-r5 brewprune remove --safe --yes`
-- `docker exec brewprune-r5 brewprune undo --list`
-- `docker exec brewprune-r5 brewprune status`
+- `docker exec brewprune-r6 brewprune remove --safe --yes`
+- `docker exec brewprune-r6 brewprune undo --list`
+- `docker exec brewprune-r6 brewprune status`
 
 **Commands (Rollback):**
-- `docker exec brewprune-r5 brewprune undo latest`
-- `docker exec brewprune-r5 brewprune undo latest --yes`
+- `docker exec brewprune-r6 brewprune undo latest`
+- `docker exec brewprune-r6 brewprune undo latest --yes`
 
 **Commands (Invalid operations):**
-- `docker exec brewprune-r5 brewprune remove nonexistent-package`
-- `docker exec brewprune-r5 brewprune remove --safe --medium`
-- `docker exec brewprune-r5 brewprune undo 999`
-- `docker exec brewprune-r5 brewprune undo`
+- `docker exec brewprune-r6 brewprune remove nonexistent-package`
+- `docker exec brewprune-r6 brewprune remove --safe --medium`
+- `docker exec brewprune-r6 brewprune undo 999`
+- `docker exec brewprune-r6 brewprune undo`
 
 **Evaluate:**
 - Does --dry-run clearly state it's a preview?
@@ -249,37 +249,37 @@ Test package removal and rollback features with safety mechanisms.
 Test boundary conditions and invalid input handling.
 
 **Commands (No arguments):**
-- `docker exec brewprune-r5 brewprune`
-- `docker exec brewprune-r5 brewprune unused`
-- `docker exec brewprune-r5 brewprune stats`
-- `docker exec brewprune-r5 brewprune remove`
-- `docker exec brewprune-r5 brewprune explain`
-- `docker exec brewprune-r5 brewprune undo`
+- `docker exec brewprune-r6 brewprune`
+- `docker exec brewprune-r6 brewprune unused`
+- `docker exec brewprune-r6 brewprune stats`
+- `docker exec brewprune-r6 brewprune remove`
+- `docker exec brewprune-r6 brewprune explain`
+- `docker exec brewprune-r6 brewprune undo`
 
 **Commands (Unknown subcommands):**
-- `docker exec brewprune-r5 brewprune blorp`
-- `docker exec brewprune-r5 brewprune list`
-- `docker exec brewprune-r5 brewprune prune`
+- `docker exec brewprune-r6 brewprune blorp`
+- `docker exec brewprune-r6 brewprune list`
+- `docker exec brewprune-r6 brewprune prune`
 
 **Commands (Invalid flags):**
-- `docker exec brewprune-r5 brewprune unused --invalid-flag`
-- `docker exec brewprune-r5 brewprune remove --safe --medium --risky`
-- `docker exec brewprune-r5 brewprune stats --days -1`
-- `docker exec brewprune-r5 brewprune stats --days abc`
-- `docker exec brewprune-r5 brewprune unused --tier invalid`
-- `docker exec brewprune-r5 brewprune unused --min-score 200`
-- `docker exec brewprune-r5 brewprune unused --sort invalid`
+- `docker exec brewprune-r6 brewprune unused --invalid-flag`
+- `docker exec brewprune-r6 brewprune remove --safe --medium --risky`
+- `docker exec brewprune-r6 brewprune stats --days -1`
+- `docker exec brewprune-r6 brewprune stats --days abc`
+- `docker exec brewprune-r6 brewprune unused --tier invalid`
+- `docker exec brewprune-r6 brewprune unused --min-score 200`
+- `docker exec brewprune-r6 brewprune unused --sort invalid`
 
 **Commands (Conflicting flags):**
-- `docker exec brewprune-r5 brewprune remove --safe --tier medium`
-- `docker exec brewprune-r5 brewprune unused --tier safe --all`
-- `docker exec brewprune-r5 brewprune watch --daemon --stop`
+- `docker exec brewprune-r6 brewprune remove --safe --tier medium`
+- `docker exec brewprune-r6 brewprune unused --tier safe --all`
+- `docker exec brewprune-r6 brewprune watch --daemon --stop`
 
 **Commands (Missing prerequisites):**
-- `docker exec brewprune-r5 rm -rf ~/.brewprune`
-- `docker exec brewprune-r5 brewprune unused`
-- `docker exec brewprune-r5 brewprune stats`
-- `docker exec brewprune-r5 brewprune remove --safe`
+- `docker exec brewprune-r6 rm -rf ~/.brewprune`
+- `docker exec brewprune-r6 brewprune unused`
+- `docker exec brewprune-r6 brewprune stats`
+- `docker exec brewprune-r6 brewprune remove --safe`
 
 **Evaluate:**
 - Are error messages specific and actionable?
@@ -295,15 +295,15 @@ Test boundary conditions and invalid input handling.
 Review the overall presentation, formatting, and consistency.
 
 **Commands (Capture all output modes):**
-- `docker exec brewprune-r5 brewprune --help`
-- `docker exec brewprune-r5 brewprune unused --all`
-- `docker exec brewprune-r5 brewprune unused --tier safe --verbose`
-- `docker exec brewprune-r5 brewprune status`
-- `docker exec brewprune-r5 brewprune stats`
-- `docker exec brewprune-r5 brewprune explain git`
-- `docker exec brewprune-r5 brewprune doctor`
-- `docker exec brewprune-r5 brewprune undo --list`
-- `docker exec brewprune-r5 brewprune remove --safe --dry-run`
+- `docker exec brewprune-r6 brewprune --help`
+- `docker exec brewprune-r6 brewprune unused --all`
+- `docker exec brewprune-r6 brewprune unused --tier safe --verbose`
+- `docker exec brewprune-r6 brewprune status`
+- `docker exec brewprune-r6 brewprune stats`
+- `docker exec brewprune-r6 brewprune explain git`
+- `docker exec brewprune-r6 brewprune doctor`
+- `docker exec brewprune-r6 brewprune undo --list`
+- `docker exec brewprune-r6 brewprune remove --safe --dry-run`
 
 **Evaluate:**
 - **Tables:** Are columns aligned? Do headers stand out? Is data truncated gracefully?
@@ -393,7 +393,7 @@ Your final report should include:
 
 Write the complete audit report to:
 
-**`/Users/dayna.blackwell/code/brewprune/docs/cold-start-audit-r5.md`**
+**`/Users/dayna.blackwell/code/brewprune/docs/cold-start-audit-r6.md`**
 
 Use the **Write** tool to create this file.
 
@@ -401,7 +401,7 @@ Use the **Write** tool to create this file.
 
 ## IMPORTANT
 
-- Run ALL commands via `docker exec brewprune-r5 <command>` - never run brewprune directly on the host
+- Run ALL commands via `docker exec brewprune-r6 <command>` - never run brewprune directly on the host
 - Capture exact error messages and exit codes
 - Note timing (e.g., "took 3 seconds", "no progress indicator for 45s")
 - Be thorough - this audit drives the next round of fixes
