@@ -367,6 +367,28 @@ func TestWatchDaemonStopConflict(t *testing.T) {
 	}
 }
 
+// TestWatchHelpPollingNoteProminent verifies that the "30 seconds" polling
+// interval note appears prominently in the watch command's Long description —
+// not as the last line. Users checking 'watch --help' while waiting for
+// tracking data to appear should see this note early.
+func TestWatchHelpPollingNoteProminent(t *testing.T) {
+	long := watchCmd.Long
+
+	idx30 := strings.Index(long, "30 seconds")
+	if idx30 == -1 {
+		t.Fatal("expected Long description to contain '30 seconds'")
+	}
+
+	// The note must not be the last sentence. Verify that substantial text
+	// follows the first occurrence of "30 seconds".
+	textAfter := strings.TrimSpace(long[idx30+len("30 seconds"):])
+	if len(textAfter) < 50 {
+		t.Errorf("'30 seconds' appears too close to the end of Long description; "+
+			"only %d chars follow it. Move the note earlier so users see it prominently.",
+			len(textAfter))
+	}
+}
+
 // TestWatchLogStartup verifies that runWatchDaemonChild writes a startup line
 // to watchLogFile before calling RunDaemon.
 func TestWatchLogStartup(t *testing.T) {
