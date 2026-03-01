@@ -592,9 +592,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent B — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-b
-commit: {sha}
+commit: c13a4c542dfcf7fc3c84889a961bfee3957bdb88
 files_changed:
   - internal/snapshots/restore.go
   - internal/snapshots/restore_test.go
@@ -604,7 +604,7 @@ out_of_scope_deps: []
 tests_added:
   - TestRestoreOutput_EmptyVersion
   - TestRestoreOutput_WithVersion
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/snapshots -run 'TestRestore' — 4/4 tests)
 ```
 
 ---

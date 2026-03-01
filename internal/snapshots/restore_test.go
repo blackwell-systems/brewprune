@@ -11,6 +11,22 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/store"
 )
 
+func TestRestoreOutput_EmptyVersion(t *testing.T) {
+	result := formatRestoredPkg("bat", "")
+	expected := "bat"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestRestoreOutput_WithVersion(t *testing.T) {
+	result := formatRestoredPkg("bat", "0.26.1")
+	expected := "bat@0.26.1"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
 func TestLoadSnapshotFile(t *testing.T) {
 	tempDir := t.TempDir()
 
