@@ -56,10 +56,18 @@ func init() {
 	RootCmd.AddCommand(statsCmd)
 }
 
+// pluralize returns singular if n == 1, otherwise plural.
+func pluralize(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}
+
 func runStats(cmd *cobra.Command, args []string) error {
 	// Validate flags
 	if statsDays <= 0 {
-		return fmt.Errorf("invalid days: %d (must be positive)", statsDays)
+		return fmt.Errorf("--days must be a positive integer")
 	}
 
 	// Get database path
@@ -183,11 +191,16 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 			}
 		}
 
+		trend := "stable"
+		if s.TotalUses == 0 {
+			trend = "\u2014" // em dash: no usage data
+		}
+
 		outputStats[pkg] = output.UsageStats{
 			TotalRuns: s.TotalUses,
 			LastUsed:  lastUsed,
 			Frequency: s.Frequency,
-			Trend:     "stable", // Default trend
+			Trend:     trend,
 		}
 	}
 
@@ -226,8 +239,10 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 	table := output.RenderUsageTable(filteredStats)
 	fmt.Print(table)
 
-	fmt.Printf("\nSummary: %d packages used in last %d days (out of %d total)\n",
-		usedCount, days, len(trends))
+	fmt.Printf("\nSummary: %d %s used in the last %d %s (out of %d total)\n",
+		usedCount, pluralize(usedCount, "package", "packages"),
+		days, pluralize(days, "day", "days"),
+		len(trends))
 	if hiddenCount > 0 && !statsAll {
 		fmt.Printf("(%d packages with no recorded usage hidden — use --all to show)\n", hiddenCount)
 	}

@@ -996,3 +996,231 @@ func TestShowUsageTrends_NoBannerWithAllFlag(t *testing.T) {
 		t.Errorf("expected 'unused-all-pkg' in output with --all, got:\n%s", out)
 	}
 }
+
+// TestPluralize verifies the private pluralize helper returns the correct form.
+func TestPluralize(t *testing.T) {
+	tests := []struct {
+		n        int
+		singular string
+		plural   string
+		want     string
+	}{
+		{1, "day", "days", "day"},
+		{2, "day", "days", "days"},
+		{0, "day", "days", "days"},
+		{1, "package", "packages", "package"},
+		{5, "package", "packages", "packages"},
+	}
+
+	for _, tt := range tests {
+		got := pluralize(tt.n, tt.singular, tt.plural)
+		if got != tt.want {
+			t.Errorf("pluralize(%d, %q, %q) = %q, want %q", tt.n, tt.singular, tt.plural, got, tt.want)
+		}
+	}
+}
+
+// TestStatsPluralization_OneDay verifies that a summary for --days 1 contains
+// "1 day" and not "1 days".
+func TestStatsPluralization_OneDay(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkg := &brew.Package{
+		Name:        "oneday-pkg",
+		Version:     "1.0.0",
+		InstalledAt: now.AddDate(0, 0, -10),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	event := &store.UsageEvent{
+		Package:    "oneday-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/oneday-pkg",
+		Timestamp:  now.Add(-1 * time.Hour),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 1)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "1 day") {
+		t.Errorf("expected '1 day' in summary output, got:\n%s", out)
+	}
+	if strings.Contains(out, "1 days") {
+		t.Errorf("expected no '1 days' in summary output, got:\n%s", out)
+	}
+}
+
+// TestStatsPluralization_OnePackage verifies that a summary for a single used
+// package contains "1 package" and not "1 packages".
+func TestStatsPluralization_OnePackage(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkg := &brew.Package{
+		Name:        "solo-pkg",
+		Version:     "1.0.0",
+		InstalledAt: now.AddDate(0, 0, -10),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	event := &store.UsageEvent{
+		Package:    "solo-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/solo-pkg",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "1 package") {
+		t.Errorf("expected '1 package' in summary output, got:\n%s", out)
+	}
+	if strings.Contains(out, "1 packages") {
+		t.Errorf("expected no '1 packages' in summary output, got:\n%s", out)
+	}
+}
+
+// TestTrendColumn_ZeroUsage verifies that packages with zero usage events show
+// "—" (em dash) in the Trend column, not "→" or "stable".
+func TestTrendColumn_ZeroUsage(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkgs := []*brew.Package{
+		{Name: "zero-trend-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "used-trend-pkg", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	// Only add usage for used-trend-pkg
+	event := &store.UsageEvent{
+		Package:    "used-trend-pkg",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/used-trend-pkg",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = true
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	// The output table should contain "—" (the em dash rendered by formatTrend default case)
+	if !strings.Contains(out, "\u2014") {
+		t.Errorf("expected em dash '—' in output for zero-usage package, got:\n%s", out)
+	}
+
+	// The output should also contain "→" for the used package (trend="stable")
+	if !strings.Contains(out, "→") {
+		t.Errorf("expected '→' in output for package with usage, got:\n%s", out)
+	}
+}
