@@ -1211,6 +1211,128 @@ func TestStatsDaysNegative_Error(t *testing.T) {
 	}
 }
 
+// TestStatsAllShowsSortNote verifies that when --all is set and multiple packages
+// are displayed, the output contains a "Sorted by" / "most used" line so the
+// user understands the display order.
+func TestStatsAllShowsSortNote(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkgs := []*brew.Package{
+		{Name: "sort-note-pkg-a", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+		{Name: "sort-note-pkg-b", Version: "1.0.0", InstalledAt: now.AddDate(0, 0, -60), InstallType: "explicit", Tap: "homebrew/core"},
+	}
+	for _, p := range pkgs {
+		if err := st.InsertPackage(p); err != nil {
+			t.Fatalf("failed to insert package %s: %v", p.Name, err)
+		}
+	}
+
+	// Give pkg-a some usage so both appear in the table.
+	event := &store.UsageEvent{
+		Package:    "sort-note-pkg-a",
+		EventType:  "exec",
+		BinaryPath: "/usr/local/bin/sort-note-pkg-a",
+		Timestamp:  now.AddDate(0, 0, -3),
+	}
+	if err := st.InsertUsageEvent(event); err != nil {
+		t.Fatalf("failed to insert usage event: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = true
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	if !strings.Contains(out, "Sorted by") && !strings.Contains(out, "most used") {
+		t.Errorf("expected 'Sorted by' or 'most used' in --all output, got:\n%s", out)
+	}
+}
+
+// TestStatsSinglePackageNoSortNote verifies that when querying a single package
+// via --package <name>, the output does NOT include the sort note (there is
+// nothing to sort).
+func TestStatsSinglePackageNoSortNote(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	now := time.Now()
+	pkg := &brew.Package{
+		Name:        "single-sort-pkg",
+		Version:     "1.0.0",
+		InstalledAt: now.AddDate(0, 0, -30),
+		InstallType: "explicit",
+		Tap:         "homebrew/core",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	a := analyzer.New(st)
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showPackageStats(a, "single-sort-pkg")
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showPackageStats returned unexpected error: %v", showErr)
+	}
+
+	if strings.Contains(out, "Sorted by") {
+		t.Errorf("expected NO 'Sorted by' in single-package output, got:\n%s", out)
+	}
+}
+
 // TestTrendColumn_ZeroUsage verifies that packages with zero usage events show
 // "—" (em dash) in the Trend column, not "→" or "stable".
 func TestTrendColumn_ZeroUsage(t *testing.T) {

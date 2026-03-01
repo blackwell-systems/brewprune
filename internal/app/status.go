@@ -166,10 +166,18 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("              %s\n", "Real tracking starts when PATH is fixed and shims are in front of Homebrew.")
 	}
 
-	// Last scan line (use DB mtime as proxy)
-	dbMtime := "unknown"
-	if fi, err := os.Stat(dbPath); err == nil {
+	// Last scan line (use DB mtime as proxy).
+	// When formulaeCount == 0, no scan has ever populated the database.
+	// The directory may exist (created as a side effect of getDBPath), so
+	// os.Stat would succeed and report a fresh mtime — which would produce
+	// the misleading "just now" string. In that case, show "never" instead.
+	var dbMtime string
+	if formulaeCount == 0 {
+		dbMtime = "never — run 'brewprune scan'"
+	} else if fi, err := os.Stat(dbPath); err == nil {
 		dbMtime = formatDuration(time.Since(fi.ModTime()))
+	} else {
+		dbMtime = "unknown"
 	}
 	fmt.Printf(label+"%s · %d formulae · %s\n", "Last scan:", dbMtime, formulaeCount, formatSize(dbSize))
 

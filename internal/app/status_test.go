@@ -468,6 +468,63 @@ func TestStatusPathActive(t *testing.T) {
 	}
 }
 
+// TestStatusLastScanNeverWhenZeroFormulae verifies that when the database
+// contains zero formulae (i.e. no scan has ever been run), the status output
+// shows "never" for the last scan line and does NOT show "just now".
+func TestStatusLastScanNeverWhenZeroFormulae(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("failed to set HOME: %v", err)
+	}
+	defer os.Setenv("HOME", origHome)
+
+	// Create .brewprune directory and an empty (schema-only) DB — no packages.
+	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
+	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
+		t.Fatalf("failed to create .brewprune dir: %v", err)
+	}
+	realDB := fmt.Sprintf("%s/brewprune.db", brewpruneDir)
+
+	st, err := store.New(realDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("failed to create schema: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath so runStatus uses our temp DB.
+	origDBPath := dbPath
+	dbPath = realDB
+	defer func() { dbPath = origDBPath }()
+
+	// Capture stdout.
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	_ = runStatus(nil, nil)
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	os.Stdout = origStdout
+
+	if !strings.Contains(output, "never") {
+		t.Errorf("expected 'never' in last scan line when formulaeCount == 0, got output:\n%s", output)
+	}
+	if strings.Contains(output, "just now") {
+		t.Errorf("expected NO 'just now' in last scan line when formulaeCount == 0, got output:\n%s", output)
+	}
+}
+
 // TestFormatDuration_JustNow verifies that a zero duration returns "just now".
 func TestFormatDuration_JustNow(t *testing.T) {
 	got := formatDuration(0)
