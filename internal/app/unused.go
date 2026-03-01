@@ -93,6 +93,11 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", unusedTier)
 	}
 
+	// UNUSED-4: --all and --tier conflict check
+	if unusedAll && unusedTier != "" {
+		return fmt.Errorf("Error: --all and --tier cannot be used together; --tier already filters to a specific tier")
+	}
+
 	if unusedMinScore < 0 || unusedMinScore > 100 {
 		return fmt.Errorf("invalid min-score: %d (must be 0-100)", unusedMinScore)
 	}
@@ -185,6 +190,13 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// UNUSED-2: Early exit when --casks is set but no casks are in the database
+	if unusedCasks && caskCount == 0 {
+		fmt.Println("No casks found in the Homebrew database.")
+		fmt.Println("Cask tracking requires cask packages to be installed (brew install --cask <name>).")
+		return nil
+	}
+
 	// Apply filters
 	var scores []*analyzer.ConfidenceScore
 	var belowScoreThreshold int
@@ -216,8 +228,12 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Print tier summary header
-	fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "" || showRiskyImplicit, caskCount))
+	// Print tier summary header (UNUSED-5: highlight active tier when --tier is set)
+	tierSummary := output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "" || showRiskyImplicit, caskCount)
+	if unusedTier != "" {
+		tierSummary = highlightActiveTier(tierSummary, unusedTier)
+	}
+	fmt.Println(tierSummary)
 
 	// Add clarifying text when min-score filter is active
 	if unusedMinScore > 0 {
@@ -490,6 +506,10 @@ func checkUsageWarning(st *store.Store) {
 }
 
 // showConfidenceAssessment displays the overall confidence level based on tracking data.
+// VISUAL-1: All ANSI escape sequences are guarded by a TTY check to prevent leakage
+// when output is piped or redirected.
+// UNUSED-3: A score inversion note is displayed in the Breakdown section to clarify
+// that higher scores mean safer to remove.
 func showConfidenceAssessment(st *store.Store) error {
 	eventCount, err := st.GetEventCount()
 	if err != nil {
@@ -509,7 +529,16 @@ func showConfidenceAssessment(st *store.Store) error {
 
 	fmt.Println()
 
-	// ANSI color codes for confidence levels
+	// VISUAL-1: TTY check — guard all ANSI sequences to prevent leakage when piped
+	isColor := func() bool {
+		if os.Getenv("NO_COLOR") != "" {
+			return false
+		}
+		fi, err := os.Stdout.Stat()
+		return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+	}()
+
+	// ANSI color codes for confidence levels (only used when isColor is true)
 	const (
 		colorRed    = "\033[31m"
 		colorYellow = "\033[33m"
@@ -517,15 +546,105 @@ func showConfidenceAssessment(st *store.Store) error {
 		colorReset  = "\033[0m"
 	)
 
-	if eventCount == 0 {
-		fmt.Printf("Confidence: %sLOW%s (0 usage events recorded, tracking since: never)\n", colorRed, colorReset)
-		fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
-	} else if daysSinceTracking < 7 {
-		fmt.Printf("Confidence: %sMEDIUM%s (%d events, tracking for %d days)\n", colorYellow, colorReset, eventCount, daysSinceTracking)
-		fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
+	// UNUSED-3: Score inversion note — printed once before confidence line.
+	// Canonical verbose Breakdown format (for Agent G / explain.go to match):
+	//   Breakdown:
+	//     (score measures removal confidence: higher = safer to remove)
+	//     Usage:        <n>/40 pts - <detail>
+	//     Dependencies: <n>/30 pts - <detail>
+	//     Age:          <n>/20 pts - <detail>
+	//     Type:         <n>/10 pts - <detail>
+	fmt.Println("Breakdown:")
+	fmt.Println("  (score measures removal confidence: higher = safer to remove)")
+
+	if isColor {
+		if eventCount == 0 {
+			fmt.Printf("Confidence: %sLOW%s (0 usage events recorded, tracking since: never)\n", colorRed, colorReset)
+			fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
+		} else if daysSinceTracking < 7 {
+			fmt.Printf("Confidence: %sMEDIUM%s (%d events, tracking for %d days)\n", colorYellow, colorReset, eventCount, daysSinceTracking)
+			fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
+		} else {
+			fmt.Printf("Confidence: %sHIGH%s (%d events, tracking for %d days)\n", colorGreen, colorReset, eventCount, daysSinceTracking)
+		}
 	} else {
-		fmt.Printf("Confidence: %sHIGH%s (%d events, tracking for %d days)\n", colorGreen, colorReset, eventCount, daysSinceTracking)
+		if eventCount == 0 {
+			fmt.Printf("Confidence: LOW (0 usage events recorded, tracking since: never)\n")
+			fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
+		} else if daysSinceTracking < 7 {
+			fmt.Printf("Confidence: MEDIUM (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+			fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
+		} else {
+			fmt.Printf("Confidence: HIGH (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+		}
 	}
 
 	return nil
+}
+
+// highlightActiveTier modifies a tier summary string to visually mark the active tier.
+// For non-TTY: wraps the active tier label in brackets, e.g. [SAFE: 5 packages (39 MB)].
+// For TTY: also bolds the bracketed section.
+// Appends "(filtered to <tier>)" at the end of the line.
+func highlightActiveTier(summary, activeTier string) string {
+	// Determine if output is a TTY for bold support
+	isTTY := false
+	if os.Getenv("NO_COLOR") == "" {
+		if fi, err := os.Stdout.Stat(); err == nil {
+			isTTY = (fi.Mode() & os.ModeCharDevice) != 0
+		}
+	}
+
+	upper := strings.ToUpper(activeTier)
+
+	// Find the tier label in the summary and wrap it in brackets.
+	// The summary format is: "SAFE: N packages (X MB) · MEDIUM: N (X MB) · RISKY: N (X MB)"
+	// We need to wrap everything from "SAFE:" through the next " ·" (or end of ANSI/plain tier block).
+	// Strategy: find the tier name (possibly preceded by ANSI codes) and bracket the segment.
+
+	const boldOn = "\033[1m"
+	const boldOff = "\033[0m"
+
+	// We'll use a simple string replacement strategy.
+	// Find tier keyword boundaries by looking for " · " separators.
+	// Split on " · " (middle dot separator used in RenderTierSummary)
+	sep := " \u00b7 "
+	parts := strings.Split(summary, sep)
+
+	for i, part := range parts {
+		// Strip ANSI for comparison
+		stripped := stripANSI(part)
+		if strings.HasPrefix(stripped, upper+":") {
+			if isTTY {
+				parts[i] = boldOn + "[" + part + "]" + boldOff
+			} else {
+				parts[i] = "[" + part + "]"
+			}
+			break
+		}
+	}
+
+	result := strings.Join(parts, sep)
+	result += "  (filtered to " + activeTier + ")"
+	return result
+}
+
+// stripANSI removes ANSI escape sequences from a string for plain-text comparison.
+func stripANSI(s string) string {
+	var out strings.Builder
+	i := 0
+	for i < len(s) {
+		if s[i] == '\033' && i+1 < len(s) && s[i+1] == '[' {
+			// Skip until 'm'
+			j := i + 2
+			for j < len(s) && s[j] != 'm' {
+				j++
+			}
+			i = j + 1
+			continue
+		}
+		out.WriteByte(s[i])
+		i++
+	}
+	return out.String()
 }
