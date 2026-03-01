@@ -93,34 +93,40 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	snapshotDir := getSnapshotDir()
 	snapMgr := snapshots.New(st, snapshotDir)
 
-	// Drift check: warn if brew has new formulae not yet in the DB
-	if allPkgs, err := st.ListPackages(); err == nil {
-		pkgNames := make([]string, len(allPkgs))
-		for i, p := range allPkgs {
-			pkgNames[i] = p.Name
-		}
-		if newCount, _ := brew.CheckStaleness(pkgNames); newCount > 0 {
-			fmt.Fprintf(os.Stderr, "⚠  %d new formulae since last scan. Run 'brewprune scan' to update shims.\n\n", newCount)
-		}
-	}
-
 	var packagesToRemove []string
 	var totalSize int64
 	var activeTier string // tracks the resolved tier for confirmation UX
 
 	// Determine which packages to remove
 	if len(args) > 0 {
-		// User specified packages explicitly
-		packagesToRemove = args
+		// User specified packages explicitly — pre-filter dep-locked packages
+		var lockedExplicit []string
+		var filteredArgs []string
+		for _, pkg := range args {
+			deps, err := brew.Uses(pkg)
+			if err == nil && len(deps) > 0 {
+				lockedExplicit = append(lockedExplicit, fmt.Sprintf("%s (required by: %s)", pkg, strings.Join(deps, ", ")))
+			} else {
+				filteredArgs = append(filteredArgs, pkg)
+			}
+		}
+		if len(lockedExplicit) > 0 {
+			fmt.Fprintf(os.Stderr, "⚠  %d packages skipped (locked by installed dependents):\n", len(lockedExplicit))
+			for _, l := range lockedExplicit {
+				fmt.Fprintf(os.Stderr, "  - %s\n", l)
+			}
+			fmt.Fprintln(os.Stderr)
+		}
 
-		// Validate packages exist and calculate size
-		for _, pkg := range packagesToRemove {
+		// Validate remaining packages exist and calculate size
+		for _, pkg := range filteredArgs {
 			pkgInfo, err := st.GetPackage(pkg)
 			if err != nil {
 				return fmt.Errorf("package %q not found", pkg)
 			}
 			totalSize += pkgInfo.SizeBytes
 		}
+		packagesToRemove = filteredArgs
 
 		// Validate removal
 		warnings, err := anlzr.ValidateRemoval(packagesToRemove)
@@ -170,6 +176,26 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			fmt.Printf("No %s packages found for removal.\n", tier)
 			return nil
 		}
+
+		// Pre-filter dep-locked packages
+		var lockedPackages []string
+		var filteredScores []*analyzer.ConfidenceScore
+		for _, score := range scores {
+			deps, err := brew.Uses(score.Package)
+			if err == nil && len(deps) > 0 {
+				lockedPackages = append(lockedPackages, fmt.Sprintf("%s (required by: %s)", score.Package, strings.Join(deps, ", ")))
+			} else {
+				filteredScores = append(filteredScores, score)
+			}
+		}
+		if len(lockedPackages) > 0 {
+			fmt.Fprintf(os.Stderr, "⚠  %d packages skipped (locked by installed dependents):\n", len(lockedPackages))
+			for _, l := range lockedPackages {
+				fmt.Fprintf(os.Stderr, "  - %s\n", l)
+			}
+			fmt.Fprintln(os.Stderr)
+		}
+		scores = filteredScores
 
 		// Extract package names and calculate total size
 		for _, score := range scores {
@@ -240,6 +266,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	progress := output.NewProgress(len(packagesToRemove), "Removing packages")
 
 	successCount := 0
+	var freedSize int64
 	var failures []string
 
 	for _, pkg := range packagesToRemove {
@@ -248,6 +275,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			failures = append(failures, fmt.Sprintf("%s: core dependency, skipped", pkg))
 			progress.Increment()
 			continue
+		}
+
+		// Capture package size before removal (DB entry is deleted after)
+		var pkgSize int64
+		if pkgInfo, err := st.GetPackage(pkg); err == nil {
+			pkgSize = pkgInfo.SizeBytes
 		}
 
 		// Uninstall package
@@ -263,6 +296,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "\nWarning: removed %s but failed to update database: %v\n", pkg, err)
 		}
 
+		freedSize += pkgSize
 		successCount++
 		progress.Increment()
 	}
@@ -270,7 +304,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	progress.Finish()
 
 	// Display results
-	fmt.Printf("\n✓ Removed %d packages, freed %s\n", successCount, formatSize(totalSize))
+	fmt.Printf("\n✓ Removed %d packages, freed %s\n", successCount, formatSize(freedSize))
 
 	if len(failures) > 0 {
 		fmt.Printf("\n⚠️  %d failures:\n", len(failures))

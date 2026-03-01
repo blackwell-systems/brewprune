@@ -40,6 +40,28 @@ func Install(pkgName, version string) error {
 	return nil
 }
 
+// Uses returns the list of currently-installed packages that depend on pkgName.
+// Runs `brew uses --installed <pkgName>`. Returns nil, nil when no dependents exist.
+func Uses(pkgName string) ([]string, error) {
+	cmd := exec.Command("brew", "uses", "--installed", pkgName)
+	output, err := cmd.Output()
+	if err != nil {
+		// brew uses exits 0 even when no dependents exist.
+		// A non-zero exit with empty output means no dependents.
+		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("brew uses %s failed: %w", pkgName, err)
+	}
+	var deps []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			deps = append(deps, line)
+		}
+	}
+	return deps, nil
+}
+
 // AddTap adds a Homebrew tap if not already present
 func AddTap(tap string) error {
 	// Check if tap already exists first
