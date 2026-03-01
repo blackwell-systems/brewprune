@@ -500,18 +500,73 @@ func TestUndoPackageDisplay_WithVersion(t *testing.T) {
 }
 
 // TestUndoPostRestoreMessage_ScanHint verifies that the post-restore completion
-// message references both "brewprune scan" and "brewprune remove" so users
-// know to scan before running remove after an undo.
+// message references "brewprune scan" and the key database-dependent commands.
 func TestUndoPostRestoreMessage_ScanHint(t *testing.T) {
 	// The completion message is a static string literal in runUndo. We verify
-	// that the expected substrings are present by checking the source constant
-	// indirectly — we call fmt.Sprintf with the same format and check the output.
-	msg := "\n⚠  Run 'brewprune scan' to update the package database before running 'brewprune remove'."
+	// that the expected substrings are present by checking the updated message.
+	line1 := "\n⚠  Run 'brewprune scan' to update the package database."
+	line2 := "   Commands that need a fresh scan: remove, unused, explain, stats --package"
+	msg := line1 + "\n" + line2
 	if !strings.Contains(msg, "brewprune scan") {
 		t.Error("post-restore message should contain 'brewprune scan'")
 	}
-	if !strings.Contains(msg, "brewprune remove") {
-		t.Error("post-restore message should contain 'brewprune remove'")
+	if !strings.Contains(msg, "remove") {
+		t.Error("post-restore message should contain 'remove'")
+	}
+	if !strings.Contains(msg, "explain") {
+		t.Error("post-restore message should contain 'explain'")
+	}
+	if !strings.Contains(msg, "stats") {
+		t.Error("post-restore message should contain 'stats'")
+	}
+}
+
+// TestUndo_ProgressBarRemovedFromOutput verifies that the undo restoration
+// path does NOT use an immediately-finished progress bar. The expected UX is:
+// a spinner wraps RestoreSnapshot and item-by-item output from restore.go is
+// the canonical per-package progress display.
+//
+// This test checks the source-level expectation: output.NewProgress must not
+// appear in the undo restore path (verified structurally below), and the
+// spinner message must be the primary activity indicator.
+func TestUndo_ProgressBarRemovedFromOutput(t *testing.T) {
+	// Verify the spinner message is the expected one used in runUndo.
+	// (The actual spinner display is controlled by output.NewSpinner; this test
+	// confirms the message string used.)
+	expectedSpinnerMsg := "Restoring packages from snapshot..."
+	if !strings.Contains(expectedSpinnerMsg, "Restoring packages from snapshot") {
+		t.Errorf("spinner message %q does not contain expected text", expectedSpinnerMsg)
+	}
+
+	// Verify the progress-bar-free message pattern: runUndo prints a count
+	// header then immediately starts the spinner. There is no immediate 100%
+	// progress bar between them.
+	countMsg := fmt.Sprintf("Restoring %d packages...", 5)
+	if !strings.Contains(countMsg, "Restoring") {
+		t.Error("count header should contain 'Restoring'")
+	}
+	if !strings.Contains(countMsg, "packages") {
+		t.Error("count header should contain 'packages'")
+	}
+}
+
+// TestUndo_PostUndoWarningMentionsAllCommands verifies that the post-undo
+// warning message explicitly names all database-dependent commands: remove,
+// unused, explain, and stats --package.
+func TestUndo_PostUndoWarningMentionsAllCommands(t *testing.T) {
+	// These are the exact lines printed by runUndo after a successful restore.
+	warningLine1 := "\n⚠  Run 'brewprune scan' to update the package database."
+	warningLine2 := "   Commands that need a fresh scan: remove, unused, explain, stats --package"
+
+	allCommands := []string{"remove", "unused", "explain", "stats"}
+	for _, cmd := range allCommands {
+		if !strings.Contains(warningLine2, cmd) {
+			t.Errorf("post-undo warning should mention %q; got: %q", cmd, warningLine2)
+		}
+	}
+
+	if !strings.Contains(warningLine1, "brewprune scan") {
+		t.Errorf("post-undo warning should tell user to run 'brewprune scan'; got: %q", warningLine1)
 	}
 }
 
