@@ -333,3 +333,59 @@ func TestStartWatchDaemon_AlreadyRunningIsIdempotent(t *testing.T) {
 		t.Errorf("expected informational 'already running' message, got: %q", output)
 	}
 }
+
+// TestWatchDaemonStopConflict verifies that when both --daemon and --stop are
+// provided, a warning is printed to stderr before stop proceeds.
+func TestWatchDaemonStopConflict(t *testing.T) {
+	// Set both conflicting flags.
+	origDaemon := watchDaemon
+	origStop := watchStop
+	origPIDFile := watchPIDFile
+	origLogFile := watchLogFile
+	watchDaemon = true
+	watchStop = true
+	defer func() {
+		watchDaemon = origDaemon
+		watchStop = origStop
+		watchPIDFile = origPIDFile
+		watchLogFile = origLogFile
+	}()
+
+	// Use a temp PID file that does not exist so stopWatchDaemon returns
+	// "Daemon is not running" without trying to kill anything.
+	tmpDir := t.TempDir()
+	watchPIDFile = fmt.Sprintf("%s/nonexistent.pid", tmpDir)
+	watchLogFile = fmt.Sprintf("%s/watch.log", tmpDir)
+
+	// Capture stderr to observe the warning.
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stderr = w
+
+	// runWatch will print the warning then call stopWatchDaemon (which will
+	// report "not running" and return nil).
+	_ = runWatch(watchCmd, nil)
+
+	w.Close()
+	os.Stderr = origStderr
+
+	var buf strings.Builder
+	tmp := make([]byte, 4096)
+	for {
+		n, readErr := r.Read(tmp)
+		if n > 0 {
+			buf.Write(tmp[:n])
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	stderrOutput := buf.String()
+
+	if !strings.Contains(stderrOutput, "Warning") || !strings.Contains(stderrOutput, "--daemon") || !strings.Contains(stderrOutput, "--stop") {
+		t.Errorf("expected warning about --daemon and --stop conflict in stderr, got: %q", stderrOutput)
+	}
+}

@@ -84,6 +84,11 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		watchLogFile = defaultLog
 	}
 
+	// Warn when mutually exclusive flags are combined; stop takes precedence.
+	if watchDaemon && watchStop {
+		fmt.Fprintln(os.Stderr, "Warning: --daemon and --stop are mutually exclusive; stopping daemon.")
+	}
+
 	// Handle stop command
 	if watchStop {
 		return stopWatchDaemon()
