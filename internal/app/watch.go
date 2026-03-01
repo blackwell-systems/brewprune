@@ -26,6 +26,7 @@ var (
 		Use:   "watch",
 		Short: "Process shim log and record package usage",
 		Long: `Process the PATH shim usage log to track which Homebrew packages you use.
+Usage data is written every 30 seconds to minimise I/O overhead.
 
 When you run a shimmed command (e.g. git, gh, jq), the shim binary appends
 an entry to ~/.brewprune/usage.log. The watch daemon reads that log every 30
@@ -38,9 +39,7 @@ Then add ~/.brewprune/bin to the front of your PATH.
 Watch modes:
   • Foreground (default): Run in current terminal with Ctrl+C to stop
   • Daemon: Run as background process (recommended)
-  • Stop: Stop a running daemon
-
-Usage data is written every 30 seconds to minimise I/O overhead.`,
+  • Stop: Stop a running daemon`,
 		Example: `  # Run in foreground (Ctrl+C to stop)
   brewprune watch
 

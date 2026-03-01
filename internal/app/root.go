@@ -22,6 +22,10 @@ var (
 	GitCommit = "unknown"
 	BuildDate = "unknown"
 
+	// validCommandsList is the hardcoded list of valid subcommands shown in
+	// the unknown-command error message.
+	validCommandsList = "scan, unused, remove, undo, status, stats, explain, doctor, quickstart, watch, completion"
+
 	// RootCmd is the root command for brewprune
 	RootCmd = &cobra.Command{
 		Use:   "brewprune",
@@ -67,6 +71,18 @@ Examples:
 
   # Undo last removal
   brewprune undo latest`,
+		// Args validates positional arguments. When an unknown subcommand is
+		// provided (e.g. "brewprune blorp"), cobra's default legacyArgs
+		// validator returns a plain "unknown command" error. We replace it
+		// with a custom validator that appends the list of valid commands so
+		// users immediately know what to type next.
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 && cmd.HasSubCommands() {
+				return fmt.Errorf("unknown command %q for %q\nValid commands: %s\nRun 'brewprune --help' for usage.",
+					args[0], cmd.CommandPath(), validCommandsList)
+			}
+			return nil
+		},
 		SilenceUsage:  true,
 		SilenceErrors: false,
 		RunE: func(cmd *cobra.Command, args []string) error {

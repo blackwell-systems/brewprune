@@ -242,6 +242,14 @@ func TestExecute_UnknownCommandHelpHint(t *testing.T) {
 	RootCmd.SetOut(bytes.NewBuffer(nil))
 	defer RootCmd.SetOut(nil)
 
+	// Reset the help flag value in case a previous test left it set to true.
+	// Without this, cobra's execute() sees helpVal=true and returns nil instead
+	// of propagating the unknown-command error from our custom Args validator.
+	if f := RootCmd.Flags().Lookup("help"); f != nil {
+		f.Value.Set("false") //nolint:errcheck
+		f.Changed = false
+	}
+
 	RootCmd.SetArgs([]string{"blorp"})
 	err := Execute()
 
@@ -306,6 +314,35 @@ func TestBrewpruneHelpExitsZero(t *testing.T) {
 	}
 }
 
+func TestRootUnknownCommandIncludesValidCommands(t *testing.T) {
+	// Verify that the root command's Args validator produces an error containing
+	// the valid commands list when an unknown subcommand is given. We test the
+	// Args function directly to avoid global state contamination from other tests
+	// (e.g. a previous test leaving the help flag marked as changed).
+	if RootCmd.Args == nil {
+		t.Fatal("expected RootCmd.Args to be set")
+	}
+
+	err := RootCmd.Args(RootCmd, []string{"blorp"})
+	if err == nil {
+		t.Fatal("expected Args validator to return an error for unknown command 'blorp'")
+	}
+
+	// The error message must contain the valid commands list.
+	if !strings.Contains(err.Error(), "scan") {
+		t.Errorf("expected error to contain 'scan', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "unused") {
+		t.Errorf("expected error to contain 'unused', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Valid commands") {
+		t.Errorf("expected error to contain 'Valid commands', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected error to still contain 'unknown command', got: %v", err)
+	}
+}
+
 func TestUnknownSubcommandErrorOrder(t *testing.T) {
 	// Verify that unknown subcommand error appears before the hint
 	// Note: Execute() writes to os.Stderr directly, so we can't fully capture it,
@@ -317,6 +354,12 @@ func TestUnknownSubcommandErrorOrder(t *testing.T) {
 	// Suppress stdout
 	RootCmd.SetOut(bytes.NewBuffer(nil))
 	defer RootCmd.SetOut(nil)
+
+	// Reset the help flag value in case a previous test left it set to true.
+	if f := RootCmd.Flags().Lookup("help"); f != nil {
+		f.Value.Set("false") //nolint:errcheck
+		f.Changed = false
+	}
 
 	RootCmd.SetArgs([]string{"blorp"})
 	err := Execute()
