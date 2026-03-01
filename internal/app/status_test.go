@@ -163,10 +163,11 @@ func TestStatusPathConfiguredNotSourced(t *testing.T) {
 	}
 	defer os.Setenv("SHELL", origShell)
 
-	// Create .brewprune directory
+	// Create .brewprune directory and the shim bin/ subdirectory (so shimDirExists == true).
 	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
-	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
-		t.Fatalf("failed to create .brewprune dir: %v", err)
+	shimDir := fmt.Sprintf("%s/bin", brewpruneDir)
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("failed to create shim dir: %v", err)
 	}
 
 	// Create a real SQLite DB with minimal schema
@@ -187,7 +188,6 @@ func TestStatusPathConfiguredNotSourced(t *testing.T) {
 	defer func() { dbPath = origDBPath }()
 
 	// Create .zprofile with brewprune PATH export (simulating post-quickstart state)
-	shimDir := fmt.Sprintf("%s/.brewprune/bin", tmpDir)
 	zprofile := fmt.Sprintf("%s/.zprofile", tmpDir)
 	profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
 	if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
@@ -243,10 +243,11 @@ func TestStatusPathNeverConfigured(t *testing.T) {
 	}
 	defer os.Setenv("SHELL", origShell)
 
-	// Create .brewprune directory
+	// Create .brewprune directory and the shim bin/ subdirectory (so shimDirExists == true).
 	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
-	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
-		t.Fatalf("failed to create .brewprune dir: %v", err)
+	shimDirNeverConfigured := fmt.Sprintf("%s/bin", brewpruneDir)
+	if err := os.MkdirAll(shimDirNeverConfigured, 0755); err != nil {
+		t.Fatalf("failed to create shim dir: %v", err)
 	}
 
 	// Create a real SQLite DB with minimal schema
@@ -317,10 +318,11 @@ func TestStatusPathConfiguredWithEvents_NoSelfTestNote(t *testing.T) {
 	}
 	defer os.Setenv("SHELL", origShell)
 
-	// Create .brewprune directory
+	// Create .brewprune directory and the shim bin/ subdirectory (so shimDirExists == true).
 	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
-	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
-		t.Fatalf("failed to create .brewprune dir: %v", err)
+	shimDirConfiguredWithEvents := fmt.Sprintf("%s/bin", brewpruneDir)
+	if err := os.MkdirAll(shimDirConfiguredWithEvents, 0755); err != nil {
+		t.Fatalf("failed to create shim dir: %v", err)
 	}
 
 	// Create a real SQLite DB with a package and a usage event
@@ -358,7 +360,7 @@ func TestStatusPathConfiguredWithEvents_NoSelfTestNote(t *testing.T) {
 	defer func() { dbPath = origDBPath }()
 
 	// Create .zprofile with brewprune PATH export (PATH is configured but not sourced)
-	shimDir := fmt.Sprintf("%s/.brewprune/bin", tmpDir)
+	shimDir := shimDirConfiguredWithEvents
 	zprofile := fmt.Sprintf("%s/.zprofile", tmpDir)
 	profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
 	if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
@@ -678,5 +680,226 @@ func TestStatusPATHMessaging(t *testing.T) {
 				t.Errorf("expected output to contain %q, got:\n%s", tt.expectedMessage, output)
 			}
 		})
+	}
+}
+
+// TestStatus_ShimsLabelWhenZeroShimsPathConfigured verifies that when shimCount == 0
+// and PATH is configured in the shell profile but not yet active in the session,
+// the Shims line shows "not yet active" and does NOT include "0 shims" or "0 commands".
+func TestStatus_ShimsLabelWhenZeroShimsPathConfigured(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	origShell := os.Getenv("SHELL")
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("failed to set HOME: %v", err)
+	}
+	defer os.Setenv("HOME", origHome)
+	if err := os.Setenv("SHELL", "/bin/zsh"); err != nil {
+		t.Fatalf("failed to set SHELL: %v", err)
+	}
+	defer os.Setenv("SHELL", origShell)
+
+	// Create .brewprune/bin (shim dir exists but has no symlinks).
+	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
+	shimDir := fmt.Sprintf("%s/bin", brewpruneDir)
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("failed to create shim dir: %v", err)
+	}
+
+	// Create a real SQLite DB with minimal schema.
+	realDB := fmt.Sprintf("%s/brewprune.db", brewpruneDir)
+	st, err := store.New(realDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("failed to create schema: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath.
+	origDBPath := dbPath
+	dbPath = realDB
+	defer func() { dbPath = origDBPath }()
+
+	// Write .zprofile with brewprune PATH export so isConfiguredInShellProfile returns true.
+	zprofile := fmt.Sprintf("%s/.zprofile", tmpDir)
+	profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
+	if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
+		t.Fatalf("failed to write .zprofile: %v", err)
+	}
+
+	// shimDir is NOT in current PATH — isOnPATH returns false.
+
+	// Capture stdout.
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	_ = runStatus(nil, nil)
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	os.Stdout = origStdout
+
+	// Should show "not yet active" (not "inactive") when shimCount == 0 and PATH is configured.
+	if !strings.Contains(output, "not yet active") {
+		t.Errorf("expected 'not yet active' in Shims line when shimCount==0 and PATH is configured, got:\n%s", output)
+	}
+	// Should NOT include "0 shims" or "0 commands".
+	if strings.Contains(output, "0 shims") {
+		t.Errorf("Shims line should omit count when shimCount==0, but got '0 shims' in:\n%s", output)
+	}
+	if strings.Contains(output, "0 commands") {
+		t.Errorf("Shims line should not say '0 commands', got:\n%s", output)
+	}
+}
+
+// TestStatus_ShimsLabelWhenShimsPresent verifies that when shimCount > 0 and PATH is
+// active, the Shims line shows "N shims" (not "N commands") and says "active".
+func TestStatus_ShimsLabelWhenShimsPresent(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	origPath := os.Getenv("PATH")
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("failed to set HOME: %v", err)
+	}
+	defer os.Setenv("HOME", origHome)
+
+	// Create .brewprune/bin with a few symlinks.
+	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
+	shimDir := fmt.Sprintf("%s/bin", brewpruneDir)
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("failed to create shim dir: %v", err)
+	}
+
+	// Create 3 symlinks in the shim dir.
+	for _, name := range []string{"brew", "git", "node"} {
+		target := fmt.Sprintf("%s/%s", shimDir, name)
+		if err := os.Symlink("/usr/bin/true", target); err != nil {
+			t.Fatalf("failed to create symlink %s: %v", name, err)
+		}
+	}
+
+	// Put shimDir in current PATH so isOnPATH returns true.
+	newPath := fmt.Sprintf("%s:%s", shimDir, origPath)
+	if err := os.Setenv("PATH", newPath); err != nil {
+		t.Fatalf("failed to set PATH: %v", err)
+	}
+	defer os.Setenv("PATH", origPath)
+
+	// Create a real SQLite DB with minimal schema.
+	realDB := fmt.Sprintf("%s/brewprune.db", brewpruneDir)
+	st, err := store.New(realDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("failed to create schema: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath.
+	origDBPath := dbPath
+	dbPath = realDB
+	defer func() { dbPath = origDBPath }()
+
+	// Capture stdout.
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	_ = runStatus(nil, nil)
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	os.Stdout = origStdout
+
+	// Should show "3 shims" (not "3 commands").
+	if !strings.Contains(output, "3 shims") {
+		t.Errorf("expected '3 shims' in Shims line when shimCount==3, got:\n%s", output)
+	}
+	if strings.Contains(output, "commands") {
+		t.Errorf("Shims line should not say 'commands', got:\n%s", output)
+	}
+	// Should show "active".
+	if !strings.Contains(output, "active") {
+		t.Errorf("expected 'active' in Shims line when PATH is active and shims exist, got:\n%s", output)
+	}
+}
+
+// TestStatus_ShimDirMissingShowsNotInstalled verifies that when the shim directory
+// does not exist at all, the Shims line shows "not installed" rather than "inactive".
+func TestStatus_ShimDirMissingShowsNotInstalled(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("failed to set HOME: %v", err)
+	}
+	defer os.Setenv("HOME", origHome)
+
+	// Create .brewprune directory but NOT the bin/ subdirectory.
+	brewpruneDir := fmt.Sprintf("%s/.brewprune", tmpDir)
+	if err := os.MkdirAll(brewpruneDir, 0755); err != nil {
+		t.Fatalf("failed to create .brewprune dir: %v", err)
+	}
+	// Explicitly confirm bin/ does NOT exist.
+	shimDir := fmt.Sprintf("%s/bin", brewpruneDir)
+	if _, err := os.Stat(shimDir); err == nil {
+		t.Fatalf("shim dir should not exist for this test, but it does: %s", shimDir)
+	}
+
+	// Create a real SQLite DB with minimal schema.
+	realDB := fmt.Sprintf("%s/brewprune.db", brewpruneDir)
+	st, err := store.New(realDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("failed to create schema: %v", err)
+	}
+	st.Close()
+
+	// Override global dbPath.
+	origDBPath := dbPath
+	dbPath = realDB
+	defer func() { dbPath = origDBPath }()
+
+	// Capture stdout.
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	_ = runStatus(nil, nil)
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	os.Stdout = origStdout
+
+	// Should show "not installed".
+	if !strings.Contains(output, "not installed") {
+		t.Errorf("expected 'not installed' in Shims line when shim dir is missing, got:\n%s", output)
+	}
+	// Should NOT show "inactive · PATH configured" or "inactive · PATH missing".
+	if strings.Contains(output, "inactive") {
+		t.Errorf("Shims line should not say 'inactive' when shim dir is missing, got:\n%s", output)
 	}
 }
