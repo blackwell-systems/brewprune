@@ -165,6 +165,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check 6: Shim binary exists — critical
+	// Track PATH state outside the shim block so pipeline failure can use it.
+	shimPathActive := false
+	shimPathConfigured := false
 	shimDir, shimDirErr := shim.GetShimDir()
 	if shimDirErr != nil {
 		fmt.Println(colorize("31", "✗") + " Cannot determine shim directory: " + fmt.Sprint(shimDirErr))
@@ -184,6 +187,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			// 2. PATH configured: shim dir is in shell profile but not yet sourced
 			// 3. PATH missing: shim dir is not in shell profile
 			pathOK := isOnPATH(shimDir)
+			shimPathActive = pathOK
+			if !pathOK {
+				shimPathConfigured = isConfiguredInShellProfile(shimDir)
+			}
 			if pathOK {
 				// Count symlinks in shim dir
 				entries, err := os.ReadDir(shimDir)
@@ -198,7 +205,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				} else {
 					fmt.Println(colorize("32", "✓") + " PATH active")
 				}
-			} else if isConfiguredInShellProfile(shimDir) {
+			} else if shimPathConfigured {
 				fmt.Println(colorize("33", "⚠") + " PATH configured (restart shell to activate)")
 				fmt.Println("  The shim directory is in your shell profile but not yet active")
 				fmt.Println("  Action: Restart your shell or run: source " + detectShellConfig())
@@ -251,7 +258,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				if pipelineErr != nil {
 					spinner.StopWithMessage(colorize("31", "✗") + fmt.Sprintf(" Pipeline test: fail (%v)", pipelineElapsed))
 					fmt.Printf("  %v\n", pipelineErr)
-					fmt.Println("  Action: Run 'brewprune watch --daemon' to restart the daemon")
+					// Choose the action message based on what we know about the
+					// daemon and PATH state:
+					//   - Daemon is running but shims not in active PATH → user
+					//     needs to source their profile (not restart the daemon).
+					//   - Daemon is not running → user needs to start the daemon.
+					//   - Otherwise → fall back to generic restart guidance.
+					if daemonRunning && !shimPathActive && shimPathConfigured {
+						fmt.Println("  Action: Shims not in active PATH — run: source " + detectShellConfig() + " (or restart your shell)")
+					} else if !daemonRunning {
+						fmt.Println("  Action: Run 'brewprune watch --daemon' to start the daemon")
+					} else {
+						fmt.Println("  Action: Run 'brewprune watch --daemon' to restart the daemon")
+					}
 					criticalIssues++
 				} else {
 					spinner.StopWithMessage(colorize("32", "✓") + fmt.Sprintf(" Pipeline test: pass (%v)", pipelineElapsed))
