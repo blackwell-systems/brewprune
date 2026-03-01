@@ -42,7 +42,7 @@ func (m *Manager) RestoreSnapshot(id int64) error {
 			fmt.Fprintf(os.Stderr, "Failed to restore %s: %v\n", pkg.Name, err)
 		} else {
 			successCount++
-			fmt.Printf("Restored %s@%s\n", pkg.Name, pkg.Version)
+			fmt.Printf("Restored %s\n", formatRestoredPkg(pkg.Name, pkg.Version))
 		}
 	}
 
@@ -53,6 +53,15 @@ func (m *Manager) RestoreSnapshot(id int64) error {
 	}
 
 	return nil
+}
+
+// formatRestoredPkg returns "name@version" when version is non-empty,
+// or just "name" when version is empty, avoiding a bare trailing "@".
+func formatRestoredPkg(name, version string) string {
+	if version != "" {
+		return name + "@" + version
+	}
+	return name
 }
 
 // restorePackage restores a single package from a snapshot.
