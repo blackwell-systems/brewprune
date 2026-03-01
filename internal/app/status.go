@@ -333,8 +333,15 @@ func formatNumber(n int) string {
 
 // formatDuration formats a duration in human-readable form
 func formatDuration(d time.Duration) string {
+	if d < 5*time.Second {
+		return "just now"
+	}
 	if d < time.Minute {
-		return fmt.Sprintf("%d seconds ago", int(d.Seconds()))
+		secs := int(d.Seconds())
+		if secs == 1 {
+			return "1 second ago"
+		}
+		return fmt.Sprintf("%d seconds ago", secs)
 	}
 	if d < time.Hour {
 		return fmt.Sprintf("%d minutes ago", int(d.Minutes()))

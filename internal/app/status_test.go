@@ -468,6 +468,46 @@ func TestStatusPathActive(t *testing.T) {
 	}
 }
 
+// TestFormatDuration_JustNow verifies that a zero duration returns "just now".
+func TestFormatDuration_JustNow(t *testing.T) {
+	got := formatDuration(0)
+	if got != "just now" {
+		t.Errorf("formatDuration(0) = %q, want %q", got, "just now")
+	}
+}
+
+// TestFormatDuration_FourSeconds verifies that a 4-second duration (sub-threshold) returns "just now".
+func TestFormatDuration_FourSeconds(t *testing.T) {
+	got := formatDuration(4 * time.Second)
+	if got != "just now" {
+		t.Errorf("formatDuration(4s) = %q, want %q", got, "just now")
+	}
+}
+
+// TestFormatDuration_Seconds verifies that a 10-second duration returns "10 seconds ago".
+func TestFormatDuration_Seconds(t *testing.T) {
+	got := formatDuration(10 * time.Second)
+	if got != "10 seconds ago" {
+		t.Errorf("formatDuration(10s) = %q, want %q", got, "10 seconds ago")
+	}
+}
+
+// TestFormatDuration_SingularSecond verifies that a 6-second duration returns "6 seconds ago" (not "6 second ago").
+func TestFormatDuration_SingularSecond(t *testing.T) {
+	got := formatDuration(6 * time.Second)
+	if got != "6 seconds ago" {
+		t.Errorf("formatDuration(6s) = %q, want %q", got, "6 seconds ago")
+	}
+}
+
+// TestFormatDuration_OneSecondBoundary verifies that a 1-second duration (sub-5s threshold) returns "just now".
+func TestFormatDuration_OneSecondBoundary(t *testing.T) {
+	got := formatDuration(1 * time.Second)
+	if got != "just now" {
+		t.Errorf("formatDuration(1s) = %q, want %q", got, "just now")
+	}
+}
+
 // TestStatusPATHMessaging verifies that status.go uses three-state PATH messaging consistently.
 func TestStatusPATHMessaging(t *testing.T) {
 	tests := []struct {
