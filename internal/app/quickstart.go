@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -22,7 +24,7 @@ var quickstartCmd = &cobra.Command{
 Steps performed:
   1. Scan installed Homebrew packages and build shims
   2. Ensure ~/.brewprune/bin is in PATH (writes to shell config if needed)
-  3. Start the usage tracking service
+  3. Start the usage tracking daemon
   4. Run a self-test to confirm the shim → daemon → database pipeline works
 
 This command is non-interactive and safe to run from a Homebrew post_install hook.`,
@@ -116,8 +118,24 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// ── Step 3: Start the service ─────────────────────────────────────────────
-	fmt.Println("Step 3/4: Starting usage tracking service")
+	// ── Step 3: Start the daemon ──────────────────────────────────────────────
+	fmt.Println("Step 3/4: Starting usage tracking daemon")
+
+	// Resolve the log file path once so we can display it in the success message.
+	daemonLogFile := "~/.brewprune/watch.log"
+	if resolvedLog, logErr := getDefaultLogFile(); logErr == nil {
+		// Replace $HOME prefix with ~ for a cleaner display.
+		if home, homeErr := os.UserHomeDir(); homeErr == nil {
+			if strings.HasPrefix(resolvedLog, home) {
+				daemonLogFile = "~" + resolvedLog[len(home):]
+			} else {
+				daemonLogFile = resolvedLog
+			}
+		} else {
+			daemonLogFile = resolvedLog
+		}
+	}
+
 	if brewPath, lookErr := exec.LookPath("brew"); lookErr == nil {
 		if runtime.GOOS == "linux" {
 			// brew services is not reliable on Linux; skip directly to daemon
@@ -130,7 +148,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 					fmt.Println("  Run 'brewprune watch --daemon' manually after setup.")
 				}
 			} else {
-				fmt.Println("  ✓ Usage tracking daemon started (watch --daemon)")
+				fmt.Printf("  ✓ Daemon started (log: %s)\n", daemonLogFile)
 			}
 		} else {
 			// macOS: try brew services first
@@ -148,10 +166,10 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 						fmt.Println("  Run 'brewprune watch --daemon' manually after setup.")
 					}
 				} else {
-					fmt.Println("  ✓ Usage tracking daemon started (watch --daemon)")
+					fmt.Printf("  ✓ Daemon started (log: %s)\n", daemonLogFile)
 				}
 			} else {
-				fmt.Println("  ✓ brewprune service started via brew services")
+				fmt.Println("  ✓ brewprune daemon started via brew services")
 			}
 		}
 	} else {
@@ -164,7 +182,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 				fmt.Println("  Run 'brewprune watch --daemon' manually after setup.")
 			}
 		} else {
-			fmt.Println("  ✓ Usage tracking daemon started")
+			fmt.Printf("  ✓ Daemon started (log: %s)\n", daemonLogFile)
 		}
 	}
 	fmt.Println()
@@ -225,7 +243,30 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 
 // startWatchDaemonFallback starts the watch daemon using the internal runWatch
 // path, mirroring what 'brewprune watch --daemon' does on the CLI.
+//
+// The inner startWatchDaemon (watch.go) prints verbose multi-line output
+// ("Usage tracking daemon started\n  PID file: ...\n  Log file: ...") after a
+// successful start. We capture and discard that output here so the quickstart
+// step display remains clean. The caller is responsible for printing a single
+// concise confirmation line on success.
 func startWatchDaemonFallback(cmd *cobra.Command, args []string) error {
 	watchDaemon = true
-	return runWatch(cmd, args)
+
+	// Capture and discard verbose output from startWatchDaemon so it does not
+	// bleed into the quickstart step display.
+	old := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr == nil {
+		os.Stdout = w
+	}
+
+	err := runWatch(cmd, args)
+
+	if pipeErr == nil {
+		w.Close()
+		io.Copy(io.Discard, r) //nolint:errcheck
+		os.Stdout = old
+	}
+
+	return err
 }
