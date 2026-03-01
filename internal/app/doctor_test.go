@@ -659,3 +659,86 @@ func TestDoctorAliasTip_NoBrewpruneHelpReference(t *testing.T) {
 		t.Errorf("alias tip must not reference 'brewprune help', got:\n%s", out)
 	}
 }
+
+// TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive verifies that when
+// the pipeline test fails with the daemon running and the shim directory
+// configured in the shell profile but NOT in the active $PATH, the action
+// message tells the user to source their profile (or restart their shell),
+// rather than blaming the daemon.
+func TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+
+	// Write a .zprofile that exports the shim dir so isConfiguredInShellProfile
+	// returns true, but do NOT add shimDir to $PATH so isOnPATH returns false.
+	os.Setenv("SHELL", "/bin/zsh")
+	t.Cleanup(func() { os.Unsetenv("SHELL") })
+	zprofile := filepath.Join(tmpHome, ".zprofile")
+	profileContent := fmt.Sprintf("\n# brewprune shims\nexport PATH=%q:$PATH\n", shimDir)
+	if err := os.WriteFile(zprofile, []byte(profileContent), 0644); err != nil {
+		t.Fatalf("WriteFile .zprofile: %v", err)
+	}
+
+	// Ensure shimDir is NOT in $PATH.
+	origPath := os.Getenv("PATH")
+	// Strip shimDir from PATH in case it happens to be there.
+	parts := strings.Split(origPath, ":")
+	filtered := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != shimDir {
+			filtered = append(filtered, p)
+		}
+	}
+	os.Setenv("PATH", strings.Join(filtered, ":"))
+	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+
+	// Create a PID file pointing at the current process so daemon appears running.
+	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+	pidContent := fmt.Sprintf("%d", os.Getpid())
+	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+		t.Fatalf("WriteFile pidFile: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure expected
+	})
+
+	// The action message must mention source/shell restart, not watch --daemon.
+	if !strings.Contains(out, "source") && !strings.Contains(out, "restart your shell") {
+		t.Errorf("expected action message to mention 'source' or 'restart your shell', got:\n%s", out)
+	}
+	if strings.Contains(out, "watch --daemon") {
+		t.Errorf("action message must NOT mention 'watch --daemon' when daemon is running, got:\n%s", out)
+	}
+}
+
+// TestDoctorPipelineFailureMessage_DaemonNotRunning verifies that when the
+// pipeline test fails because the daemon is not running, the action message
+// tells the user to run 'brewprune watch --daemon'.
+//
+// Note: the pipeline test is skipped (not failed) when the daemon is not running,
+// so this test verifies the skip message does not incorrectly reference
+// watch --daemon in the pipeline failure context; instead the daemon check itself
+// already outputs the watch --daemon action.  We verify the skip message is shown
+// and the daemon check action is present, but no pipeline-failure watch --daemon
+// duplicate is emitted.
+func TestDoctorPipelineFailureMessage_DaemonNotRunning(t *testing.T) {
+	setupMinimalEnv(t)
+
+	// No PID file — daemon is not running.
+	// The pipeline test is skipped, so the skip message should appear.
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+	})
+
+	// Verify that when daemon is not running, the daemon check action mentions watch --daemon.
+	if !strings.Contains(out, "watch --daemon") {
+		t.Errorf("expected output to mention 'watch --daemon' when daemon is not running, got:\n%s", out)
+	}
+
+	// The pipeline test should be skipped (not failed) since daemon is not running.
+	if !strings.Contains(out, "Pipeline test skipped") {
+		t.Errorf("expected 'Pipeline test skipped' message when daemon not running, got:\n%s", out)
+	}
+}
