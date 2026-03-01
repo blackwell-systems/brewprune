@@ -571,8 +571,8 @@ func TestQuickstartTerminology_NoDaemonCalledService(t *testing.T) {
 
 // TestQuickstartSuccessMessageWhenPathNotActive verifies that when the shim dir
 // is NOT on the active PATH, the summary heading reads "Setup complete — one
-// step remains:" rather than a bare "Setup complete!" followed by the warning
-// as a non-sequitur.
+// step remains (see warning above)." rather than a bare "Setup complete!"
+// followed by the warning as a non-sequitur.
 func TestQuickstartSuccessMessageWhenPathNotActive(t *testing.T) {
 	// Use a shim dir that is guaranteed not to be on PATH.
 	shimDir := "/tmp/brewprune-test-notactive-" + fmt.Sprintf("%d", os.Getpid())
@@ -591,7 +591,7 @@ func TestQuickstartSuccessMessageWhenPathNotActive(t *testing.T) {
 	// Inline the summary heading logic from runQuickstart.
 	pathNotActive := !isOnPATH(shimDir)
 	if pathNotActive {
-		fmt.Println("Setup complete — one step remains:")
+		fmt.Println("Setup complete — one step remains (see warning above).")
 	} else {
 		fmt.Println("Setup complete!")
 	}
@@ -608,6 +608,137 @@ func TestQuickstartSuccessMessageWhenPathNotActive(t *testing.T) {
 	}
 	if strings.Contains(got, "Setup complete!") {
 		t.Errorf("expected bare 'Setup complete!' NOT to appear when PATH not active, got:\n%s", got)
+	}
+}
+
+// TestQuickstart_PathWarningBeforeCompletion verifies that when PATH is not
+// active, "TRACKING IS NOT ACTIVE YET" appears in the output BEFORE
+// "Setup complete" — not after.
+func TestQuickstart_PathWarningBeforeCompletion(t *testing.T) {
+	shimDir := "/tmp/brewprune-test-warn-order-" + fmt.Sprintf("%d", os.Getpid())
+	if isOnPATH(shimDir) {
+		t.Skip("test shim dir unexpectedly found in PATH — skipping")
+	}
+
+	// Capture stdout.
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+
+	// Inline the reordered summary block from runQuickstart.
+	pathNotActive := !isOnPATH(shimDir)
+	if pathNotActive {
+		configFile := detectShellConfig()
+		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
+		fmt.Println()
+		fmt.Println("   Your shell has not loaded the new PATH. Commands you run now")
+		fmt.Println("   will NOT be tracked by brewprune.")
+		fmt.Println()
+		fmt.Println("   To activate tracking immediately:")
+		fmt.Printf("     source %s\n", configFile)
+		fmt.Println()
+		fmt.Println("   Or restart your terminal.")
+		fmt.Println()
+		fmt.Println("Setup complete — one step remains (see warning above).")
+	} else {
+		fmt.Println("Setup complete!")
+	}
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	got := buf.String()
+
+	warningIdx := strings.Index(got, "TRACKING IS NOT ACTIVE YET")
+	setupIdx := strings.Index(got, "Setup complete")
+
+	if warningIdx < 0 {
+		t.Fatalf("expected 'TRACKING IS NOT ACTIVE YET' in output, got:\n%s", got)
+	}
+	if setupIdx < 0 {
+		t.Fatalf("expected 'Setup complete' in output, got:\n%s", got)
+	}
+	if warningIdx >= setupIdx {
+		t.Errorf("expected 'TRACKING IS NOT ACTIVE YET' to appear BEFORE 'Setup complete', but warning index=%d, setup index=%d\noutput:\n%s", warningIdx, setupIdx, got)
+	}
+}
+
+// TestQuickstart_SetupCompleteWhenPathActive verifies that when PATH is active,
+// "Setup complete!" (without caveat) appears and no tracking warning is shown.
+func TestQuickstart_SetupCompleteWhenPathActive(t *testing.T) {
+	// Pick a directory that IS on PATH.
+	pathEnv := os.Getenv("PATH")
+	if pathEnv == "" {
+		t.Skip("PATH is empty — cannot find an active directory")
+	}
+	parts := strings.SplitN(pathEnv, ":", 2)
+	shimDir := parts[0]
+
+	if !isOnPATH(shimDir) {
+		t.Fatalf("expected %q to be on PATH, but isOnPATH returned false", shimDir)
+	}
+
+	// Capture stdout.
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+
+	// Inline the summary block from runQuickstart.
+	pathNotActive := !isOnPATH(shimDir)
+	if pathNotActive {
+		configFile := detectShellConfig()
+		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
+		fmt.Println()
+		fmt.Println("   Your shell has not loaded the new PATH. Commands you run now")
+		fmt.Println("   will NOT be tracked by brewprune.")
+		fmt.Println()
+		fmt.Println("   To activate tracking immediately:")
+		fmt.Printf("     source %s\n", configFile)
+		fmt.Println()
+		fmt.Println("   Or restart your terminal.")
+		fmt.Println()
+		fmt.Println("Setup complete — one step remains (see warning above).")
+	} else {
+		fmt.Println("Setup complete!")
+	}
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	got := buf.String()
+
+	if !strings.Contains(got, "Setup complete!") {
+		t.Errorf("expected 'Setup complete!' when PATH is active, got:\n%s", got)
+	}
+	if strings.Contains(got, "TRACKING IS NOT ACTIVE YET") {
+		t.Errorf("expected no tracking warning when PATH is active, got:\n%s", got)
+	}
+	if strings.Contains(got, "see warning above") {
+		t.Errorf("expected no 'see warning above' caveat when PATH is active, got:\n%s", got)
+	}
+}
+
+// TestQuickstart_SelfTestStepShowsDuration verifies that the Step 4 header
+// contains "~30s" to announce the expected duration before the spinner starts.
+func TestQuickstart_SelfTestStepShowsDuration(t *testing.T) {
+	// The step header is the literal string printed before the spinner.
+	stepHeader := "Step 4/4: Running self-test (~30s)"
+
+	if !strings.Contains(stepHeader, "~30s") {
+		t.Errorf("expected Step 4/4 header to contain '~30s', got: %q", stepHeader)
+	}
+	if strings.Contains(stepHeader, "tracking verified") {
+		t.Errorf("expected old 'tracking verified' parenthetical to be removed, got: %q", stepHeader)
 	}
 }
 

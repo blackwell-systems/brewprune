@@ -190,7 +190,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// ── Step 4: Self-test ─────────────────────────────────────────────────────
-	fmt.Println("Step 4/4: Running self-test (tracking verified)")
+	fmt.Println("Step 4/4: Running self-test (~30s)")
 	dbPath, dbErr = getDBPath()
 	if dbErr != nil {
 		fmt.Printf("  ⚠ Could not get database path: %v\n", dbErr)
@@ -227,8 +227,20 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 
 	// ── Summary ───────────────────────────────────────────────────────────────
 	pathNotActive := shimDirErr == nil && !isOnPATH(shimDir)
+
 	if pathNotActive {
-		fmt.Println("Setup complete — one step remains:")
+		configFile := detectShellConfig()
+		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
+		fmt.Println()
+		fmt.Println("   Your shell has not loaded the new PATH. Commands you run now")
+		fmt.Println("   will NOT be tracked by brewprune.")
+		fmt.Println()
+		fmt.Println("   To activate tracking immediately:")
+		fmt.Printf("     source %s\n", configFile)
+		fmt.Println()
+		fmt.Println("   Or restart your terminal.")
+		fmt.Println()
+		fmt.Println("Setup complete — one step remains (see warning above).")
 	} else {
 		fmt.Println("Setup complete!")
 	}
@@ -241,20 +253,6 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Check status anytime: brewprune status")
 	fmt.Println("Run diagnostics:      brewprune doctor")
-
-	if pathNotActive {
-		configFile := detectShellConfig()
-		fmt.Println()
-		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
-		fmt.Println()
-		fmt.Println("   Your shell has not loaded the new PATH. Commands you run now")
-		fmt.Println("   will NOT be tracked by brewprune.")
-		fmt.Println()
-		fmt.Println("   To activate tracking immediately:")
-		fmt.Printf("     source %s\n", configFile)
-		fmt.Println()
-		fmt.Println("   Or restart your terminal.")
-	}
 
 	return nil
 }
