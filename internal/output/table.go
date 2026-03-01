@@ -472,11 +472,11 @@ type ConfidenceScore struct {
 	Tier        string // "safe", "medium", "risky"
 	LastUsed    time.Time
 	Reason      string
-	SizeBytes   int64 // Package size in bytes
-	Uses7d      int   // Usage count in the last 7 days
-	DepCount    int   // Number of reverse dependencies (packages depending on this one)
-	IsCritical  bool  // True if package is a core dependency
-	IsCask      bool  // True if package is a cask (GUI app)
+	SizeBytes   int64     // Package size in bytes
+	Uses7d      int       // Usage count in the last 7 days
+	DepCount    int       // Number of reverse dependencies (packages depending on this one)
+	IsCritical  bool      // True if package is a core dependency
+	IsCask      bool      // True if package is a cask (GUI app)
 	InstalledAt time.Time // Non-zero signals "show Installed column"; set when sort=age
 }
 

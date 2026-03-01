@@ -386,11 +386,11 @@ func TestDetermineTier_ConflictShorthands(t *testing.T) {
 // with a shorthand flag returns an error.
 func TestDetermineTier_ConflictShorthandAndTierFlag(t *testing.T) {
 	tests := []struct {
-		name      string
-		tierFlag  string
-		safe      bool
-		medium    bool
-		risky     bool
+		name     string
+		tierFlag string
+		safe     bool
+		medium   bool
+		risky    bool
 	}{
 		{"--tier safe with --safe", "safe", true, false, false},
 		{"--tier medium with --risky", "medium", false, false, true},
@@ -482,9 +482,9 @@ func TestFreedSpaceReflectsActualRemovals(t *testing.T) {
 	// Simulate three packages: sizes 100, 200, 300 bytes.
 	// Suppose only the first and third are successfully removed.
 	type pkg struct {
-		name      string
-		size      int64
-		removeOK  bool
+		name     string
+		size     int64
+		removeOK bool
 	}
 
 	packages := []pkg{
