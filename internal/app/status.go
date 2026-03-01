@@ -115,6 +115,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Shim info
 	shimDir, _ := os.UserHomeDir()
 	shimDir = shimDir + "/.brewprune/bin"
+
+	// Check if the shim directory itself exists.
+	shimDirExists := false
+	if _, err := os.Stat(shimDir); err == nil {
+		shimDirExists = true
+	}
+
 	shimCount := countSymlinks(shimDir)
 	shimActive := shimCount > 0
 	pathOK := isOnPATH(shimDir)
@@ -141,24 +148,42 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Shims line
-	shimStatus := "inactive"
-	if shimActive {
-		shimStatus = "active"
+	var shimStatus string
+	var pathStatus string
+
+	if !shimDirExists {
+		// Shim directory hasn't been created yet (scan has never been run).
+		shimStatus = "not installed"
+		pathStatus = "shims not installed (run 'brewprune scan' to build)"
+	} else {
+		// Determine PATH status with three cases:
+		// 1. PATH active: shim dir is in current $PATH
+		// 2. PATH configured: shim dir is in shell profile but not yet sourced
+		// 3. PATH missing: shim dir is not in shell profile
+		if pathOK {
+			pathStatus = "PATH active ✓"
+		} else if isConfiguredInShellProfile(shimDir) {
+			pathStatus = "PATH configured (restart shell to activate)"
+		} else {
+			pathStatus = "PATH missing ⚠"
+		}
+
+		if shimActive {
+			shimStatus = "active"
+		} else if !pathOK && isConfiguredInShellProfile(shimDir) {
+			// PATH is configured in profile but session hasn't sourced it yet,
+			// and no shims exist — use a more informative label than "inactive".
+			shimStatus = "not yet active"
+		} else {
+			shimStatus = "inactive"
+		}
 	}
 
-	// Determine PATH status with three cases:
-	// 1. PATH active: shim dir is in current $PATH
-	// 2. PATH configured: shim dir is in shell profile but not yet sourced
-	// 3. PATH missing: shim dir is not in shell profile
-	var pathStatus string
-	if pathOK {
-		pathStatus = "PATH active ✓"
-	} else if isConfiguredInShellProfile(shimDir) {
-		pathStatus = "PATH configured (restart shell to activate)"
+	if shimCount == 0 {
+		fmt.Printf(label+"%s · %s\n", "Shims:", shimStatus, pathStatus)
 	} else {
-		pathStatus = "PATH missing ⚠"
+		fmt.Printf(label+"%s · %d shims · %s\n", "Shims:", shimStatus, shimCount, pathStatus)
 	}
-	fmt.Printf(label+"%s · %d commands · %s\n", "Shims:", shimStatus, shimCount, pathStatus)
 	// Only show the self-test note when PATH is genuinely missing from config,
 	// not when it's just configured but not yet sourced.
 	if !pathOK && !isConfiguredInShellProfile(shimDir) && totalEvents > 0 {
