@@ -552,3 +552,110 @@ func TestDoctorAliasesTip_SuppressedWhenDaemonRunning(t *testing.T) {
 		t.Errorf("aliases tip should be suppressed when daemon is running with enough events, got:\n%s", out)
 	}
 }
+
+// setupMinimalEnv creates a temp home with a real DB (one package) and a stub
+// shim binary so that all critical checks pass. It overrides dbPath and HOME
+// for the duration of the test, restoring them via t.Cleanup.
+// It returns the tmpHome directory.
+func setupMinimalEnv(t *testing.T) string {
+	t.Helper()
+	tmpHome := t.TempDir()
+
+	// Create shim binary.
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("MkdirAll shimDir: %v", err)
+	}
+	shimBin := filepath.Join(shimDir, "brewprune-shim")
+	if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatalf("WriteFile shimBin: %v", err)
+	}
+
+	// Create a minimal DB with one package.
+	tmpDB := filepath.Join(tmpHome, "test.db")
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("CreateSchema: %v", err)
+	}
+	pkg := &brew.Package{
+		Name:        "testpkg",
+		Version:     "1.0",
+		InstalledAt: time.Now(),
+		InstallType: "explicit",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		st.Close()
+		t.Fatalf("InsertPackage: %v", err)
+	}
+	st.Close()
+
+	oldDBPath := dbPath
+	dbPath = tmpDB
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	t.Cleanup(func() {
+		dbPath = oldDBPath
+		os.Setenv("HOME", origHome)
+	})
+
+	return tmpHome
+}
+
+// TestDoctorAliasTip_NoCriticalIssues verifies that the alias tip appears in
+// doctor output when there are no critical issues and the daemon is not running
+// (i.e., the condition !daemonRunning || totalUsageEvents < 10 is true).
+func TestDoctorAliasTip_NoCriticalIssues(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	// Ensure aliases file does not exist so the tip is shown.
+	aliasFile := filepath.Join(tmpHome, ".config", "brewprune", "aliases")
+	os.Remove(aliasFile) // ignore error — file may not exist
+
+	// No daemon PID file — daemon is not running, so tip should appear.
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+	})
+
+	if !strings.Contains(out, "Tip: Create ~/.config/brewprune/aliases") {
+		t.Errorf("alias tip should appear when no critical issues and daemon not running, got:\n%s", out)
+	}
+}
+
+// TestDoctorAliasTip_HiddenWhenCritical verifies that the alias tip does NOT
+// appear when criticalIssues > 0 (e.g., database not found).
+func TestDoctorAliasTip_HiddenWhenCritical(t *testing.T) {
+	// Point at a path that cannot exist — triggers critical DB-not-found issue.
+	oldDBPath := dbPath
+	dbPath = "/dev/null/no/such/path/test.db"
+	defer func() { dbPath = oldDBPath }()
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — expected to fail
+	})
+
+	if strings.Contains(out, "Tip: Create ~/.config/brewprune/aliases") {
+		t.Errorf("alias tip must not appear when critical issues are present, got:\n%s", out)
+	}
+}
+
+// TestDoctorAliasTip_NoBrewpruneHelpReference verifies that the alias tip
+// output does NOT reference "brewprune help" (which contains no alias docs).
+func TestDoctorAliasTip_NoBrewpruneHelpReference(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	// Ensure aliases file does not exist so the tip is shown.
+	aliasFile := filepath.Join(tmpHome, ".config", "brewprune", "aliases")
+	os.Remove(aliasFile) // ignore error
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+	})
+
+	if strings.Contains(out, "brewprune help") {
+		t.Errorf("alias tip must not reference 'brewprune help', got:\n%s", out)
+	}
+}

@@ -211,17 +211,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Tip: alias config file — only show when daemon is not running (fresh setup)
-	// or when total usage events are below threshold, since the tip is most
-	// useful early on before the user has established their workflow.
-	if !daemonRunning || totalUsageEvents < 10 {
+	// Tip: alias config file — only show when there are no critical issues and
+	// the daemon is not running (fresh setup) or total usage events are below
+	// threshold, since the tip is most useful early on before the user has
+	// established their workflow. Skip entirely when critical issues are present
+	// so users focus on fixing the basics first.
+	if criticalIssues == 0 && (!daemonRunning || totalUsageEvents < 10) {
 		if cfgDir, err := config.Dir(); err == nil {
 			aliasFile := filepath.Join(cfgDir, "aliases")
 			if _, err := os.Stat(aliasFile); os.IsNotExist(err) {
 				fmt.Println()
-				fmt.Println("Tip: Create ~/.config/brewprune/aliases to declare alias mappings and improve tracking coverage.")
-				fmt.Println("     Example: ll=eza")
-				fmt.Println("     See 'brewprune help' for details.")
+				fmt.Println("Tip: Create ~/.config/brewprune/aliases to declare alias mappings.")
+				fmt.Println("     Format: one alias per line, e.g. ll=eza or g=git")
+				fmt.Println("     Aliases help brewprune associate your custom commands with their packages.")
 			}
 		}
 	}
