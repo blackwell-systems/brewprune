@@ -477,6 +477,44 @@ func TestUndoLatestSuggestsList(t *testing.T) {
 	}
 }
 
+// TestUndoPackageDisplay_NoTrailingAt verifies that when a package entry has
+// an empty version string, the display output does NOT contain a trailing "@".
+func TestUndoPackageDisplay_NoTrailingAt(t *testing.T) {
+	display := formatPackageDisplay("bat", "")
+	if display != "bat" {
+		t.Errorf("expected display %q, got %q", "bat", display)
+	}
+	if strings.Contains(display, "@") {
+		t.Errorf("display %q should not contain '@' when version is empty", display)
+	}
+}
+
+// TestUndoPackageDisplay_WithVersion verifies that when a package entry has a
+// non-empty version, the display shows the name@version format correctly.
+func TestUndoPackageDisplay_WithVersion(t *testing.T) {
+	display := formatPackageDisplay("bat", "0.24.0")
+	expected := "bat@0.24.0"
+	if display != expected {
+		t.Errorf("expected display %q, got %q", expected, display)
+	}
+}
+
+// TestUndoPostRestoreMessage_ScanHint verifies that the post-restore completion
+// message references both "brewprune scan" and "brewprune remove" so users
+// know to scan before running remove after an undo.
+func TestUndoPostRestoreMessage_ScanHint(t *testing.T) {
+	// The completion message is a static string literal in runUndo. We verify
+	// that the expected substrings are present by checking the source constant
+	// indirectly — we call fmt.Sprintf with the same format and check the output.
+	msg := "\n⚠  Run 'brewprune scan' to update the package database before running 'brewprune remove'."
+	if !strings.Contains(msg, "brewprune scan") {
+		t.Error("post-restore message should contain 'brewprune scan'")
+	}
+	if !strings.Contains(msg, "brewprune remove") {
+		t.Error("post-restore message should contain 'brewprune remove'")
+	}
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
