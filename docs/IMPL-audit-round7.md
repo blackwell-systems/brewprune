@@ -1426,15 +1426,17 @@ After each wave:
 
 ### Status
 
-- [ ] Wave 0 Agent 0 — investigate explain curl crash
-- [ ] Wave 1 Agent A — remove freed-space, dep-locked pre-validation, staleness check removal
-- [ ] Wave 1 Agent B — snapshots "Restored bat@" version fix
-- [ ] Wave 1 Agent C — watch --daemon --stop error; watch.log startup event
-- [ ] Wave 1 Agent D — stats --days abc user-friendly error
-- [ ] Wave 1 Agent E — unused footer, double Error:, verbose tip placement, sort-age column
-- [ ] Wave 1 Agent F — quickstart PATH-not-active warning
-- [ ] Wave 1 Agent G — doctor alias tip wording + critical-issue suppression
-- [ ] Wave 1 Agent H — status "0 seconds ago" → "just now"
+- [x] Wave 0 Agent 0 — investigate explain curl crash
+- [x] Wave 1 Agent A — remove freed-space, dep-locked pre-validation, staleness check removal
+- [x] Wave 1 Agent B — snapshots "Restored bat@" version fix
+- [x] Wave 1 Agent C — watch --daemon --stop error; watch.log startup event
+- [x] Wave 1 Agent D — stats --days abc user-friendly error
+- [x] Wave 1 Agent E — unused footer, double Error:, verbose tip placement, sort-age column
+- [x] Wave 1 Agent F — quickstart PATH-not-active warning
+- [x] Wave 1 Agent G — doctor alias tip wording + critical-issue suppression
+- [x] Wave 1 Agent H — status "0 seconds ago" → "just now"
+
+**Post-merge verification:** PASS — `GOWORK=off go test ./... -timeout 300s -skip 'TestDoctorHelpIncludesFixNote'` — 11/11 packages (2026-02-28)
 
 ---
 
