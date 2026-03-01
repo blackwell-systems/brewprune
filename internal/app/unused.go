@@ -95,7 +95,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// UNUSED-4: --all and --tier conflict check
 	if unusedAll && unusedTier != "" {
-		return fmt.Errorf("--all and --tier cannot be used together; --tier already filters to a specific tier")
+		return fmt.Errorf("--all and --tier are mutually exclusive\n  Use --tier safe to show only safe packages, or --all to show all tiers")
 	}
 
 	if unusedMinScore < 0 || unusedMinScore > 100 {
@@ -119,14 +119,15 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	}
 	defer st.Close()
 
-	// Check for usage data and daemon status
-	checkUsageWarning(st)
-
 	// Determine if we should implicitly show risky packages (no usage data, no explicit flags)
 	var eventCount int
 	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
 	row.Scan(&eventCount)
 	showRiskyImplicit := (unusedTier == "" && !unusedAll && eventCount == 0)
+
+	// Check for usage data and daemon status; pass showRiskyImplicit so the
+	// warning can incorporate the risky-tier-included note in a single block.
+	checkUsageWarning(st, showRiskyImplicit)
 
 	// Create analyzer
 	a := analyzer.New(st)
@@ -218,14 +219,6 @@ func runUnused(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		scores = append(scores, s)
-	}
-
-	// If no usage data and no explicit flags, print prominent banner
-	if showRiskyImplicit {
-		fmt.Println("⚠ No usage data yet — showing all packages (risky tier included).")
-		fmt.Println("  Run 'brewprune watch --daemon' and wait 1-2 weeks for better recommendations.")
-		fmt.Println("  Use 'brewprune unused --all' to always show all tiers.")
-		fmt.Println()
 	}
 
 	// Print tier summary header (UNUSED-5: highlight active tier when --tier is set)
@@ -383,15 +376,20 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		fmt.Print(table)
 	}
 
-	// Show age sort note if all packages have identical install times
-	if allSameInstallTime {
-		fmt.Println()
-		fmt.Println("Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically.")
+	// Show sort direction note and/or same-install-time note for --sort age
+	if unusedSort == "age" {
+		if allSameInstallTime {
+			fmt.Println()
+			fmt.Println("Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically.")
+		} else {
+			fmt.Println()
+			fmt.Println("Sorted by: install date (oldest first)")
+		}
 	}
 
 	// Show reclaimable footer (replaces old summary block)
 	fmt.Println()
-	footer := output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "")
+	footer := output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "" || showRiskyImplicit)
 	fmt.Println(footer)
 
 	// Show filter explanation - separate counts for clarity
@@ -483,7 +481,9 @@ func getLastUsed(st *store.Store, pkg string) time.Time {
 
 // checkUsageWarning checks if the daemon is running and if usage data exists,
 // displaying a warning banner if no tracking is active.
-func checkUsageWarning(st *store.Store) {
+// When showRiskyImplicit is true (no usage data, no explicit tier/all flags),
+// the warning incorporates the risky-tier-included note in a single consolidated block.
+func checkUsageWarning(st *store.Store, showRiskyImplicit bool) {
 	// Check if any usage events exist
 	var eventCount int
 	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
@@ -497,12 +497,15 @@ func checkUsageWarning(st *store.Store) {
 		return
 	}
 
-	// No usage events - show warning
+	// No usage events - show consolidated warning
 	fmt.Println()
 	fmt.Println("⚠ WARNING: No usage data available")
 	fmt.Println()
 	fmt.Println("The watch daemon has not recorded any package usage yet.")
 	fmt.Println("Recommendations are based on heuristics only (install age, dependencies, type).")
+	if showRiskyImplicit {
+		fmt.Println("All tiers (including risky) are shown as a result.")
+	}
 	fmt.Println()
 	fmt.Println("To track actual usage:")
 	fmt.Println("  1. Start daemon:  brewprune watch --daemon")

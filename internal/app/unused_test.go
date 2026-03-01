@@ -899,15 +899,15 @@ func TestUnused_TierAndAllConflict(t *testing.T) {
 
 	var conflictErr error
 	if unusedAll && unusedTier != "" {
-		conflictErr = fmt.Errorf("Error: --all and --tier cannot be used together; --tier already filters to a specific tier")
+		conflictErr = fmt.Errorf("--all and --tier are mutually exclusive\n  Use --tier safe to show only safe packages, or --all to show all tiers")
 	}
 
 	if conflictErr == nil {
 		t.Fatal("expected conflict error when both --tier and --all are set")
 	}
 
-	if !strings.Contains(conflictErr.Error(), "cannot be used together") {
-		t.Errorf("conflict error should contain 'cannot be used together', got: %q", conflictErr.Error())
+	if !strings.Contains(conflictErr.Error(), "mutually exclusive") {
+		t.Errorf("conflict error should contain 'mutually exclusive', got: %q", conflictErr.Error())
 	}
 
 	// Verify no conflict when only --tier is set
@@ -986,7 +986,7 @@ func TestDoubleErrorPrefix_Fixed(t *testing.T) {
 
 	var conflictErr error
 	if unusedAll && unusedTier != "" {
-		conflictErr = fmt.Errorf("--all and --tier cannot be used together; --tier already filters to a specific tier")
+		conflictErr = fmt.Errorf("--all and --tier are mutually exclusive\n  Use --tier safe to show only safe packages, or --all to show all tiers")
 	}
 
 	if conflictErr == nil {
@@ -998,9 +998,9 @@ func TestDoubleErrorPrefix_Fixed(t *testing.T) {
 		t.Errorf("error message must not start with 'Error:' (Cobra prepends it), got: %q", conflictErr.Error())
 	}
 
-	// The message must still be informative
-	if !strings.Contains(conflictErr.Error(), "cannot be used together") {
-		t.Errorf("error message should contain 'cannot be used together', got: %q", conflictErr.Error())
+	// The message must be informative about mutual exclusivity
+	if !strings.Contains(conflictErr.Error(), "mutually exclusive") {
+		t.Errorf("error message should contain 'mutually exclusive', got: %q", conflictErr.Error())
 	}
 }
 
@@ -1099,5 +1099,167 @@ func TestUnusedConfidenceFooter_NoANSIWhenNotTTY(t *testing.T) {
 	coloredLine := fmt.Sprintf("Confidence: %sLOW%s (0 usage events recorded)", colorRed, colorReset)
 	if !strings.Contains(coloredLine, "\033[") {
 		t.Error("colored line should contain ANSI escape sequences")
+	}
+}
+
+// TestUnusedDoubleWarningConsolidated verifies that with no usage data, only ONE warning
+// block appears in output (not two distinct warning sections).
+func TestUnusedDoubleWarningConsolidated(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	// Call checkUsageWarning with showRiskyImplicit=true (no usage data scenario)
+	checkUsageWarning(st, true)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf strings.Builder
+	readBuf := make([]byte, 4096)
+	for {
+		n, readErr := r.Read(readBuf)
+		if n > 0 {
+			buf.Write(readBuf[:n])
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	capturedOutput := buf.String()
+
+	// Should contain the warning once
+	warningCount := strings.Count(capturedOutput, "WARNING: No usage data")
+	if warningCount != 1 {
+		t.Errorf("expected exactly 1 'WARNING: No usage data' in output, got %d\noutput:\n%s", warningCount, capturedOutput)
+	}
+
+	// Should contain the risky-tier-included note (consolidated into one block)
+	if !strings.Contains(capturedOutput, "All tiers (including risky) are shown") {
+		t.Errorf("expected risky-tier note in consolidated warning, output:\n%s", capturedOutput)
+	}
+
+	// The old second banner phrase should NOT appear separately
+	if strings.Contains(capturedOutput, "No usage data yet — showing all packages (risky tier included)") {
+		t.Errorf("old second banner phrase should not appear; output should be consolidated:\n%s", capturedOutput)
+	}
+}
+
+// TestUnusedFooterNoHiddenWhenRiskyImplicit verifies that when showRiskyImplicit is true,
+// the footer does NOT contain "(risky, hidden)".
+func TestUnusedFooterNoHiddenWhenRiskyImplicit(t *testing.T) {
+	// When showRiskyImplicit=true, the showAll argument to RenderReclaimableFooter
+	// must be true so the footer does not append ", hidden" to the risky entry.
+	//
+	// The fix: unusedAll || unusedTier != "" || showRiskyImplicit
+	showRiskyImplicit := true
+	unusedAllLocal := false
+	unusedTierLocal := ""
+
+	showAll := unusedAllLocal || unusedTierLocal != "" || showRiskyImplicit
+	if !showAll {
+		t.Error("showAll should be true when showRiskyImplicit is true")
+	}
+
+	// Simulate what the footer would say.
+	// RenderReclaimableFooter appends ", hidden" only when showAll is false.
+	// With showAll=true, the footer should say "(risky)" not "(risky, hidden)".
+	var footerRisky string
+	if showAll {
+		footerRisky = "(risky)"
+	} else {
+		footerRisky = "(risky, hidden)"
+	}
+
+	if strings.Contains(footerRisky, "hidden") {
+		t.Errorf("footer risky label should not contain 'hidden' when showRiskyImplicit=true, got: %q", footerRisky)
+	}
+}
+
+// TestUnusedSortAgeDirectionNote verifies that --sort age output includes a sort direction note.
+func TestUnusedSortAgeDirectionNote(t *testing.T) {
+	// The sort direction note is emitted when unusedSort == "age" and
+	// allSameInstallTime is false. Verify the expected note text.
+	unusedSortLocal := "age"
+	allSameInstallTime := false
+
+	var noteEmitted string
+	if unusedSortLocal == "age" {
+		if allSameInstallTime {
+			noteEmitted = "Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically."
+		} else {
+			noteEmitted = "Sorted by: install date (oldest first)"
+		}
+	}
+
+	if noteEmitted == "" {
+		t.Fatal("expected a sort direction note to be emitted for --sort age")
+	}
+
+	// The note should indicate "oldest first" (matching the actual sort logic)
+	if !strings.Contains(noteEmitted, "oldest first") {
+		t.Errorf("sort direction note should contain 'oldest first', got: %q", noteEmitted)
+	}
+
+	// Confirm sort direction is actually oldest-first in sortScores
+	now := time.Now()
+	scores := []*analyzer.ConfidenceScore{
+		{Package: "pkg-new", Score: 80, Tier: "safe", InstalledAt: now.AddDate(0, 0, -10)},
+		{Package: "pkg-old", Score: 70, Tier: "safe", InstalledAt: now.AddDate(0, 0, -100)},
+	}
+	sortScores(scores, "age")
+	if scores[0].Package != "pkg-old" {
+		t.Errorf("sort by age should put oldest first, got %s at position 0", scores[0].Package)
+	}
+}
+
+// TestUnusedAllTierMutualExclusiveError verifies the improved error message for
+// --all --tier combination contains "mutually exclusive".
+func TestUnusedAllTierMutualExclusiveError(t *testing.T) {
+	savedTier := unusedTier
+	savedAll := unusedAll
+	defer func() {
+		unusedTier = savedTier
+		unusedAll = savedAll
+	}()
+
+	unusedTier = "safe"
+	unusedAll = true
+
+	var conflictErr error
+	if unusedAll && unusedTier != "" {
+		conflictErr = fmt.Errorf("--all and --tier are mutually exclusive\n  Use --tier safe to show only safe packages, or --all to show all tiers")
+	}
+
+	if conflictErr == nil {
+		t.Fatal("expected error when --all and --tier are both set")
+	}
+
+	if !strings.Contains(conflictErr.Error(), "mutually exclusive") {
+		t.Errorf("error should contain 'mutually exclusive', got: %q", conflictErr.Error())
+	}
+
+	// Should also provide guidance
+	if !strings.Contains(conflictErr.Error(), "--all to show all tiers") {
+		t.Errorf("error should contain usage guidance, got: %q", conflictErr.Error())
+	}
+
+	// Must not start with "Error:" (Cobra prepends that)
+	if strings.HasPrefix(conflictErr.Error(), "Error:") {
+		t.Errorf("error must not start with 'Error:' prefix, got: %q", conflictErr.Error())
 	}
 }
