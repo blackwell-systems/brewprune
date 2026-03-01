@@ -155,10 +155,10 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 	switch score.Tier {
 	case "safe":
 		fmt.Printf("%sSafe to remove.%s This package scores high for removal confidence.\n", colorGreen, colorReset)
-		fmt.Println("Run 'brewprune remove --safe' to remove all safe-tier packages.")
+		fmt.Println("Run 'brewprune remove --safe --dry-run' to preview, then without --dry-run to remove all safe-tier packages.")
 	case "medium":
 		fmt.Printf("%sReview before removing.%s Check if you use this package indirectly.\n", colorYellow, colorReset)
-		fmt.Println("If certain, run 'brewprune remove " + score.Package + "'")
+		fmt.Println("If certain, run 'brewprune remove " + score.Package + " --dry-run' to preview, then without --dry-run to remove.")
 	case "risky":
 		fmt.Printf("%sDo not remove.%s ", colorRed, colorReset)
 		if score.IsCritical {

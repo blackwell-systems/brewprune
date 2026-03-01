@@ -440,6 +440,66 @@ func TestExplainNotFoundSuggestion(t *testing.T) {
 	}
 }
 
+// TestExplainMediumRecommendationIncludesDryRun verifies that for a MEDIUM-tier
+// package, the recommendation output contains --dry-run so users preview before removing.
+func TestExplainMediumRecommendationIncludesDryRun(t *testing.T) {
+	score := &analyzer.ConfidenceScore{
+		Package:    "git",
+		Score:      45,
+		Tier:       "medium",
+		UsageScore: 20,
+		DepsScore:  15,
+		AgeScore:   10,
+		TypeScore:  0,
+		Reason:     "moderate usage signal",
+		Explanation: analyzer.ScoreExplanation{
+			UsageDetail: "used 45 days ago",
+			DepsDetail:  "no dependents",
+			AgeDetail:   "installed 200 days ago",
+			TypeDetail:  "leaf package",
+		},
+	}
+
+	output := captureRenderExplanation(score, "2024-06-01")
+
+	if !strings.Contains(output, "--dry-run") {
+		t.Errorf("expected MEDIUM-tier recommendation to contain '--dry-run', got: %q", output)
+	}
+	if !strings.Contains(output, "brewprune remove git") {
+		t.Errorf("expected MEDIUM-tier recommendation to contain 'brewprune remove git', got: %q", output)
+	}
+}
+
+// TestExplainSafeRecommendationIncludesDryRun verifies that for a SAFE-tier
+// package, the recommendation output contains --dry-run so users preview before removing.
+func TestExplainSafeRecommendationIncludesDryRun(t *testing.T) {
+	score := &analyzer.ConfidenceScore{
+		Package:    "wget",
+		Score:      85,
+		Tier:       "safe",
+		UsageScore: 40,
+		DepsScore:  25,
+		AgeScore:   15,
+		TypeScore:  5,
+		Reason:     "not used recently, no dependents",
+		Explanation: analyzer.ScoreExplanation{
+			UsageDetail: "last used 180 days ago",
+			DepsDetail:  "no dependents",
+			AgeDetail:   "installed 730 days ago",
+			TypeDetail:  "leaf package",
+		},
+	}
+
+	output := captureRenderExplanation(score, "2022-06-01")
+
+	if !strings.Contains(output, "--dry-run") {
+		t.Errorf("expected SAFE-tier recommendation to contain '--dry-run', got: %q", output)
+	}
+	if !strings.Contains(output, "brewprune remove --safe") {
+		t.Errorf("expected SAFE-tier recommendation to contain 'brewprune remove --safe', got: %q", output)
+	}
+}
+
 // TestRunExplain_NilPackageGraceful verifies that when GetPackage returns
 // (nil, nil) on the second call in runExplain, the function does not panic.
 //
