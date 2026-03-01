@@ -133,8 +133,8 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 
 	// Breakdown section — plain-text compact format matching showConfidenceAssessment.
 	fmt.Println("\nBreakdown:")
-	fmt.Println("  (score measures removal confidence: higher = safer to remove)")
-	fmt.Printf("  %-13s %2d/40 pts - %s\n", "Usage:", score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 50))
+	fmt.Println("  (removal confidence score: 0 = keep, 100 = safe to remove)")
+	fmt.Printf("  %-13s %2d/40 pts - %s%s\n", "Usage:", score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 40), usageSignalLabel(score.UsageScore))
 	fmt.Printf("  %-13s %2d/30 pts - %s\n", "Dependencies:", score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 50))
 	fmt.Printf("  %-13s %2d/20 pts - %s\n", "Age:", score.AgeScore, truncateDetail(score.Explanation.AgeDetail, 50))
 	fmt.Printf("  %-13s %2d/10 pts - %s\n", "Type:", score.TypeScore, truncateDetail(score.Explanation.TypeDetail, 50))
@@ -176,6 +176,16 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 	}
 
 	fmt.Println()
+}
+
+// usageSignalLabel appends a parenthetical hint when the usage score is low,
+// clarifying that 0 pts means "actively used" (penalizes removal confidence),
+// not "zero usage detected."
+func usageSignalLabel(usageScore int) string {
+	if usageScore == 0 {
+		return " (actively used — penalizes removal confidence)"
+	}
+	return ""
 }
 
 func truncateDetail(s string, maxLen int) string {

@@ -158,8 +158,8 @@ func TestRenderExplanation_ScoringNote(t *testing.T) {
 	output := buf.String()
 
 	// The framing note now appears inline before the breakdown components.
-	if !strings.Contains(output, "measures removal confidence") {
-		t.Errorf("expected output to contain scoring framing 'measures removal confidence', got: %q", output)
+	if !strings.Contains(output, "removal confidence score: 0 = keep") {
+		t.Errorf("expected output to contain scoring framing 'removal confidence score: 0 = keep', got: %q", output)
 	}
 	if !strings.Contains(output, "recently used") {
 		t.Errorf("expected output to contain 'recently used', got: %q", output)
@@ -264,8 +264,8 @@ func TestExplainNoteWording(t *testing.T) {
 	output := buf.String()
 
 	// Verify the inline framing note appears in the breakdown section.
-	if !strings.Contains(output, "measures removal confidence") {
-		t.Errorf("expected output to contain 'measures removal confidence', got: %q", output)
+	if !strings.Contains(output, "removal confidence score: 0 = keep") {
+		t.Errorf("expected output to contain 'removal confidence score: 0 = keep', got: %q", output)
 	}
 	// Verify all four scoring components are present in plain-text format.
 	if !strings.Contains(output, "Usage:") {
@@ -330,14 +330,14 @@ func makeTestScore(pkg string, isCritical bool) *analyzer.ConfidenceScore {
 }
 
 // TestRenderExplanation_ScoreNoteBeforeBreakdown verifies that the score framing
-// ("measures removal confidence") appears before the first Usage: component line.
+// ("removal confidence score: 0 = keep") appears before the first Usage: component line.
 func TestRenderExplanation_ScoreNoteBeforeBreakdown(t *testing.T) {
 	output := captureRenderExplanation(makeTestScore("git", false), "2024-01-01")
 
-	noteIdx := strings.Index(output, "measures removal confidence")
+	noteIdx := strings.Index(output, "removal confidence score: 0 = keep")
 	usageIdx := strings.Index(output, "Usage:")
 	if noteIdx == -1 {
-		t.Errorf("expected output to contain 'measures removal confidence', got: %q", output)
+		t.Errorf("expected output to contain 'removal confidence score: 0 = keep', got: %q", output)
 		return
 	}
 	if usageIdx == -1 {
@@ -437,5 +437,55 @@ func TestExplainNotFoundSuggestion(t *testing.T) {
 	}
 	if !strings.Contains(stderrOutput, "brewprune scan") {
 		t.Errorf("expected error message to contain 'brewprune scan', got: %q", stderrOutput)
+	}
+}
+
+// TestRunExplain_NilPackageGraceful verifies that when GetPackage returns
+// (nil, nil) on the second call in runExplain, the function does not panic.
+//
+// The nil guard at lines 75-79 of explain.go protects against this:
+//
+//	pkg, _ := st.GetPackage(packageName)
+//	installedDate := ""
+//	if pkg != nil {
+//	    installedDate = pkg.InstalledAt.Format("2006-01-02")
+//	}
+//
+// In practice, store.GetPackage never returns (nil, nil) — it always wraps
+// sql.ErrNoRows as a non-nil error. However the nil guard defends against
+// any future store implementation or QEMU-specific race condition that could
+// produce this state. This test exercises the renderExplanation path with an
+// empty installedDate (the value set when pkg == nil) and verifies no panic.
+func TestRunExplain_NilPackageGraceful(t *testing.T) {
+	// Simulate the state after the nil guard fires: pkg was nil so installedDate
+	// is the empty string "". renderExplanation must not panic in this case.
+	score := &analyzer.ConfidenceScore{
+		Package:    "curl",
+		Score:      15,
+		Tier:       "risky",
+		UsageScore: 0,
+		DepsScore:  5,
+		AgeScore:   10,
+		TypeScore:  0,
+		IsCritical: true,
+		Reason:     "core system dependency, keep",
+		Explanation: analyzer.ScoreExplanation{
+			UsageDetail: "used today",
+			DepsDetail:  "4 used dependents",
+			AgeDetail:   "installed 730 days ago",
+			TypeDetail:  "foundational package (reduced confidence)",
+		},
+	}
+
+	// Capture output; the key assertion is that this does not panic.
+	output := captureRenderExplanation(score, "")
+
+	// With an empty installedDate the "Installed:" line should still render
+	// (just with an empty value) rather than crashing.
+	if !strings.Contains(output, "Installed:") {
+		t.Errorf("expected output to contain 'Installed:' line even with empty date, got: %q", output)
+	}
+	if !strings.Contains(output, "curl") {
+		t.Errorf("expected output to contain package name 'curl', got: %q", output)
 	}
 }
