@@ -1,5 +1,5 @@
 {
   "permissions": {
-    "allow": ["Bash(docker exec bp-sandbox*)"]
+    "allow": ["Bash(docker exec bp-sandbox*)", "Bash(docker exec brewprune-r8*)", "Bash(docker exec brewprune-r9*)"]
   }
 }
