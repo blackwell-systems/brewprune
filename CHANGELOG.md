@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-01
+
 ### Added
 - **`watch.log` lifecycle events** — the daemon now writes a timestamped startup entry (`brewprune-watch: daemon started (PID N)`) and a shutdown entry to `watch.log` on stop, making it easy to audit when tracking was active.
 - **Dep-locked package pre-validation in `remove`** — before attempting any uninstall, `remove` now calls `brew uses --installed` for each candidate and skips packages that other installed formulae depend on. Previously, Homebrew would refuse mid-operation and leave the removal in an ambiguous state.
