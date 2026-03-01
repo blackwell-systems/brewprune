@@ -145,11 +145,7 @@ func runUndo(cmd *cobra.Command, args []string) error {
 
 	// Restore snapshot
 	fmt.Printf("Restoring %d packages...\n", len(snapshotPackages))
-	progress := output.NewProgress(len(snapshotPackages), "Restoring packages")
-
-	// Use a spinner for the restoration process since snapshots.RestoreSnapshot
-	// doesn't provide per-package progress
-	progress.Finish() // Clear the progress bar
+	// Use spinner only — progress bar is immediately finished and adds visual noise.
 	spinner := output.NewSpinner("Restoring packages from snapshot...")
 	spinner.Start()
 	err = snapMgr.RestoreSnapshot(snapshotID)
@@ -164,7 +160,8 @@ func runUndo(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n✓ Restored %d packages from snapshot %d\n", len(snapshotPackages), snapshotID)
-	fmt.Println("\n⚠  Run 'brewprune scan' to update the package database before running 'brewprune remove'.")
+	fmt.Println("\n⚠  Run 'brewprune scan' to update the package database.")
+	fmt.Println("   Commands that need a fresh scan: remove, unused, explain, stats --package")
 
 	return nil
 }
