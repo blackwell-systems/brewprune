@@ -386,20 +386,42 @@ Append to `docs/IMPL-audit-round6.md`:
 
 ```yaml
 ### Agent C — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-c
-commit: {sha}
+commit: ad88f3594cfb25991c5200e9d27a3f16892c138e
 files_changed:
   - internal/app/doctor.go
   - internal/app/doctor_test.go
 interface_deviations: []
 out_of_scope_deps: []
 tests_added:
-  - TestDoctorPATHHint_UsesDetectedShell
-  - TestDoctorANSI_PipedOutputNoColor
-  - TestDoctorAliasesTip_SuppressedWithEvents
-  - TestDoctorAliasesTip_ShownWhenNoEvents
-verification: PASS | FAIL
+  - TestIsColorEnabled_NoColor
+  - TestDoctorPATHHint_ZshConfig
+  - TestDoctorPATHHint_BashConfig
+  - TestDoctorAliasesTip_SuppressedWhenDaemonRunning
+verification: PASS (go test ./internal/app -run TestDoctor -run TestIsColor — 8/8 tests pass)
+
+Notes:
+  ONBOARD-2 (PATH hint): No existing helper in internal/shell/ returns a simple config file path string.
+    The shell/config.go EnsurePathEntry function does shell detection internally but modifies the file.
+    Used inline detectShellConfig() as specified. The existing hardcoded "~/.zprofile (or ~/.bash_profile)"
+    action hint was replaced with a single dynamic call to detectShellConfig().
+
+  ONBOARD-3 (pipeline spinner): A spinner already existed covering the full wait period, using
+    output.NewSpinner("Running pipeline test") with a 35s timeout. The spinner message was updated
+    to "Running pipeline test (~30s)..." to set user expectations. No duplicate spinner added.
+
+  DOCTOR-1 (ANSI codes): Added isColorEnabled() using os.Stdout.Stat() mode bits (no isatty dep).
+    Added colorize() helper. All ANSI codes in doctor.go wrapped — check lines, summary lines,
+    pipeline result lines. Note: os.Stdout is *os.File directly (not interface), so used
+    os.Stdout.Stat() rather than a type assertion.
+
+  DOCTOR-2 (aliases tip): Used a combined heuristic: show tip only when daemon is NOT running
+    OR totalUsageEvents < 10. This covers both fresh setups (no daemon yet) and established
+    setups with minimal data. When daemon is running with >= 10 events, tip is suppressed.
+
+  DOCTOR-3 (line colors): Applied colorize() to all ✓/⚠/✗ prefix characters throughout
+    doctor.go, including pipeline test result messages.
 ```
 
 ---
@@ -500,6 +522,44 @@ verification: PASS | FAIL
 
 ---
 
+### Agent D — Completion Report
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-d
+commit: 78c46f9ae9eae9fa3154108b5d83e55a0a005be5
+files_changed:
+  - internal/app/quickstart.go
+  - internal/app/quickstart_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestQuickstartDaemonOutput_NoBleedThrough
+  - TestQuickstartTerminology_NoDaemonCalledService
+verification: PASS (15/15 tests — go test ./internal/app -run TestQuickstart)
+```
+
+Notes:
+- ONBOARD-1 (stdout bleed-through): Used the stdout capture approach (os.Pipe) inside
+  startWatchDaemonFallback. The inner runWatch/startWatchDaemon in watch.go emits verbose
+  multi-line output ("Usage tracking daemon started\n  PID file: ...\n  Log file: ...\n
+  To stop: ...") on success. We redirect os.Stdout to a pipe before calling runWatch,
+  then w.Close() + io.Copy(io.Discard, r) + restore os.Stdout after. If pipe creation
+  fails (pipeErr != nil), we fall through gracefully without capturing. The three call
+  sites in Step 3 each now print "  ✓ Daemon started (log: <path>)" on success instead
+  of their previous redundant inline messages.
+
+- HELP-4 (service → daemon): Updated the Long description ("Start the usage tracking
+  daemon"), the Step 3 header ("Starting usage tracking daemon"), and the brew services
+  success line ("✓ brewprune daemon started via brew services"). The phrase "brew services"
+  in code/output referring to the brew subcommand was left as-is.
+
+- PATH inconsistency note (not fixed — owned by doctor.go agent): Line 239 of quickstart.go
+  reads `source ~/.profile  (or ~/.zshrc / ~/.bashrc depending on your shell)`. This
+  omits ~/.zprofile, which is the correct login-shell config for zsh on macOS. The doctor.go
+  PATH fix (Agent C) should address the canonical profile file list.
+
+---
+
 ### Wave 1 Agent E: Undo — trailing @ in package names, stale DB warning
 
 You are Wave 1 Agent E. Fix 2 UX issues in `internal/app/undo.go`.
@@ -576,9 +636,9 @@ Append to `docs/IMPL-audit-round6.md`:
 
 ```yaml
 ### Agent E — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-e
-commit: {sha}
+commit: 7bd293a
 files_changed:
   - internal/app/undo.go
   - internal/app/undo_test.go
@@ -587,8 +647,18 @@ out_of_scope_deps: []
 tests_added:
   - TestUndoPackageDisplay_NoTrailingAt
   - TestUndoPackageDisplay_WithVersion
-  - TestUndoPostRestoreMessage_IncludesScanHint
-verification: PASS | FAIL
+  - TestUndoPostRestoreMessage_ScanHint
+verification: PASS (16/16 tests, go build ./... and go vet ./... clean)
+
+Notes:
+- Snapshot packages come from `store.SnapshotPackage` (not `snapshots.PackageSnapshot`).
+  Actual field names used: `PackageName` (string), `Version` (string), `WasExplicit` (bool).
+  There is no `InstallType` field on this struct; the existing code used `WasExplicit` to
+  append "(explicit)" suffix, which was preserved.
+- Extracted `formatPackageDisplay(name, version string) string` helper in undo.go to make
+  the conditional @version logic unit-testable without a subprocess pattern.
+- REMOVE-5 message now reads:
+  `⚠  Run 'brewprune scan' to update the package database before running 'brewprune remove'.`
 ```
 
 ---
@@ -677,9 +747,9 @@ Append to `docs/IMPL-audit-round6.md`:
 
 ```yaml
 ### Agent F — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-f
-commit: {sha}
+commit: 6f7e536fc6090e6bbaedb99be304c5130661f8c7
 files_changed:
   - internal/app/unused.go
   - internal/app/unused_test.go
@@ -690,9 +760,63 @@ tests_added:
   - TestUnusedVerbose_ScoreInversionNote
   - TestUnused_TierAndAllConflict
   - TestUnused_TierBannerHighlightsActive
-  - TestUnusedConfidenceFooter_NoANSIWhenPiped
-verification: PASS | FAIL
+  - TestUnusedConfidenceFooter_NoANSIWhenNotTTY
+verification: PASS (go test ./internal/app -run TestUnused -timeout 60s — 15/15 tests)
 ```
+
+Notes:
+
+**UNUSED-2**: Added early return in runUnused after caskCount computation. When --casks is set
+and caskCount == 0, prints two-line informative message and returns nil.
+
+**UNUSED-3**: Added score inversion note in showConfidenceAssessment. The note is printed as
+part of a "Breakdown:" header section at the start of the confidence footer output.
+
+**UNUSED-4**: Added --all + --tier conflict check immediately after tier value validation
+in runUnused, before any database access.
+
+**UNUSED-5**: Added highlightActiveTier() helper function in unused.go. When --tier is set,
+the tier summary from RenderTierSummary is post-processed: the matching tier segment is
+wrapped in square brackets. For TTY (isTTY=true), bold ANSI codes (\033[1m...\033[0m) are
+also applied. The label "(filtered to <tier>)" is appended. stripANSI() helper strips
+escape codes for plain-text tier matching.
+
+**VISUAL-1**: Replaced raw ANSI usage in showConfidenceAssessment with isColor guard using
+os.Stdout.Stat() + ModeCharDevice check and NO_COLOR env var. Note: os.Stdout is already
+*os.File in Go (not an io.Writer interface), so os.Stdout.(*os.File) type assertions are
+invalid — used os.Stdout.Stat() directly.
+
+**Canonical verbose Breakdown format in showConfidenceAssessment (for Agent G / explain.go to match):**
+
+The `showConfidenceAssessment` function (called at end of `unused` command output) produces:
+
+```
+Breakdown:
+  (score measures removal confidence: higher = safer to remove)
+Confidence: LOW|MEDIUM|HIGH (<detail>)
+Tip: <optional tip line>
+```
+
+The verbose per-package breakdown is rendered by `output.RenderConfidenceTableVerbose`
+(in table.go) and uses this format per package:
+
+```
+Package: <name>
+Score:   <N> (<tier>)
+
+Breakdown:
+  Usage:        <N>/40 pts - <detail>
+  Dependencies: <N>/30 pts - <detail>
+  Age:          <N>/20 pts - <detail>
+  Type:         <N>/10 pts - <detail>
+  [Critical:    YES      - capped at 70 (core system dependency)]
+
+Reason: <reason text>
+────────────────────────────────────────────────────────────────────────
+```
+
+Agent G (explain.go) should match the per-package breakdown format from table.go's
+RenderConfidenceTableVerbose, not from showConfidenceAssessment (which is a summary footer).
 
 ---
 
@@ -878,9 +1002,9 @@ Append to `docs/IMPL-audit-round6.md`:
 
 ```yaml
 ### Agent H — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-h
-commit: {sha}
+commit: 6d107e3
 files_changed:
   - internal/store/queries.go
   - internal/store/db_test.go
@@ -889,8 +1013,19 @@ out_of_scope_deps: []
 tests_added:
   - TestListPackages_NoSchema_ReturnsErrNotInitialized
   - TestGetPackage_NoSchema_ReturnsErrNotInitialized
-verification: PASS | FAIL
+  - TestErrNotInitialized_ErrorMessage
+verification: PASS (GOWORK=off go test ./internal/store — all tests pass)
 ```
+
+**Notes:**
+
+- **Actual SQLite error string observed:** The SQLite driver (modernc/sqlite) produces `"no such table: packages"` when querying a table that doesn't exist on an uninitialized DB. The `strings.Contains(err.Error(), "no such table")` check matches this correctly. The log output from the test showed: `raw error from ListPackages on uninitialized DB: database not initialized — run 'brewprune scan' to create the database` — meaning detection triggered immediately, replacing the raw driver error.
+
+- **Double-wrapping investigation:** In `ListPackages()`, the query error is wrapped once as `fmt.Errorf("failed to list packages: %w", err)`. Callers in `internal/app/unused.go` and `internal/app/remove.go` wrap again with their own context (e.g., `fmt.Errorf("failed to list packages: %w", err)` again in the app layer). This creates the double-wrap chain: `"failed to list packages: failed to list packages: SQL logic error: no such table: packages (1)"` described in the audit. The fix in `queries.go` breaks the chain at the source — now `ErrNotInitialized` propagates through the `%w` wrappers cleanly and is detectable with `errors.Is()` at any level.
+
+- **ListUsageEvents mapping:** The spec references `ListUsageEvents()` but the actual function in queries.go is `GetUsageEvents(pkg string, since time.Time)`. The "no such table" detection was applied to `GetUsageEvents()` as the closest equivalent for the stats command path.
+
+- **`containsString` helper:** Rather than importing `strings` in the test file (it was already imported in queries.go for the implementation), a private `containsString`/`stringContains` pair was added to db_test.go for the `TestErrNotInitialized_ErrorMessage` check. This avoids adding a new import to the test file while keeping the test self-contained.
 
 ---
 
@@ -929,11 +1064,119 @@ After all Wave 1 agents complete:
 
 ## Status
 
-- [ ] Wave 1 Agent A — remove.go: REMOVE-1, REMOVE-2, REMOVE-3, VISUAL-2
-- [ ] Wave 1 Agent B — stats.go/watch.go: TRACK-2, TRACK-3, TRACK-4, EDGE-3
-- [ ] Wave 1 Agent C — doctor.go: ONBOARD-2, ONBOARD-3, DOCTOR-1, DOCTOR-2, DOCTOR-3
-- [ ] Wave 1 Agent D — quickstart.go: ONBOARD-1, HELP-4
-- [ ] Wave 1 Agent E — undo.go: REMOVE-4, REMOVE-5
-- [ ] Wave 1 Agent F — unused.go: UNUSED-2, UNUSED-3, UNUSED-4, UNUSED-5, VISUAL-1
-- [ ] Wave 1 Agent G — explain.go: EXPLAIN-1, EXPLAIN-2, EXPLAIN-3
-- [ ] Wave 1 Agent H — store/queries.go: EDGE-1
+- [x] Wave 1 Agent A — remove.go: REMOVE-1, REMOVE-2, REMOVE-3, VISUAL-2
+- [x] Wave 1 Agent B — stats.go/watch.go: TRACK-2, TRACK-3, TRACK-4, EDGE-3
+- [x] Wave 1 Agent C — doctor.go: ONBOARD-2, ONBOARD-3, DOCTOR-1, DOCTOR-2, DOCTOR-3
+- [x] Wave 1 Agent D — quickstart.go: ONBOARD-1, HELP-4
+- [x] Wave 1 Agent E — undo.go: REMOVE-4, REMOVE-5
+- [x] Wave 1 Agent F — unused.go: UNUSED-2, UNUSED-3, UNUSED-4, UNUSED-5, VISUAL-1
+- [x] Wave 1 Agent G — explain.go: EXPLAIN-1, EXPLAIN-2, EXPLAIN-3
+- [x] Wave 1 Agent H — store/queries.go: EDGE-1
+
+---
+
+### Agent B — Completion Report
+status: complete
+worktree: .claude/worktrees/wave1-agent-b
+commit: 384cfbce2acd6ca36693cdbcd028f3177924b22b
+files_changed:
+  - internal/app/stats.go
+  - internal/app/watch.go
+  - internal/app/stats_test.go
+  - internal/app/watch_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestPluralize
+  - TestStatsPluralization_OneDay
+  - TestStatsPluralization_OnePackage
+  - TestTrendColumn_ZeroUsage
+  - TestWatchDaemonStopConflict
+verification: PASS (go test ./internal/app -run "TestStats|TestPluralize|TestTrend|TestWatch" — all pass; full package suite passes)
+
+notes:
+  - TRACK-3: The `formatTrend` function in output/table.go already has a `default:` case returning "—".
+    Setting `trend = "—"` (U+2014) for zero-usage packages naturally falls into that default and renders
+    the em dash without any output/table.go change required.
+  - TRACK-4: Added private `pluralize(n int, singular, plural string) string` helper. Summary line changed
+    from "N packages used in last D days" to "N package(s) used in the last D day(s)" with correct
+    singular forms for n==1.
+  - EDGE-3: The `--days` flag uses `IntVar`, so cobra rejects non-integer input (e.g. "abc") before
+    `runStats` is called, producing "invalid argument "abc" for "--days" flag: strconv.ParseInt: ..."
+    which is reasonably clean. The existing `statsDays <= 0` check was updated to use the cleaner
+    message "--days must be a positive integer" (dropping the old "invalid days: N (must be positive)"
+    format). No switch to StringVar was needed.
+  - TRACK-2: Warning printed to stderr so it does not pollute stdout table output. The `--stop` path
+    proceeds as normal after the warning, so stop takes precedence over --daemon as specified.
+
+---
+
+### Agent A — Completion Report
+
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-a
+commit: 4c5a0c7
+files_changed:
+  - internal/app/remove.go
+  - internal/app/remove_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestDetermineTier_ConflictShorthands
+  - TestDetermineTier_ConflictShorthandAndTierFlag
+  - TestConfirmRemoval_RiskyRequiresYes
+  - TestNoSnapshotWarning_Output
+tests_updated:
+  - TestDetermineTier (cases "safe and medium" and "all flags" updated to expect wantError=true)
+verification: PASS (GOWORK=off go test -count=1 ./internal/app — all tests pass including 4 new)
+```
+
+**Decisions and notes:**
+
+- **REMOVE-1**: Added conflict detection in `determineTier()`. Counts how many of `{removeFlagSafe, removeFlagMedium, removeFlagRisky}` are true; if >1, returns error containing "only one tier flag". Also detects `--tier` combined with any shorthand and returns "cannot combine --tier with --<shorthand>". Added a private `shorthandFlagName()` helper. Updated existing `TestDetermineTier` table cases `"safe and medium"` and `"all flags"` to expect `wantError=true` (previously they expected a returned tier value — that behavior is now a conflict error per REMOVE-1).
+
+- **REMOVE-2**: Changed `confirmRemoval(count int)` to `confirmRemoval(count int, tier string)`. For `tier == "risky"`, shows the alarming multi-line warning and requires literal `"yes"`. For all other tiers, preserves existing `[y/N]` prompt accepting `"y"` or `"yes"`. Updated `runRemove` to track `activeTier` at the top of the function scope so the call site can pass it. For explicit-package removal (`len(args) > 0`), `activeTier` stays `""` which routes through the standard `[y/N]` path.
+
+- **REMOVE-3**: TTY check uses `os.Stdout.Stat()` directly (since `os.Stdout` is `*os.File`, not an interface — the task's pattern using `os.Stdout.(*os.File)` type assertion would not compile). Added `NO_COLOR` env check. The warning line: `⚠  Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!` with ANSI yellow wrapping when TTY.
+
+- **VISUAL-2**: Replaced the ad-hoc per-package score loop (formatting with `fmt.Printf("  %-20s  %3d/100  %-6s  %s\n", ...)`) with a call to `displayConfidenceScores(st, explicitScores)`. "Explicitly installed" warnings from `ValidateRemoval` now print above the table using plain `⚠` (not `⚠️`). Header changed to `Packages to remove (explicit):`.
+
+- **Build note**: The go.work file lives at the main repo root (`/Users/dayna.blackwell/code/brewprune/go.work`) not in the worktree, so `go test github.com/blackwell-systems/brewprune/internal/app` (using module path) compiles against the main repo's go.work and misses the worktree test file additions. Running with `GOWORK=off go test ./internal/app` from the worktree directory uses the worktree's go.mod directly and picks up all test functions correctly. All 4 new tests discovered and pass with `GOWORK=off`.
+
+---
+
+### Agent G — Completion Report
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-g
+commit: d112d307d3b9e4bc7d1766a6779e5850756fdc06
+files_changed:
+  - internal/app/explain.go
+  - internal/app/explain_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestRenderExplanation_ScoreNoteBeforeBreakdown
+  - TestRenderExplanation_NoBoxDrawing
+  - TestRenderExplanation_CriticalTerminology
+  - TestRenderExplanation_NoANSIWhenPiped
+verification: PASS (GOWORK=off go test ./internal/app/... — all tests pass including 4 new, 8 total in explain_test.go)
+```
+
+**Decisions and notes:**
+
+- **EXPLAIN-1**: Removed the bottom "Note:" block entirely. The score framing is now an inline line `(score measures removal confidence: higher = safer to remove)` printed immediately after `Breakdown:` and before the first component row. This gives top-to-bottom readers the context they need immediately.
+
+- **EXPLAIN-2**: Replaced the entire Unicode box-drawing table (`┌─`, `│`, `├─`, `└─`) with a plain-text indented format matching `showConfidenceAssessment` in `unused.go`. Format uses `fmt.Printf("  %-13s %2d/NN pts - %s\n", label, score, detail)` for the four components. A `Total:` summary line replaces the bottom border row.
+
+- **EXPLAIN-3**: The old `"Criticality Penalty │ -30"` table row is gone. Critical packages now show `"  Critical: YES - capped at 70 (core system dependency)"` (matching `showConfidenceAssessment`'s format). The `"Protected: YES (part of 47 core dependencies)"` line at the bottom is preserved as-is for the recommendation section.
+
+- **ANSI TTY check**: Added inline TTY detection using `os.Stdout.Stat()` directly (not a type assertion — `os.Stdout` is `*os.File` which has `.Stat()` as a method). Color variables are assigned empty strings when not a TTY, so all `fmt.Printf` calls using them become no-ops naturally. `NO_COLOR` env var is also honoured. The `TestRenderExplanation_NoANSIWhenPiped` test relies on the test framework redirecting `os.Stdout` to a pipe (`os.Pipe()`), which causes `ModeCharDevice` to be unset, triggering the no-color path.
+
+- **Existing tests updated**:
+  - `TestRenderExplanation_ScoringNote`: Removed assertion for `"Note:"` (deleted from output). Now checks for `"measures removal confidence"` instead.
+  - `TestExplainNoteWording`: Removed assertions for `"0/40 means recently used"`, `"40/40 means no usage ever observed"`, `"fewer points toward removal"` (all removed from output). Now checks for `"measures removal confidence"` framing plus presence of all four component labels (`Usage:`, `Dependencies:`, `Age:`, `Type:`).
+  - `TestRenderExplanation_DetailNotTruncated`: Still passes — the new format uses `truncateDetail(detail, 50)` same as before, so 41-char detail strings render untruncated.
+
+- **Build note**: Same go.work / worktree issue as Agent F — must run `GOWORK=off go test ./internal/app/...` from within the worktree directory. Running `go test` from the main repo root uses the main repo's files (missing worktree edits). A `captureRenderExplanation` helper was added to `explain_test.go` to DRY up the repeated stdout-redirect pattern across the four new tests.
