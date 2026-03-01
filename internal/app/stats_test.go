@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1149,6 +1150,64 @@ func TestStatsPluralization_OnePackage(t *testing.T) {
 	}
 	if strings.Contains(out, "1 packages") {
 		t.Errorf("expected no '1 packages' in summary output, got:\n%s", out)
+	}
+}
+
+// TestStatsDaysNonInteger_UserFriendlyError verifies that --days abc produces a
+// user-friendly error message and does not expose raw strconv.ParseInt output.
+func TestStatsDaysNonInteger_UserFriendlyError(t *testing.T) {
+	origDaysStr := statsDaysStr
+	defer func() { statsDaysStr = origDaysStr }()
+
+	statsDaysStr = "abc"
+
+	err := runStats(statsCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error for --days abc, got nil")
+	}
+
+	if strings.Contains(err.Error(), "strconv.ParseInt") {
+		t.Errorf("error message exposes raw strconv.ParseInt: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("expected user-friendly error containing 'must be a positive integer', got: %v", err)
+	}
+}
+
+// TestStatsDaysZero_Error verifies that --days 0 produces the same user-friendly
+// error as non-integer input.
+func TestStatsDaysZero_Error(t *testing.T) {
+	origDaysStr := statsDaysStr
+	defer func() { statsDaysStr = origDaysStr }()
+
+	statsDaysStr = "0"
+
+	err := runStats(statsCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error for --days 0, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("expected user-friendly error containing 'must be a positive integer', got: %v", err)
+	}
+}
+
+// TestStatsDaysNegative_Error verifies that --days -1 continues to produce the
+// same user-friendly error (existing behavior preserved).
+func TestStatsDaysNegative_Error(t *testing.T) {
+	origDaysStr := statsDaysStr
+	defer func() { statsDaysStr = origDaysStr }()
+
+	statsDaysStr = strconv.Itoa(-1)
+
+	err := runStats(statsCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error for --days -1, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "must be a positive integer") {
+		t.Errorf("expected user-friendly error containing 'must be a positive integer', got: %v", err)
 	}
 }
 
