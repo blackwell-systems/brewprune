@@ -1,11 +1,78 @@
 package store
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/brew"
 )
+
+// TestListPackages_NoSchema_ReturnsErrNotInitialized verifies that calling
+// ListPackages on a fresh DB (no CreateSchema) returns ErrNotInitialized.
+func TestListPackages_NoSchema_ReturnsErrNotInitialized(t *testing.T) {
+	s, err := New(":memory:")
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer s.Close()
+
+	// Do NOT call CreateSchema — simulate uninitialized database.
+	_, err = s.ListPackages()
+	if err == nil {
+		t.Fatal("ListPackages() should return an error on uninitialized DB")
+	}
+	t.Logf("raw error from ListPackages on uninitialized DB: %v", err)
+	if !errors.Is(err, ErrNotInitialized) {
+		t.Errorf("ListPackages() error = %v; want errors.Is(err, ErrNotInitialized) to be true", err)
+	}
+}
+
+// TestGetPackage_NoSchema_ReturnsErrNotInitialized verifies that calling
+// GetPackage on a fresh DB (no CreateSchema) returns ErrNotInitialized.
+func TestGetPackage_NoSchema_ReturnsErrNotInitialized(t *testing.T) {
+	s, err := New(":memory:")
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer s.Close()
+
+	// Do NOT call CreateSchema — simulate uninitialized database.
+	_, err = s.GetPackage("somepackage")
+	if err == nil {
+		t.Fatal("GetPackage() should return an error on uninitialized DB")
+	}
+	t.Logf("raw error from GetPackage on uninitialized DB: %v", err)
+	if !errors.Is(err, ErrNotInitialized) {
+		t.Errorf("GetPackage() error = %v; want errors.Is(err, ErrNotInitialized) to be true", err)
+	}
+}
+
+// TestErrNotInitialized_ErrorMessage verifies that the ErrNotInitialized
+// sentinel has a human-readable message that includes "brewprune scan".
+func TestErrNotInitialized_ErrorMessage(t *testing.T) {
+	msg := ErrNotInitialized.Error()
+	if msg == "" {
+		t.Error("ErrNotInitialized.Error() should not be empty")
+	}
+	if !containsString(msg, "brewprune scan") {
+		t.Errorf("ErrNotInitialized message %q should contain 'brewprune scan'", msg)
+	}
+}
+
+// containsString is a simple helper for substring checks without importing strings.
+func containsString(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && stringContains(s, sub))
+}
+
+func stringContains(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
 
 // Helper function to create an in-memory store for testing
 func newTestStore(t *testing.T) *Store {
