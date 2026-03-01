@@ -27,7 +27,9 @@ Steps performed:
   3. Start the usage tracking daemon
   4. Run a self-test to confirm the shim → daemon → database pipeline works
 
-This command is non-interactive and safe to run from a Homebrew post_install hook.`,
+This command is non-interactive and safe to run from a Homebrew post_install hook.
+
+The self-test takes approximately 30 seconds. If it fails, run 'brewprune doctor' to diagnose.`,
 	RunE: runQuickstart,
 }
 
@@ -113,7 +115,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  ✓ Added %s to PATH in %s\n", shimDir, configFile)
 			fmt.Println("  Restart your shell (or source the config file) for this to take effect.")
 		} else {
-			fmt.Printf("  ✓ %s is already in PATH\n", shimDir)
+			fmt.Printf("  ✓ %s is already configured in ~/.profile\n", shimDir)
 		}
 	}
 	fmt.Println()
@@ -224,7 +226,12 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// ── Summary ───────────────────────────────────────────────────────────────
-	fmt.Println("Setup complete!")
+	pathNotActive := shimDirErr == nil && !isOnPATH(shimDir)
+	if pathNotActive {
+		fmt.Println("Setup complete — one step remains:")
+	} else {
+		fmt.Println("Setup complete!")
+	}
 	fmt.Println()
 	fmt.Println("IMPORTANT: Wait 1-2 weeks before acting on recommendations.")
 	fmt.Println()
@@ -235,7 +242,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println("Check status anytime: brewprune status")
 	fmt.Println("Run diagnostics:      brewprune doctor")
 
-	if shimDirErr == nil && !isOnPATH(shimDir) {
+	if pathNotActive {
 		configFile := detectShellConfig()
 		fmt.Println()
 		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
