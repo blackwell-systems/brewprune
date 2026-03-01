@@ -335,7 +335,7 @@ func TestStartWatchDaemon_AlreadyRunningIsIdempotent(t *testing.T) {
 }
 
 // TestWatchDaemonStopConflict verifies that when both --daemon and --stop are
-// provided, a warning is printed to stderr before stop proceeds.
+// provided, an error is returned containing "mutually exclusive".
 func TestWatchDaemonStopConflict(t *testing.T) {
 	// Set both conflicting flags.
 	origDaemon := watchDaemon
@@ -351,41 +351,55 @@ func TestWatchDaemonStopConflict(t *testing.T) {
 		watchLogFile = origLogFile
 	}()
 
-	// Use a temp PID file that does not exist so stopWatchDaemon returns
-	// "Daemon is not running" without trying to kill anything.
 	tmpDir := t.TempDir()
 	watchPIDFile = fmt.Sprintf("%s/nonexistent.pid", tmpDir)
 	watchLogFile = fmt.Sprintf("%s/watch.log", tmpDir)
 
-	// Capture stderr to observe the warning.
-	origStderr := os.Stderr
-	r, w, err := os.Pipe()
+	// runWatch should return an error immediately due to the conflict.
+	err := runWatch(watchCmd, nil)
+
+	if err == nil {
+		t.Fatal("expected runWatch to return an error when --daemon and --stop are both set, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected error to contain 'mutually exclusive', got: %q", err.Error())
+	}
+}
+
+// TestWatchLogStartup verifies that runWatchDaemonChild writes a startup line
+// to watchLogFile before calling RunDaemon.
+func TestWatchLogStartup(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := fmt.Sprintf("%s/watch.log", tmpDir)
+	pidFile := fmt.Sprintf("%s/watch.pid", tmpDir)
+
+	origLogFile := watchLogFile
+	origPIDFile := watchPIDFile
+	watchLogFile = logFile
+	watchPIDFile = pidFile
+	defer func() {
+		watchLogFile = origLogFile
+		watchPIDFile = origPIDFile
+	}()
+
+	// runWatchDaemonChild calls w.RunDaemon which we cannot easily mock, but
+	// the log write happens before RunDaemon is called.  We pass nil and
+	// expect a non-nil error from RunDaemon (nil dereference) — what we care
+	// about is that the log file was written before the crash.
+	// Use a recovery to catch the expected nil-pointer panic from RunDaemon(nil).
+	func() {
+		defer func() { recover() }() //nolint:errcheck
+		_ = runWatchDaemonChild(nil)
+	}()
+
+	data, err := os.ReadFile(logFile)
 	if err != nil {
-		t.Fatalf("os.Pipe: %v", err)
+		t.Fatalf("expected log file to be created at %s, got error: %v", logFile, err)
 	}
-	os.Stderr = w
 
-	// runWatch will print the warning then call stopWatchDaemon (which will
-	// report "not running" and return nil).
-	_ = runWatch(watchCmd, nil)
-
-	w.Close()
-	os.Stderr = origStderr
-
-	var buf strings.Builder
-	tmp := make([]byte, 4096)
-	for {
-		n, readErr := r.Read(tmp)
-		if n > 0 {
-			buf.Write(tmp[:n])
-		}
-		if readErr != nil {
-			break
-		}
-	}
-	stderrOutput := buf.String()
-
-	if !strings.Contains(stderrOutput, "Warning") || !strings.Contains(stderrOutput, "--daemon") || !strings.Contains(stderrOutput, "--stop") {
-		t.Errorf("expected warning about --daemon and --stop conflict in stderr, got: %q", stderrOutput)
+	content := string(data)
+	if !strings.Contains(content, "brewprune-watch: daemon started") {
+		t.Errorf("expected log file to contain 'brewprune-watch: daemon started', got: %q", content)
 	}
 }
