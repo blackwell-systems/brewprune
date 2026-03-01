@@ -121,7 +121,7 @@ func TestRunExplain_NotFoundPrintedOnce(t *testing.T) {
 }
 
 // TestRenderExplanation_ScoringNote verifies that renderExplanation outputs the
-// scoring direction note explaining that lower usage score means keep.
+// scoring direction framing explaining that higher score = safer to remove.
 func TestRenderExplanation_ScoringNote(t *testing.T) {
 	// Redirect stdout to capture output.
 	oldStdout := os.Stdout
@@ -157,8 +157,9 @@ func TestRenderExplanation_ScoringNote(t *testing.T) {
 	buf.ReadFrom(r)
 	output := buf.String()
 
-	if !strings.Contains(output, "Note:") {
-		t.Errorf("expected output to contain 'Note:', got: %q", output)
+	// The framing note now appears inline before the breakdown components.
+	if !strings.Contains(output, "measures removal confidence") {
+		t.Errorf("expected output to contain scoring framing 'measures removal confidence', got: %q", output)
 	}
 	if !strings.Contains(output, "recently used") {
 		t.Errorf("expected output to contain 'recently used', got: %q", output)
@@ -225,8 +226,8 @@ func TestRenderExplanation_DetailNotTruncated(t *testing.T) {
 	}
 }
 
-// TestExplainNoteWording verifies that the explain note includes clarification
-// about both endpoints of the usage score (0/40 = recently used, 40/40 = never used).
+// TestExplainNoteWording verifies that the explain output includes the inline
+// scoring framing and a plain-text breakdown with all four scoring components.
 func TestExplainNoteWording(t *testing.T) {
 	// Redirect stdout to capture output.
 	oldStdout := os.Stdout
@@ -262,15 +263,130 @@ func TestExplainNoteWording(t *testing.T) {
 	buf.ReadFrom(r)
 	output := buf.String()
 
-	// Verify the note contains the improved wording with both endpoints.
-	if !strings.Contains(output, "0/40 means recently used") {
-		t.Errorf("expected output to contain '0/40 means recently used', got: %q", output)
+	// Verify the inline framing note appears in the breakdown section.
+	if !strings.Contains(output, "measures removal confidence") {
+		t.Errorf("expected output to contain 'measures removal confidence', got: %q", output)
 	}
-	if !strings.Contains(output, "40/40 means no usage ever observed") {
-		t.Errorf("expected output to contain '40/40 means no usage ever observed', got: %q", output)
+	// Verify all four scoring components are present in plain-text format.
+	if !strings.Contains(output, "Usage:") {
+		t.Errorf("expected output to contain 'Usage:', got: %q", output)
 	}
-	if !strings.Contains(output, "fewer points toward removal") {
-		t.Errorf("expected output to contain 'fewer points toward removal', got: %q", output)
+	if !strings.Contains(output, "Dependencies:") {
+		t.Errorf("expected output to contain 'Dependencies:', got: %q", output)
+	}
+	if !strings.Contains(output, "Age:") {
+		t.Errorf("expected output to contain 'Age:', got: %q", output)
+	}
+	if !strings.Contains(output, "Type:") {
+		t.Errorf("expected output to contain 'Type:', got: %q", output)
+	}
+}
+
+// captureRenderExplanation is a helper that redirects stdout, calls
+// renderExplanation, and returns the captured output.
+func captureRenderExplanation(score *analyzer.ConfidenceScore, installedDate string) string {
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		panic("failed to create pipe: " + err.Error())
+	}
+	os.Stdout = w
+
+	renderExplanation(score, installedDate)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return buf.String()
+}
+
+// makeTestScore returns a minimal ConfidenceScore suitable for render tests.
+func makeTestScore(pkg string, isCritical bool) *analyzer.ConfidenceScore {
+	tier := "safe"
+	score := 85
+	if isCritical {
+		tier = "risky"
+		score = 20
+	}
+	return &analyzer.ConfidenceScore{
+		Package:    pkg,
+		Score:      score,
+		Tier:       tier,
+		UsageScore: 40,
+		DepsScore:  30,
+		AgeScore:   15,
+		TypeScore:  10,
+		IsCritical: isCritical,
+		Reason:     "test reason",
+		Explanation: analyzer.ScoreExplanation{
+			UsageDetail: "never observed execution",
+			DepsDetail:  "no dependents",
+			AgeDetail:   "installed 5+ years ago",
+			TypeDetail:  "explicitly installed formula",
+		},
+	}
+}
+
+// TestRenderExplanation_ScoreNoteBeforeBreakdown verifies that the score framing
+// ("measures removal confidence") appears before the first Usage: component line.
+func TestRenderExplanation_ScoreNoteBeforeBreakdown(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("git", false), "2024-01-01")
+
+	noteIdx := strings.Index(output, "measures removal confidence")
+	usageIdx := strings.Index(output, "Usage:")
+	if noteIdx == -1 {
+		t.Errorf("expected output to contain 'measures removal confidence', got: %q", output)
+		return
+	}
+	if usageIdx == -1 {
+		t.Errorf("expected output to contain 'Usage:', got: %q", output)
+		return
+	}
+	if noteIdx > usageIdx {
+		t.Errorf("score note (pos %d) must appear before 'Usage:' line (pos %d)", noteIdx, usageIdx)
+	}
+}
+
+// TestRenderExplanation_NoBoxDrawing verifies that the box-drawing table characters
+// have been removed from renderExplanation output.
+func TestRenderExplanation_NoBoxDrawing(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("node", false), "2024-01-01")
+
+	if strings.ContainsRune(output, '┌') {
+		t.Errorf("output must not contain box-drawing character '┌'; got: %q", output)
+	}
+	if strings.ContainsRune(output, '│') {
+		t.Errorf("output must not contain box-drawing character '│'; got: %q", output)
+	}
+}
+
+// TestRenderExplanation_CriticalTerminology verifies that critical packages use
+// "Critical: YES" wording and do not reference "Criticality Penalty" or "-30".
+func TestRenderExplanation_CriticalTerminology(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("openssl", true), "2019-01-01")
+
+	if !strings.Contains(output, "Critical: YES") {
+		t.Errorf("expected output to contain 'Critical: YES', got: %q", output)
+	}
+	if strings.Contains(output, "Criticality Penalty") {
+		t.Errorf("output must not contain 'Criticality Penalty', got: %q", output)
+	}
+	if strings.Contains(output, "-30") {
+		t.Errorf("output must not contain '-30' penalty wording, got: %q", output)
+	}
+}
+
+// TestRenderExplanation_NoANSIWhenPiped verifies that when stdout is not a TTY
+// (simulated by replacing it with a pipe), no ANSI escape sequences are emitted.
+// Since the test itself redirects os.Stdout to a pipe, isColor() inside
+// renderExplanation will detect a non-TTY and suppress color codes.
+func TestRenderExplanation_NoANSIWhenPiped(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("wget", false), "2023-06-01")
+
+	if strings.Contains(output, "\033[") {
+		t.Errorf("output must not contain ANSI escape sequences when stdout is a pipe, got: %q", output)
 	}
 }
 

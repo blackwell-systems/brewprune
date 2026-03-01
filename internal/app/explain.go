@@ -86,24 +86,30 @@ func runExplain(cmd *cobra.Command, args []string) error {
 
 // renderExplanation displays a detailed breakdown of a package's confidence score.
 //
-// ANSI Formatting Note: This function uses ANSI escape codes (e.g., \033[1m for bold,
-// \033[32m for green) to provide colored terminal output. These codes render correctly
-// in standard terminal environments but may appear as raw text (e.g., [1m, [0m) when:
-//   - Output is redirected to a file or pipe
-//   - Running in non-ANSI environments (e.g., certain Docker containers)
-//   - Terminal does not support ANSI escape sequences
-//
-// This is expected behavior and not a bug. The raw codes are harmless and can be
-// filtered using tools like `sed` or by setting NO_COLOR=1 in future enhancements.
+// ANSI color codes are emitted only when stdout is a TTY and NO_COLOR is unset.
 func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
-	// Color codes
-	const (
-		colorReset  = "\033[0m"
-		colorGreen  = "\033[32m"
+	// TTY detection: use os.Stdout.Stat() directly (os.Stdout is *os.File, not an interface).
+	isColor := func() bool {
+		if os.Getenv("NO_COLOR") != "" {
+			return false
+		}
+		fi, err := os.Stdout.Stat()
+		return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+	}()
+
+	// Color codes — empty strings when not a TTY so no ANSI leaks into pipes.
+	colorReset := ""
+	colorGreen := ""
+	colorYellow := ""
+	colorRed := ""
+	colorBold := ""
+	if isColor {
+		colorReset = "\033[0m"
+		colorGreen = "\033[32m"
 		colorYellow = "\033[33m"
-		colorRed    = "\033[31m"
-		colorBold   = "\033[1m"
-	)
+		colorRed = "\033[31m"
+		colorBold = "\033[1m"
+	}
 
 	// Get tier color
 	var tierColor string
@@ -125,39 +131,21 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 		tierColor, strings.ToUpper(score.Tier), colorReset)
 	fmt.Printf("Installed: %s\n", installedDate)
 
-	// Detailed Breakdown Table
-	fmt.Println("\nDetailed Breakdown:")
-	fmt.Println("┌─────────────────────┬─────────┬────────────────────────────────────────────────────┐")
-	fmt.Println("│ Component           │  Score  │ Detail                                             │")
-	fmt.Println("├─────────────────────┼─────────┼────────────────────────────────────────────────────┤")
-	fmt.Printf("│ Usage               │ %2d/40   │ %-50s │\n",
-		score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 50))
-	fmt.Printf("│ Dependencies        │ %2d/30   │ %-50s │\n",
-		score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 50))
-	fmt.Printf("│ Age                 │ %2d/20   │ %-50s │\n",
-		score.AgeScore, truncateDetail(score.Explanation.AgeDetail, 50))
-	fmt.Printf("│ Type                │ %2d/10   │ %-50s │\n",
-		score.TypeScore, truncateDetail(score.Explanation.TypeDetail, 50))
+	// Breakdown section — plain-text compact format matching showConfidenceAssessment.
+	fmt.Println("\nBreakdown:")
+	fmt.Println("  (score measures removal confidence: higher = safer to remove)")
+	fmt.Printf("  %-13s %2d/40 pts - %s\n", "Usage:", score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 50))
+	fmt.Printf("  %-13s %2d/30 pts - %s\n", "Dependencies:", score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 50))
+	fmt.Printf("  %-13s %2d/20 pts - %s\n", "Age:", score.AgeScore, truncateDetail(score.Explanation.AgeDetail, 50))
+	fmt.Printf("  %-13s %2d/10 pts - %s\n", "Type:", score.TypeScore, truncateDetail(score.Explanation.TypeDetail, 50))
 
 	if score.IsCritical {
-		fmt.Println("│ Criticality Penalty │   -30   │ core dependency (capped at 70)                     │")
+		fmt.Println("  Critical: YES - capped at 70 (core system dependency)")
 	}
 
-	fmt.Println("├─────────────────────┼─────────┼────────────────────────────────────────────────────┤")
-	// [EXPLAIN-3] Compute padding on plain string first, then wrap with color
-	// to avoid ANSI codes inflating the fmt width count.
-	tierLabel := truncateDetail(strings.ToUpper(score.Tier)+" tier", 50)
-	paddedLabel := fmt.Sprintf("%-50s", tierLabel)
-	fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%s%s │\n",
-		colorBold, colorReset,
+	fmt.Printf("  Total: %s%d/100%s (%s%s%s)\n",
 		tierColor, score.Score, colorReset,
-		tierColor, paddedLabel, colorReset)
-	fmt.Println("└─────────────────────┴─────────┴────────────────────────────────────────────────────┘")
-
-	fmt.Println()
-	fmt.Println("Note: Higher removal score = more confident to remove.")
-	fmt.Println("      Usage component: 0/40 means recently used (fewer points toward removal).")
-	fmt.Println("      40/40 means no usage ever observed.")
+		tierColor, strings.ToUpper(score.Tier)+" tier", colorReset)
 
 	// Why this tier
 	fmt.Printf("\n%sWhy %s:%s %s\n", colorBold, strings.ToUpper(score.Tier), colorReset, score.Reason)
