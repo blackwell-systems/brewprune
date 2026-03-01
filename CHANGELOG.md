@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-03-01
+
+### Fixed
+- **`--version` always reported `dev`** — GoReleaser ldflags were injecting into `main.version` but the version variable lives in `internal/app`. Fixed the package path so release binaries now correctly report their version.
+
 ## [0.3.0] - 2026-03-01
 
 ### Added
