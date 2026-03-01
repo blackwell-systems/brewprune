@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	isatty "github.com/mattn/go-isatty"
@@ -14,7 +15,8 @@ import (
 )
 
 var (
-	statsDays    int
+	statsDays    int    // parsed value (used inside runStats)
+	statsDaysStr string // receives cobra flag value (string for clean error messages)
 	statsPackage string
 	statsAll     bool
 )
@@ -48,7 +50,7 @@ Usage frequency is classified as:
 }
 
 func init() {
-	statsCmd.Flags().IntVar(&statsDays, "days", 30, "Time window in days")
+	statsCmd.Flags().StringVar(&statsDaysStr, "days", "30", "Time window in days")
 	statsCmd.Flags().StringVar(&statsPackage, "package", "", "Show stats for specific package")
 	statsCmd.Flags().BoolVar(&statsAll, "all", false, "Show all packages including those with no usage")
 
@@ -65,10 +67,12 @@ func pluralize(n int, singular, plural string) string {
 }
 
 func runStats(cmd *cobra.Command, args []string) error {
-	// Validate flags
-	if statsDays <= 0 {
+	// Parse and validate --days flag
+	days, err := strconv.Atoi(statsDaysStr)
+	if err != nil || days <= 0 {
 		return fmt.Errorf("--days must be a positive integer")
 	}
+	statsDays = days
 
 	// Get database path
 	dbPath, err := getDBPath()
