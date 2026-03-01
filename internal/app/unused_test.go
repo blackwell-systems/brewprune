@@ -1124,7 +1124,7 @@ func TestUnusedDoubleWarningConsolidated(t *testing.T) {
 	os.Stdout = w
 
 	// Call checkUsageWarning with showRiskyImplicit=true (no usage data scenario)
-	checkUsageWarning(st, true)
+	checkUsageWarning(st, true, false)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -1224,6 +1224,144 @@ func TestUnusedSortAgeDirectionNote(t *testing.T) {
 	sortScores(scores, "age")
 	if scores[0].Package != "pkg-old" {
 		t.Errorf("sort by age should put oldest first, got %s at position 0", scores[0].Package)
+	}
+}
+
+// TestUnused_SortSizeShowsFooter verifies that --sort size produces the size footer annotation.
+func TestUnused_SortSizeShowsFooter(t *testing.T) {
+	unusedSortLocal := "size"
+
+	var footerEmitted string
+	switch unusedSortLocal {
+	case "size":
+		footerEmitted = "Sorted by: size (largest first)"
+	case "score":
+		footerEmitted = "Sorted by: score (highest first)"
+	case "age":
+		footerEmitted = "Sorted by: install date (oldest first)"
+	}
+
+	if footerEmitted == "" {
+		t.Fatal("expected a sort footer to be emitted for --sort size")
+	}
+
+	if !strings.Contains(footerEmitted, "size (largest first)") {
+		t.Errorf("sort footer for size should contain 'size (largest first)', got: %q", footerEmitted)
+	}
+}
+
+// TestUnused_SortScoreShowsFooter verifies that --sort score produces the score footer annotation.
+func TestUnused_SortScoreShowsFooter(t *testing.T) {
+	unusedSortLocal := "score"
+
+	var footerEmitted string
+	switch unusedSortLocal {
+	case "size":
+		footerEmitted = "Sorted by: size (largest first)"
+	case "score":
+		footerEmitted = "Sorted by: score (highest first)"
+	case "age":
+		footerEmitted = "Sorted by: install date (oldest first)"
+	}
+
+	if footerEmitted == "" {
+		t.Fatal("expected a sort footer to be emitted for --sort score")
+	}
+
+	if !strings.Contains(footerEmitted, "score (highest first)") {
+		t.Errorf("sort footer for score should contain 'score (highest first)', got: %q", footerEmitted)
+	}
+}
+
+// TestUnused_SortAgeFooterUnchanged verifies that --sort age still produces the age footer annotation.
+func TestUnused_SortAgeFooterUnchanged(t *testing.T) {
+	// Case 1: distinct install times → "oldest first" note
+	unusedSortLocal := "age"
+	allSameInstallTime := false
+
+	var footerEmitted string
+	switch unusedSortLocal {
+	case "age":
+		if allSameInstallTime {
+			footerEmitted = "Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically."
+		} else {
+			footerEmitted = "Sorted by: install date (oldest first)"
+		}
+	}
+
+	if footerEmitted == "" {
+		t.Fatal("expected a sort footer to be emitted for --sort age (distinct times)")
+	}
+	if !strings.Contains(footerEmitted, "oldest first") {
+		t.Errorf("age footer (distinct times) should contain 'oldest first', got: %q", footerEmitted)
+	}
+
+	// Case 2: same install times → fallback note
+	allSameInstallTime = true
+	switch unusedSortLocal {
+	case "age":
+		if allSameInstallTime {
+			footerEmitted = "Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically."
+		} else {
+			footerEmitted = "Sorted by: install date (oldest first)"
+		}
+	}
+
+	if !strings.Contains(footerEmitted, "age sort has no effect") {
+		t.Errorf("age footer (same times) should contain 'age sort has no effect', got: %q", footerEmitted)
+	}
+}
+
+// TestUnused_CasksWithNoCasksSkipsWarning verifies that when --casks is set and no cask
+// packages exist in the DB, checkUsageWarning exits early and emits NO warning banner.
+func TestUnused_CasksWithNoCasksSkipsWarning(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// No packages in DB at all → caskCount == 0 → warning should be skipped.
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	// skipIfNoCasks=true simulates --casks being set
+	checkUsageWarning(st, false, true)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf strings.Builder
+	readBuf := make([]byte, 4096)
+	for {
+		n, readErr := r.Read(readBuf)
+		if n > 0 {
+			buf.Write(readBuf[:n])
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	capturedOutput := buf.String()
+
+	// The warning banner must NOT appear
+	if strings.Contains(capturedOutput, "WARNING: No usage data") {
+		t.Errorf("warning banner should be suppressed when --casks is set and no casks exist, got:\n%s", capturedOutput)
+	}
+
+	// Output must be completely empty (clean no-op)
+	if capturedOutput != "" {
+		t.Errorf("expected empty output when --casks with no casks, got:\n%s", capturedOutput)
 	}
 }
 

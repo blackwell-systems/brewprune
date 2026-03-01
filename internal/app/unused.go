@@ -127,7 +127,8 @@ func runUnused(cmd *cobra.Command, args []string) error {
 
 	// Check for usage data and daemon status; pass showRiskyImplicit so the
 	// warning can incorporate the risky-tier-included note in a single block.
-	checkUsageWarning(st, showRiskyImplicit)
+	// Pass unusedCasks so the warning is skipped when --casks is set but no casks exist.
+	checkUsageWarning(st, showRiskyImplicit, unusedCasks)
 
 	// Create analyzer
 	a := analyzer.New(st)
@@ -376,8 +377,9 @@ func runUnused(cmd *cobra.Command, args []string) error {
 		fmt.Print(table)
 	}
 
-	// Show sort direction note and/or same-install-time note for --sort age
-	if unusedSort == "age" {
+	// Show sort direction note for all sort modes
+	switch unusedSort {
+	case "age":
 		if allSameInstallTime {
 			fmt.Println()
 			fmt.Println("Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically.")
@@ -385,6 +387,12 @@ func runUnused(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 			fmt.Println("Sorted by: install date (oldest first)")
 		}
+	case "size":
+		fmt.Println()
+		fmt.Println("Sorted by: size (largest first)")
+	case "score":
+		fmt.Println()
+		fmt.Println("Sorted by: score (highest first)")
 	}
 
 	// Show reclaimable footer (replaces old summary block)
@@ -483,7 +491,17 @@ func getLastUsed(st *store.Store, pkg string) time.Time {
 // displaying a warning banner if no tracking is active.
 // When showRiskyImplicit is true (no usage data, no explicit tier/all flags),
 // the warning incorporates the risky-tier-included note in a single consolidated block.
-func checkUsageWarning(st *store.Store, showRiskyImplicit bool) {
+// When skipIfNoCasks is true (i.e. --casks flag is set), the warning is skipped entirely
+// if no cask packages exist in the database — that case is a clean no-op, not a problem.
+func checkUsageWarning(st *store.Store, showRiskyImplicit bool, skipIfNoCasks bool) {
+	if skipIfNoCasks {
+		var caskCount int
+		st.DB().QueryRow("SELECT COUNT(*) FROM packages WHERE is_cask = 1").Scan(&caskCount)
+		if caskCount == 0 {
+			return // Skip warning — casks command with no casks is a clean no-op
+		}
+	}
+
 	// Check if any usage events exist
 	var eventCount int
 	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
