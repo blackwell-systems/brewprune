@@ -438,3 +438,117 @@ func TestDoctorExitCodes(t *testing.T) {
 		t.Skip("Already tested by TestRunDoctor_CriticalIssueReturnsError")
 	})
 }
+
+// TestIsColorEnabled_NoColor verifies that setting NO_COLOR=1 makes isColorEnabled return false.
+func TestIsColorEnabled_NoColor(t *testing.T) {
+	orig := os.Getenv("NO_COLOR")
+	os.Setenv("NO_COLOR", "1")
+	defer os.Setenv("NO_COLOR", orig)
+
+	if isColorEnabled() {
+		t.Error("expected isColorEnabled() to return false when NO_COLOR is set")
+	}
+}
+
+// TestDoctorPATHHint_ZshConfig verifies that when SHELL=/bin/zsh the PATH
+// configured action hint references ~/.zprofile.
+func TestDoctorPATHHint_ZshConfig(t *testing.T) {
+	origShell := os.Getenv("SHELL")
+	os.Setenv("SHELL", "/bin/zsh")
+	defer os.Setenv("SHELL", origShell)
+
+	cfg := detectShellConfig()
+	if cfg != "~/.zprofile" {
+		t.Errorf("expected detectShellConfig() to return ~/.zprofile for zsh, got: %s", cfg)
+	}
+}
+
+// TestDoctorPATHHint_BashConfig verifies that when SHELL=/bin/bash the PATH
+// configured action hint references ~/.bash_profile.
+func TestDoctorPATHHint_BashConfig(t *testing.T) {
+	origShell := os.Getenv("SHELL")
+	os.Setenv("SHELL", "/bin/bash")
+	defer os.Setenv("SHELL", origShell)
+
+	cfg := detectShellConfig()
+	if cfg != "~/.bash_profile" {
+		t.Errorf("expected detectShellConfig() to return ~/.bash_profile for bash, got: %s", cfg)
+	}
+}
+
+// TestDoctorAliasesTip_SuppressedWhenDaemonRunning verifies that the aliases tip
+// is not shown when the daemon is running and events are above the threshold.
+// We test this indirectly by setting up an environment where the daemon appears
+// running (PID file pointing to current process) and enough usage events exist.
+func TestDoctorAliasesTip_SuppressedWhenDaemonRunning(t *testing.T) {
+	// Create a temp home directory.
+	tmpHome := t.TempDir()
+
+	// Create shim binary so check 6 passes.
+	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+	if err := os.MkdirAll(shimDir, 0755); err != nil {
+		t.Fatalf("MkdirAll shimDir: %v", err)
+	}
+	shimBin := filepath.Join(shimDir, "brewprune-shim")
+	if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatalf("WriteFile shimBin: %v", err)
+	}
+
+	// Create a database with one package and enough usage events to exceed threshold.
+	tmpDB := filepath.Join(tmpHome, "test.db")
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		st.Close()
+		t.Fatalf("CreateSchema: %v", err)
+	}
+	pkg := &brew.Package{
+		Name:        "testpkg",
+		Version:     "1.0",
+		InstalledAt: time.Now(),
+		InstallType: "explicit",
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		st.Close()
+		t.Fatalf("InsertPackage: %v", err)
+	}
+	// Insert enough usage events to exceed the 10-event threshold.
+	for i := 0; i < 15; i++ {
+		_, insertErr := st.DB().Exec(
+			"INSERT INTO usage_events (package, event_type, timestamp) VALUES (?, ?, ?)",
+			"testpkg", "exec", time.Now().Add(time.Duration(i)*time.Minute),
+		)
+		if insertErr != nil {
+			st.Close()
+			t.Fatalf("insert usage event: %v", insertErr)
+		}
+	}
+	st.Close()
+
+	// Override global dbPath and HOME.
+	oldDBPath := dbPath
+	dbPath = tmpDB
+	defer func() { dbPath = oldDBPath }()
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
+	// Create a PID file pointing to the current process (so daemon appears running).
+	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+	pidContent := fmt.Sprintf("%d", os.Getpid())
+	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+		t.Fatalf("WriteFile pidFile: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure is expected
+	})
+
+	// The aliases tip should NOT appear when daemon is running with >10 events.
+	if strings.Contains(out, "Tip: Create ~/.config/brewprune/aliases") {
+		t.Errorf("aliases tip should be suppressed when daemon is running with enough events, got:\n%s", out)
+	}
+}
