@@ -106,6 +106,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	var packagesToRemove []string
 	var totalSize int64
+	var activeTier string // tracks the resolved tier for confirmation UX
 
 	// Determine which packages to remove
 	if len(args) > 0 {
@@ -127,12 +128,27 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("validation failed: %w", err)
 		}
 
-		if len(warnings) > 0 {
-			fmt.Println("\nWarnings:")
-			for _, warning := range warnings {
-				fmt.Printf("  ⚠️  %s\n", warning)
+		// Compute scores for explicit packages to display the same table as tier-based removal
+		var explicitScores []*analyzer.ConfidenceScore
+		for _, pkg := range packagesToRemove {
+			score, scoreErr := anlzr.ComputeScore(pkg)
+			if scoreErr == nil {
+				explicitScores = append(explicitScores, score)
 			}
+		}
+
+		// Display warnings above the table
+		if len(warnings) > 0 {
 			fmt.Println()
+			for _, warning := range warnings {
+				fmt.Printf("  ⚠ %s\n", warning)
+			}
+		}
+
+		// Display table consistent with tier-based removal
+		if len(explicitScores) > 0 {
+			fmt.Printf("\nPackages to remove (explicit):\n\n")
+			displayConfidenceScores(st, explicitScores)
 		}
 	} else {
 		// Use recommendation based on tier flags
@@ -143,6 +159,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		if tier == "" {
 			return fmt.Errorf("no tier specified\n\nTry:\n  brewprune remove --safe --dry-run\n\nOr use --medium or --risky for more aggressive removal")
 		}
+		activeTier = tier
 
 		scores, err := getPackagesByTier(anlzr, tier)
 		if err != nil {
@@ -173,19 +190,6 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Show per-package score summary inline before confirmation
-	if len(packagesToRemove) > 0 && len(args) == 0 {
-		// Already shown via displayConfidenceScores for tier-based removal
-	} else if len(args) > 0 {
-		fmt.Println()
-		for _, pkg := range packagesToRemove {
-			score, err := anlzr.ComputeScore(pkg)
-			if err == nil {
-				fmt.Printf("  %-20s  %3d/100  %-6s  %s\n", pkg, score.Score, strings.ToUpper(score.Tier), score.Reason)
-			}
-		}
-	}
-
 	// Display summary
 	fmt.Printf("\nSummary:\n")
 	fmt.Printf("  Packages: %d\n", len(packagesToRemove))
@@ -193,7 +197,16 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if !removeFlagNoSnapshot {
 		fmt.Printf("  Snapshot: will be created\n")
 	} else {
-		fmt.Printf("  Snapshot: SKIPPED (--no-snapshot)\n")
+		// REMOVE-3: warn that removal cannot be undone when --no-snapshot is active
+		isColor := os.Getenv("NO_COLOR") == ""
+		if fi, err := os.Stdout.Stat(); err != nil || (fi.Mode()&os.ModeCharDevice) == 0 {
+			isColor = false
+		}
+		if isColor {
+			fmt.Printf("  \033[33m⚠  Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!\033[0m\n")
+		} else {
+			fmt.Printf("  ⚠  Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!\n")
+		}
 	}
 	fmt.Println()
 
@@ -205,7 +218,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	// Confirm removal
 	if !removeFlagYes {
-		if !confirmRemoval(len(packagesToRemove)) {
+		if !confirmRemoval(len(packagesToRemove), activeTier) {
 			fmt.Println("Removal cancelled.")
 			return nil
 		}
@@ -276,8 +289,15 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 // determineTier returns the highest tier based on flags.
 // --tier takes precedence over the boolean tier flags.
+// Returns an error if multiple shorthand flags are set simultaneously, or if
+// both --tier and a shorthand flag are set at the same time.
 func determineTier() (string, error) {
 	if removeTierFlag != "" {
+		// Detect conflict: --tier combined with a shorthand flag
+		if removeFlagSafe || removeFlagMedium || removeFlagRisky {
+			shorthand := shorthandFlagName()
+			return "", fmt.Errorf("cannot combine --tier with --%s: use one or the other", shorthand)
+		}
 		switch removeTierFlag {
 		case "safe", "medium", "risky":
 			return removeTierFlag, nil
@@ -285,6 +305,23 @@ func determineTier() (string, error) {
 			return "", fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", removeTierFlag)
 		}
 	}
+
+	// Count how many shorthand flags are set
+	setFlags := []string{}
+	if removeFlagSafe {
+		setFlags = append(setFlags, "--safe")
+	}
+	if removeFlagMedium {
+		setFlags = append(setFlags, "--medium")
+	}
+	if removeFlagRisky {
+		setFlags = append(setFlags, "--risky")
+	}
+
+	if len(setFlags) > 1 {
+		return "", fmt.Errorf("only one tier flag can be specified at a time (got %s and %s)", setFlags[0], setFlags[1])
+	}
+
 	if removeFlagRisky {
 		return "risky", nil
 	}
@@ -295,6 +332,20 @@ func determineTier() (string, error) {
 		return "safe", nil
 	}
 	return "", nil
+}
+
+// shorthandFlagName returns the first shorthand tier flag that is set.
+func shorthandFlagName() string {
+	if removeFlagSafe {
+		return "safe"
+	}
+	if removeFlagMedium {
+		return "medium"
+	}
+	if removeFlagRisky {
+		return "risky"
+	}
+	return ""
 }
 
 // getPackagesByTier returns packages for the specified tier and all lower tiers.
@@ -373,10 +424,25 @@ func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore
 }
 
 // confirmRemoval prompts the user to confirm removal.
-func confirmRemoval(count int) bool {
+// For risky tier, it requires the literal string "yes" to confirm.
+// For safe/medium tiers, it accepts "y" or "yes".
+func confirmRemoval(count int, tier string) bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	if tier == "risky" {
+		fmt.Printf("WARNING: You are about to remove %d risky packages that may include core dependencies.\n", count)
+		fmt.Println("This could break installed tools. Removal cannot be undone without a snapshot.")
+		fmt.Print("Type \"yes\" to confirm (or press Enter to cancel): ")
+
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return false
+		}
+		return strings.TrimSpace(response) == "yes"
+	}
+
 	fmt.Printf("Remove %d packages? [y/N]: ", count)
 
-	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
 	if err != nil {
 		return false

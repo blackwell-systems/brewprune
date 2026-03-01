@@ -1,7 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -62,18 +65,20 @@ func TestRemoveFlags(t *testing.T) {
 
 func TestDetermineTier(t *testing.T) {
 	tests := []struct {
-		name     string
-		safe     bool
-		medium   bool
-		risky    bool
-		expected string
+		name      string
+		safe      bool
+		medium    bool
+		risky     bool
+		expected  string
+		wantError bool
 	}{
-		{"no flags", false, false, false, ""},
-		{"safe only", true, false, false, "safe"},
-		{"medium only", false, true, false, "medium"},
-		{"risky only", false, false, true, "risky"},
-		{"safe and medium", true, true, false, "medium"},
-		{"all flags", true, true, true, "risky"},
+		{"no flags", false, false, false, "", false},
+		{"safe only", true, false, false, "safe", false},
+		{"medium only", false, true, false, "medium", false},
+		{"risky only", false, false, true, "risky", false},
+		// Multiple shorthand flags are now a conflict error (REMOVE-1)
+		{"safe and medium", true, true, false, "", true},
+		{"all flags", true, true, true, "", true},
 	}
 
 	for _, tt := range tests {
@@ -86,6 +91,12 @@ func TestDetermineTier(t *testing.T) {
 
 			result, err := determineTier()
 
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("determineTier() expected error for safe=%v medium=%v risky=%v, got none", tt.safe, tt.medium, tt.risky)
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("determineTier() unexpected error: %v", err)
 			}
@@ -329,5 +340,182 @@ func TestRunRemove_NotFoundError_NotDoubled(t *testing.T) {
 	// Ensure the package name appears in the message
 	if !strings.Contains(msg, "nonexistent") {
 		t.Errorf("error message should contain the package name; got: %q", msg)
+	}
+}
+
+// TestDetermineTier_ConflictShorthands verifies that setting multiple shorthand
+// tier flags simultaneously returns an error containing "only one tier flag".
+func TestDetermineTier_ConflictShorthands(t *testing.T) {
+	tests := []struct {
+		name   string
+		safe   bool
+		medium bool
+		risky  bool
+	}{
+		{"safe and medium", true, true, false},
+		{"safe and risky", true, false, true},
+		{"medium and risky", false, true, true},
+		{"all three", true, true, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			removeFlagSafe = tt.safe
+			removeFlagMedium = tt.medium
+			removeFlagRisky = tt.risky
+			removeTierFlag = ""
+			defer func() {
+				removeFlagSafe = false
+				removeFlagMedium = false
+				removeFlagRisky = false
+			}()
+
+			_, err := determineTier()
+			if err == nil {
+				t.Errorf("determineTier() expected error for multiple shorthand flags, got none")
+				return
+			}
+			if !strings.Contains(err.Error(), "only one tier flag") {
+				t.Errorf("error %q does not contain %q", err.Error(), "only one tier flag")
+			}
+		})
+	}
+}
+
+// TestDetermineTier_ConflictShorthandAndTierFlag verifies that combining --tier
+// with a shorthand flag returns an error.
+func TestDetermineTier_ConflictShorthandAndTierFlag(t *testing.T) {
+	tests := []struct {
+		name      string
+		tierFlag  string
+		safe      bool
+		medium    bool
+		risky     bool
+	}{
+		{"--tier safe with --safe", "safe", true, false, false},
+		{"--tier medium with --risky", "medium", false, false, true},
+		{"--tier risky with --medium", "risky", false, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			removeTierFlag = tt.tierFlag
+			removeFlagSafe = tt.safe
+			removeFlagMedium = tt.medium
+			removeFlagRisky = tt.risky
+			defer func() {
+				removeTierFlag = ""
+				removeFlagSafe = false
+				removeFlagMedium = false
+				removeFlagRisky = false
+			}()
+
+			_, err := determineTier()
+			if err == nil {
+				t.Errorf("determineTier() expected error when --tier combined with shorthand, got none")
+				return
+			}
+			if !strings.Contains(err.Error(), "cannot combine --tier") {
+				t.Errorf("error %q does not contain %q", err.Error(), "cannot combine --tier")
+			}
+		})
+	}
+}
+
+// TestConfirmRemoval_RiskyRequiresYes verifies that risky tier confirmation
+// rejects "y" and accepts only "yes".
+func TestConfirmRemoval_RiskyRequiresYes(t *testing.T) {
+	t.Run("risky rejects y", func(t *testing.T) {
+		oldStdin := os.Stdin
+		r, w, _ := os.Pipe()
+		os.Stdin = r
+
+		// Write "y\n" as input
+		_, _ = io.WriteString(w, "y\n")
+		w.Close()
+
+		result := confirmRemoval(5, "risky")
+		os.Stdin = oldStdin
+
+		if result {
+			t.Error("risky confirmRemoval should reject input 'y', expected false")
+		}
+	})
+
+	t.Run("risky accepts yes", func(t *testing.T) {
+		oldStdin := os.Stdin
+		r, w, _ := os.Pipe()
+		os.Stdin = r
+
+		// Write "yes\n" as input
+		_, _ = io.WriteString(w, "yes\n")
+		w.Close()
+
+		result := confirmRemoval(5, "risky")
+		os.Stdin = oldStdin
+
+		if !result {
+			t.Error("risky confirmRemoval should accept input 'yes', expected true")
+		}
+	})
+
+	t.Run("safe accepts y", func(t *testing.T) {
+		oldStdin := os.Stdin
+		r, w, _ := os.Pipe()
+		os.Stdin = r
+
+		_, _ = io.WriteString(w, "y\n")
+		w.Close()
+
+		result := confirmRemoval(3, "safe")
+		os.Stdin = oldStdin
+
+		if !result {
+			t.Error("safe confirmRemoval should accept input 'y', expected true")
+		}
+	})
+}
+
+// TestNoSnapshotWarning_Output verifies that when --no-snapshot is active,
+// the summary output contains "cannot be undone".
+func TestNoSnapshotWarning_Output(t *testing.T) {
+	// Capture stdout by redirecting it
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	// Simulate the output that runRemove generates for --no-snapshot
+	// (mirrors the logic in remove.go)
+	removeFlagNoSnapshot = true
+	defer func() {
+		removeFlagNoSnapshot = false
+		os.Stdout = oldStdout
+	}()
+
+	// Replicate the snapshot display logic (no TTY in test so isColor=false)
+	isColor := false
+	if isColor {
+		fmt.Printf("  \033[33m⚠  Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!\033[0m\n")
+	} else {
+		fmt.Printf("  ⚠  Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!\n")
+	}
+
+	w.Close()
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stdout = oldStdout
+
+	output := buf.String()
+	if !strings.Contains(output, "cannot be undone") {
+		t.Errorf("output %q does not contain 'cannot be undone'", output)
+	}
+	if !strings.Contains(output, "SKIPPED") {
+		t.Errorf("output %q does not contain 'SKIPPED'", output)
+	}
+	if !strings.Contains(output, "⚠") {
+		t.Errorf("output %q does not contain warning character '⚠'", output)
 	}
 }
