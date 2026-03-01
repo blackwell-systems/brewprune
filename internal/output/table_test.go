@@ -682,6 +682,107 @@ func TestRenderTierSummary_HideRisky(t *testing.T) {
 	}
 }
 
+// TestReclaimableFooter_AllFlag verifies that RenderReclaimableFooter with showAll=true
+// does NOT contain "hidden" in the output.
+func TestReclaimableFooter_AllFlag(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderReclaimableFooter(safe, medium, risky, true)
+
+	if strings.Contains(result, "hidden") {
+		t.Errorf("RenderReclaimableFooter(showAll=true) must not contain 'hidden', got: %s", result)
+	}
+	// Should still show risky label
+	if !strings.Contains(result, "(risky)") {
+		t.Errorf("RenderReclaimableFooter(showAll=true) should contain '(risky)', got: %s", result)
+	}
+}
+
+// TestReclaimableFooter_NoAllFlag verifies that RenderReclaimableFooter with showAll=false
+// DOES contain "hidden" in the risky section.
+func TestReclaimableFooter_NoAllFlag(t *testing.T) {
+	safe := TierStats{Count: 5, SizeBytes: 45088768}
+	medium := TierStats{Count: 19, SizeBytes: 195035136}
+	risky := TierStats{Count: 143, SizeBytes: 4509715456}
+
+	result := RenderReclaimableFooter(safe, medium, risky, false)
+
+	if !strings.Contains(result, "hidden") {
+		t.Errorf("RenderReclaimableFooter(showAll=false) must contain 'hidden', got: %s", result)
+	}
+}
+
+// TestSortAge_InstalledColumn verifies that when any ConfidenceScore has a non-zero
+// InstalledAt, RenderConfidenceTable uses "Installed" as the column header (not "Last Used").
+func TestSortAge_InstalledColumn(t *testing.T) {
+	now := time.Now()
+	scores := []ConfidenceScore{
+		{
+			Package:     "wget",
+			Score:       80,
+			Tier:        "safe",
+			LastUsed:    time.Time{},
+			SizeBytes:   1048576,
+			Uses7d:      0,
+			DepCount:    0,
+			InstalledAt: now.AddDate(-1, 0, 0), // one year ago — non-zero
+		},
+		{
+			Package:     "curl",
+			Score:       75,
+			Tier:        "safe",
+			LastUsed:    time.Time{},
+			SizeBytes:   2097152,
+			Uses7d:      1,
+			DepCount:    0,
+			InstalledAt: now.AddDate(0, -6, 0), // six months ago
+		},
+	}
+
+	result := RenderConfidenceTable(scores)
+
+	if !strings.Contains(result, "Installed") {
+		t.Errorf("expected 'Installed' column header when any score has non-zero InstalledAt, got:\n%s", result)
+	}
+	if strings.Contains(result, "Last Used") {
+		t.Errorf("expected 'Last Used' to be replaced by 'Installed', but still present:\n%s", result)
+	}
+
+	// Should contain a YYYY-MM-DD formatted date
+	installedDate := now.AddDate(-1, 0, 0).Format("2006-01-02")
+	if !strings.Contains(result, installedDate) {
+		t.Errorf("expected install date %q in output, got:\n%s", installedDate, result)
+	}
+}
+
+// TestRenderConfidenceTable_LastUsedWhenNoInstalledAt verifies that when no score
+// has a non-zero InstalledAt, the default "Last Used" column header is used.
+func TestRenderConfidenceTable_LastUsedWhenNoInstalledAt(t *testing.T) {
+	scores := []ConfidenceScore{
+		{
+			Package:   "wget",
+			Score:     80,
+			Tier:      "safe",
+			LastUsed:  time.Time{},
+			SizeBytes: 1048576,
+			Uses7d:    0,
+			DepCount:  0,
+			// InstalledAt is zero — should use "Last Used" column
+		},
+	}
+
+	result := RenderConfidenceTable(scores)
+
+	if !strings.Contains(result, "Last Used") {
+		t.Errorf("expected 'Last Used' column header when InstalledAt is zero, got:\n%s", result)
+	}
+	if strings.Contains(result, "Installed") {
+		t.Errorf("expected 'Installed' NOT to appear when InstalledAt is zero, but found it:\n%s", result)
+	}
+}
+
 func TestRenderReclaimableFooter_ShowAll(t *testing.T) {
 	safe := TierStats{Count: 5, SizeBytes: 45088768}
 	medium := TierStats{Count: 19, SizeBytes: 195035136}
