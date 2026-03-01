@@ -1263,40 +1263,197 @@ working on unrelated files should not encounter conflicts.
 
 ### Agent B — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-b
+commit: 006cea2
+files_changed:
+  - internal/app/doctor.go
+  - internal/app/doctor_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive
+  - TestDoctorPipelineFailureMessage_DaemonNotRunning
+verification: PASS (go test ./... — all 11 packages pass)
+```
+
+Implementation notes: Two boolean variables (`shimPathActive`, `shimPathConfigured`) are now tracked before Check 6 and populated during the existing shim/PATH check so they are accessible at the pipeline failure branch in Check 8. The action message is now selected based on three conditions: (1) daemon running + shim dir in profile but not in active PATH → tells user to `source ~/.zprofile` (shell-specific via `detectShellConfig()`); (2) daemon not running → `watch --daemon` to start; (3) fallback → original "restart the daemon" message. `TestDoctorPipelineFailureMessage_DaemonNotRunning` exercises the skip path (not pipeline failure), since doctor skips the pipeline test when the daemon is not running, and verifies the daemon check action mentions `watch --daemon` and the skip message appears.
 
 ---
 
 ### Agent C — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-c
+commit: e049cc7
+files_changed:
+  - internal/app/quickstart.go
+  - internal/app/quickstart_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestQuickstartSuccessMessageWhenPathNotActive
+  - TestQuickstartAlreadyConfiguredWording
+verification: PASS (go test ./... — 11/11 packages)
+```
+
+All three findings addressed:
+
+- Finding 1: Introduced `pathNotActive` bool in the summary block. When true, heading reads "Setup complete — one step remains:" so the PATH warning block follows as the natural "one step." When false (PATH already active), heading stays "Setup complete!" with no warning block.
+- Finding 2: Changed "already in PATH" to "already configured in ~/.profile" to clarify the entry is in the profile file, not necessarily the live shell environment.
+- Finding 3: Added two sentences to the `Long` description: "The self-test takes approximately 30 seconds. If it fails, run 'brewprune doctor' to diagnose."
+
+No existing test assertions referenced the old "Setup complete!" or "already in PATH" strings, so no existing tests required updates. Build, vet, and full test suite all pass (GOWORK=off required due to go.work pointing only to main repo).
 
 ---
 
 ### Agent D — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-d
+commit: 44fe3ada3a907bb65f83f67512d295c3685dd33d
+files_changed:
+  - internal/app/unused.go
+  - internal/app/unused_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestUnusedDoubleWarningConsolidated
+  - TestUnusedFooterNoHiddenWhenRiskyImplicit
+  - TestUnusedSortAgeDirectionNote
+  - TestUnusedAllTierMutualExclusiveError
+verification: PASS (go test ./... — all packages pass, 19/19 TestUnused* tests pass)
+```
+
+All four findings addressed:
+
+- **Finding 1 (double warning)**: Removed the second `showRiskyImplicit` banner block. Updated `checkUsageWarning` to accept a `showRiskyImplicit bool` parameter; when true, the consolidated warning includes "All tiers (including risky) are shown as a result." in the single block. The old separate `⚠ No usage data yet — showing all packages (risky tier included)` notice is gone.
+
+- **Finding 2 (footer contradiction)**: Fixed `RenderReclaimableFooter` call to pass `unusedAll || unusedTier != "" || showRiskyImplicit` as `showAll`, preventing the "(risky, hidden)" label when risky IS shown implicitly.
+
+- **Finding 3 (sort direction note)**: Added a conditional note after table rendering. When `--sort age` is active and packages have distinct install times, prints `Sorted by: install date (oldest first)`. The same-install-time fallback note is preserved and gated inside the `unusedSort == "age"` block.
+
+- **Finding 4 (error message)**: Changed the `--all/--tier` conflict error to: `--all and --tier are mutually exclusive\n  Use --tier safe to show only safe packages, or --all to show all tiers`. Updated two existing tests (`TestUnused_TierAndAllConflict`, `TestDoubleErrorPrefix_Fixed`) that asserted the old "cannot be used together" phrase to assert "mutually exclusive" instead.
+
+Tests run with `GOWORK=off` from the worktree root since the parent `go.work` only references the main repo.
 
 ---
 
 ### Agent E — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-e
+commit: f332d2d
+files_changed:
+  - internal/app/remove.go
+  - internal/app/remove_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestRemoveSkippedSummaryAppearsAfterTable
+  - TestRemoveMultiFlagErrorReportsAll
+  - TestRemoveExplicitPackageNoExplicitlyInstalledWarning
+verification: PASS (go test ./... — 11/11 packages)
+```
+
+All three findings implemented:
+
+- Finding 1: Skipped packages list now deferred until after the action table in both the explicit-args and tier-based branches. Tier-based branch emits `N packages skipped (locked by dependents) — run with --verbose to see details`; explicit-args branch emits a simpler summary (no verbose note, since no `--verbose` flag exists on the remove command).
+- Finding 2: Multi-flag error now uses Oxford comma formatting for 3+ flags: `got --safe, --medium, and --risky`. Two-flag case unchanged: `got --safe and --medium`.
+- Finding 3: In the explicit-args branch, `ValidateRemoval` warnings containing "explicitly installed" are filtered out before display. Other warnings (e.g., "used recently") pass through unchanged.
 
 ---
 
 ### Agent F — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-f
+commit: e3d6ff3
+files_changed:
+  - internal/app/explain.go
+  - internal/app/explain_test.go
+interface_deviations: []
+out_of_scope_deps:
+  - "1 used, N unused dependents" label — not generated in explain.go; search needed in output/ or analyzer/ packages (not modified per constraints)
+tests_added:
+  - TestExplainMediumRecommendationIncludesDryRun
+  - TestExplainSafeRecommendationIncludesDryRun
+verification: PASS (go test ./... — 11/11 packages)
+```
+
+**Notes:**
+
+- MEDIUM recommendation updated: `"If certain, run 'brewprune remove git --dry-run' to preview, then without --dry-run to remove."`
+- SAFE recommendation also updated to include `--dry-run`: `"Run 'brewprune remove --safe --dry-run' to preview, then without --dry-run to remove all safe-tier packages."` The SAFE tier does not suggest `brewprune remove <pkg>` (per-package), it suggests `--safe` (bulk), but the same UX risk applies — a user following the advice would run `remove --safe` without a preview first.
+- Fix 3 ("1 used, N unused dependents" label): Not present in `explain.go` or `explain_test.go`. Likely generated in `internal/output/` or `internal/analyzer/`. Documented as out-of-scope per constraints.
+- Build and all tests pass with `GOWORK=off go test ./...`.
 
 ---
 
 ### Agent G — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-g
+commit: 0c549d970e28d2f6d6d2666c81853c6c05fd2826
+files_changed:
+  - internal/app/status.go
+  - internal/app/status_test.go
+  - internal/app/stats.go
+  - internal/app/stats_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestStatusLastScanNeverWhenZeroFormulae
+  - TestStatsAllShowsSortNote
+  - TestStatsSinglePackageNoSortNote
+verification: PASS (go test ./... — 11/11 packages)
+```
+
+**Implementation notes:**
+
+Finding 1 (status.go): The "Last scan" line previously always used `formatDuration(time.Since(fi.ModTime()))`, which produced "just now" when `formulaeCount == 0` because `getDBPath()` creates the `.brewprune` directory as a side effect, making `os.Stat` succeed on a freshly-created directory. The fix checks `formulaeCount == 0` first and unconditionally sets `dbMtime = "never — run 'brewprune scan'"` in that case. The time-based path is only taken when formulae exist. This follows the same "never" string convention already used elsewhere in the file (e.g. `formatTime` returns "never" for zero `time.Time` values).
+
+Finding 2 (stats.go): Added a `fmt.Println("Sorted by: most used first")` call in `showUsageTrends` guarded by `len(filteredStats) > 1`, inserted just before the `output.RenderUsageTable` call. The `showPackageStats` path (single-package `--package` mode) is untouched, so the note never appears there. The guard `> 1` also suppresses the note for edge cases where only a single package ends up in the filtered set even with `--all`.
 
 ---
 
 ### Agent H — Completion Report
 
-*(pending)*
+```yaml
+status: complete
+worktree: .claude/worktrees/wave1-agent-h
+commit: 2994c1b
+files_changed:
+  - internal/app/root.go
+  - internal/app/root_test.go
+  - internal/app/watch.go
+  - internal/app/watch_test.go
+interface_deviations: []
+out_of_scope_deps: []
+tests_added:
+  - TestRootUnknownCommandIncludesValidCommands
+  - TestWatchHelpPollingNoteProminent
+verification: PASS (go test ./... — all packages pass)
+```
+
+**Approach for Finding 1 (root.go — unknown command error):**
+
+Used a custom `Args` validator on `RootCmd` instead of intercepting cobra's error path. Cobra's `Find()` function checks whether `commandFound.Args == nil`: when nil it calls `legacyArgs` (which generates the plain "unknown command" error); when non-nil it returns `nil` and defers validation to `execute()` → `ValidateArgs()`. By setting a non-nil `Args` function that checks `len(args) > 0 && cmd.HasSubCommands()`, the custom error is generated inside `execute()` and propagated through cobra's standard error-printing path (`SilenceErrors: false`).
+
+The hardcoded `validCommandsList` constant was added as a package-level `var` alongside the other root command vars.
+
+**Approach for Finding 2 (watch.go — polling note prominence):**
+
+Moved "Usage data is written every 30 seconds to minimise I/O overhead." from the last line of the `Long` description to the second line (immediately after the opening sentence). The note now appears in the first paragraph, before the detailed explanation of the shim log mechanism.
+
+**Test contamination fix:**
+
+My custom `Args` approach changed the cobra execution path for unknown commands: previously the error came from `Find()` (bypassing `execute()`), now it comes from `ValidateArgs()` inside `execute()`. This exposed a latent test contamination bug: tests that called `Execute()` with `--help` left the pflag "help" flag value set to `true`. Subsequent tests calling `Execute()` with an unknown command would hit the `helpVal=true` check in `execute()` and return `flag.ErrHelp` (which `ExecuteC` converts to nil) instead of the unknown-command error.
+
+Fixed by adding explicit help-flag resets (`f.Value.Set("false"); f.Changed = false`) at the start of `TestExecute_UnknownCommandHelpHint` and `TestUnknownSubcommandErrorOrder`. The new `TestRootUnknownCommandIncludesValidCommands` test avoids this issue entirely by calling `RootCmd.Args(RootCmd, []string{"blorp"})` directly rather than going through `Execute()`.
