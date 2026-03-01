@@ -234,9 +234,20 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Check status anytime: brewprune status")
 	fmt.Println("Run diagnostics:      brewprune doctor")
-	fmt.Println()
-	fmt.Println("Note: If doctor reports 'PATH missing', restart your shell or run:")
-	fmt.Println("  source ~/.profile  (or ~/.zshrc / ~/.bashrc depending on your shell)")
+
+	if shimDirErr == nil && !isOnPATH(shimDir) {
+		configFile := detectShellConfig()
+		fmt.Println()
+		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
+		fmt.Println()
+		fmt.Println("   Your shell has not loaded the new PATH. Commands you run now")
+		fmt.Println("   will NOT be tracked by brewprune.")
+		fmt.Println()
+		fmt.Println("   To activate tracking immediately:")
+		fmt.Printf("     source %s\n", configFile)
+		fmt.Println()
+		fmt.Println("   Or restart your terminal.")
+	}
 
 	return nil
 }
