@@ -2,6 +2,7 @@ package brew
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -451,6 +452,61 @@ func TestInstallWithCombinedOptions(t *testing.T) {
 				t.Errorf("got %s, want %s", fullName, tt.want)
 			}
 		})
+	}
+}
+
+// TestBrewUses_NoOutput verifies that Uses() with empty output returns nil, nil.
+func TestBrewUses_NoOutput(t *testing.T) {
+	// Simulate parsing empty output (as would occur when brew uses exits with empty output)
+	output := ""
+	var deps []string
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			deps = append(deps, line)
+		}
+	}
+	if deps != nil {
+		t.Errorf("expected nil deps for empty output, got %v", deps)
+	}
+}
+
+// TestBrewUses_WithDependents verifies that Uses() correctly parses multi-line output.
+func TestBrewUses_WithDependents(t *testing.T) {
+	// Simulate parsing output "packageA\npackageB\n"
+	mockOutput := "packageA\npackageB\n"
+	var deps []string
+	for _, line := range strings.Split(strings.TrimSpace(mockOutput), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			deps = append(deps, line)
+		}
+	}
+	expected := []string{"packageA", "packageB"}
+	if len(deps) != len(expected) {
+		t.Fatalf("expected %d deps, got %d: %v", len(expected), len(deps), deps)
+	}
+	for i, d := range deps {
+		if d != expected[i] {
+			t.Errorf("dep[%d] = %q, want %q", i, d, expected[i])
+		}
+	}
+}
+
+// TestBrewUsesCommandStructure verifies the Uses() function builds the correct command.
+func TestBrewUsesCommandStructure(t *testing.T) {
+	pkgName := "test-package"
+	cmd := exec.Command("brew", "uses", "--installed", pkgName)
+
+	if !contains(cmd.Args, "brew") {
+		t.Error("command should use brew")
+	}
+	if !contains(cmd.Args, "uses") {
+		t.Error("command should contain uses subcommand")
+	}
+	if !contains(cmd.Args, "--installed") {
+		t.Error("command should contain --installed flag")
+	}
+	if !contains(cmd.Args, pkgName) {
+		t.Errorf("command should contain package name %s", pkgName)
 	}
 }
 

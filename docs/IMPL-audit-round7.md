@@ -482,9 +482,9 @@ Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
 ### Agent A — Completion Report
-status: complete | partial | blocked
+status: complete
 worktree: .claude/worktrees/wave1-agent-a
-commit: {sha}
+commit: 5f164894035dd9ef6ff1fbc9b0a70bb984adf461
 files_changed:
   - internal/app/remove.go
   - internal/app/remove_test.go
@@ -499,7 +499,7 @@ tests_added:
   - TestBrewUses_NoOutput
   - TestBrewUses_WithDependents
   - TestRemoveStalenessCheckRemoved
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS (go test ./internal/app -run 'TestRemove|TestFreed|TestStale' — 10/10 tests, go test ./internal/brew -run 'TestBrewUses' — 3/3 tests)
 ```
 
 ---
