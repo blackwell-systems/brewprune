@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -115,7 +116,8 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		for _, pkg := range filteredArgs {
 			pkgInfo, err := st.GetPackage(pkg)
 			if err != nil {
-				return fmt.Errorf("package %q not found", pkg)
+				fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\n", pkg, pkg)
+				os.Exit(1)
 			}
 			totalSize += pkgInfo.SizeBytes
 		}
@@ -173,7 +175,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 		scores, err := getPackagesByTier(anlzr, tier)
 		if err != nil {
-			return fmt.Errorf("failed to get packages: %w", err)
+			// Unwrap to surface terminal error directly (avoid internal chain exposure)
+			cause := err
+			for errors.Unwrap(cause) != nil {
+				cause = errors.Unwrap(cause)
+			}
+			return cause
 		}
 
 		if len(scores) == 0 {
