@@ -76,10 +76,18 @@ func ProcessUsageLog(st *store.Store) error {
 			if _, err := f.Seek(0, io.SeekStart); err != nil {
 				return fmt.Errorf("shim_processor: seek reset failed: %w", err)
 			}
+			offset = 0 // reset so newOffset starts from 0 after seek failure
 		}
 	}
 
 	// Collect up to maxShimLogLinesPerTick events.
+	// We use bufio.Reader instead of bufio.Scanner so that we can track the
+	// exact byte position after each line. bufio.Scanner reads ahead into an
+	// internal buffer, so f.Seek(0, io.SeekCurrent) after scanning would
+	// return the scanner's pre-buffered position (often EOF for small files),
+	// not the position of the last line actually processed. This caused the
+	// offset to advance past un-processed lines when the cap was reached,
+	// or past unresolved entries before all packages were indexed.
 	type pendingEvent struct {
 		pkg        string
 		binaryPath string
@@ -87,9 +95,33 @@ func ProcessUsageLog(st *store.Store) error {
 	}
 	var events []pendingEvent
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() && len(events) < maxShimLogLinesPerTick {
-		line := scanner.Text()
+	reader := bufio.NewReader(f)
+	// newOffset tracks the byte position in the file after each fully-read line.
+	// It is updated as each line is consumed from the reader, so it accurately
+	// reflects how far the file has been read — independent of internal buffering.
+	newOffset := offset
+	linesScanned := 0
+	for linesScanned < maxShimLogLinesPerTick {
+		raw, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				// Partial line at EOF (no trailing newline): do not advance
+				// offset past it so it can be re-read once the writer flushes
+				// the newline. A fully empty read means we are at EOF.
+				if raw != "" {
+					// Incomplete line — leave offset before this partial line.
+					log.Printf("shim_processor: partial line at EOF, will retry next tick")
+				}
+				break
+			}
+			return fmt.Errorf("shim_processor: read log: %w", err)
+		}
+
+		// raw includes the trailing '\n'; advance offset by the full raw length.
+		newOffset += int64(len(raw))
+		linesScanned++
+
+		line := strings.TrimRight(raw, "\r\n")
 		if line == "" {
 			continue
 		}
@@ -113,6 +145,10 @@ func ProcessUsageLog(st *store.Store) error {
 			pkg, found = binaryMap[basename]
 		}
 		if !found {
+			// Also try Linuxbrew prefix.
+			pkg, found = optPathMap["/home/linuxbrew/.linuxbrew/bin/"+basename]
+		}
+		if !found {
 			continue // Not a managed Homebrew binary.
 		}
 
@@ -121,15 +157,6 @@ func ProcessUsageLog(st *store.Store) error {
 			binaryPath: argv0,
 			timestamp:  time.Unix(0, tsNano),
 		})
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("shim_processor: scan log: %w", err)
-	}
-
-	// Capture the new file offset after scanning.
-	newOffset, err := f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return fmt.Errorf("shim_processor: get new offset: %w", err)
 	}
 
 	if len(events) == 0 {

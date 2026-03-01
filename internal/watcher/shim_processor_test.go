@@ -482,3 +482,161 @@ func TestMalformedLinesSkipped(t *testing.T) {
 		}
 	}
 }
+
+// ── ProcessUsageLog — multiple lines all recorded ─────────────────────────────
+
+// TestProcessUsageLog_MultipleLinesRecorded is the core regression test for the
+// shim event pipeline loss bug. Before the fix, bufio.Scanner read-ahead caused
+// f.Seek(0, io.SeekCurrent) to return EOF after the first tick even when the
+// scanner only processed 1 event, advancing the offset past all remaining lines
+// and losing them permanently.
+//
+// This test writes 5 shim log entries for different packages and verifies that
+// all 5 usage events are inserted into the database in a single ProcessUsageLog call.
+func TestProcessUsageLog_MultipleLinesRecorded(t *testing.T) {
+	st := newTestStore(t)
+
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+	insertPkg(t, st, "jq", []string{"/opt/homebrew/bin/jq"})
+	insertPkg(t, st, "bat", []string{"/opt/homebrew/bin/bat"})
+	insertPkg(t, st, "fd", []string{"/opt/homebrew/bin/fd"})
+	insertPkg(t, st, "ripgrep", []string{"/opt/homebrew/bin/rg"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	lines := "1709012345678901234,/home/u/.brewprune/bin/git\n" +
+		"1709012345678901235,/home/u/.brewprune/bin/jq\n" +
+		"1709012345678901236,/home/u/.brewprune/bin/bat\n" +
+		"1709012345678901237,/home/u/.brewprune/bin/fd\n" +
+		"1709012345678901238,/home/u/.brewprune/bin/rg\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	if err := ProcessUsageLog(st); err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	since := time.Unix(0, 0)
+
+	// All 5 packages must have exactly 1 usage event each.
+	for _, pkg := range []string{"git", "jq", "bat", "fd", "ripgrep"} {
+		count, err := st.GetUsageEventCountSince(pkg, since)
+		if err != nil {
+			t.Fatalf("GetUsageEventCountSince(%s): %v", pkg, err)
+		}
+		if count != 1 {
+			t.Errorf("GetUsageEventCountSince(%s) = %d, want 1 — event was lost in pipeline", pkg, count)
+		}
+	}
+
+	// Verify total event count as a belt-and-suspenders check.
+	total, err := st.GetEventCount()
+	if err != nil {
+		t.Fatalf("GetEventCount: %v", err)
+	}
+	if total != 5 {
+		t.Errorf("total events = %d, want 5", total)
+	}
+}
+
+// ── ProcessUsageLog — Linuxbrew path resolution ───────────────────────────────
+
+// TestProcessUsageLog_LinuxbrewPathResolution verifies that shim invocations
+// logged with a Linuxbrew argv0 path (/home/linuxbrew/.linuxbrew/bin/<name>)
+// resolve to the correct package name via the Linuxbrew prefix lookup in
+// optPathMap.
+func TestProcessUsageLog_LinuxbrewPathResolution(t *testing.T) {
+	st := newTestStore(t)
+
+	// Register git with the Linuxbrew binary path (as it would appear after
+	// a 'brewprune scan' on a Linux system with Linuxbrew).
+	insertPkg(t, st, "git", []string{"/home/linuxbrew/.linuxbrew/bin/git"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	// The shim argv0 is the shim symlink under ~/.brewprune/bin/.
+	// ProcessUsageLog extracts the basename ("git") and constructs the
+	// Linuxbrew lookup key /home/linuxbrew/.linuxbrew/bin/git.
+	lines := "1709012345678901234,/home/u/.brewprune/bin/git\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	if err := ProcessUsageLog(st); err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	since := time.Unix(0, 0)
+	count, err := st.GetUsageEventCountSince("git", since)
+	if err != nil {
+		t.Fatalf("GetUsageEventCountSince(git): %v", err)
+	}
+	if count != 1 {
+		t.Errorf("GetUsageEventCountSince(git) = %d, want 1 — Linuxbrew path not resolved", count)
+	}
+}
+
+// ── ProcessUsageLog — offset not advanced on insert failure ───────────────────
+
+// TestProcessUsageLog_OffsetAdvancesAfterInsert verifies that the file offset is
+// NOT advanced when the batch insert transaction fails. Events must not be
+// silently lost on database errors — the next tick should retry from the same
+// position.
+func TestProcessUsageLog_OffsetAdvancesAfterInsert(t *testing.T) {
+	st := newTestStore(t)
+
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	offsetPath := filepath.Join(tmpHome, ".brewprune", "usage.offset")
+
+	lines := "1709012345678901234,/home/u/.brewprune/bin/git\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	// Drop the usage_events table to force the INSERT to fail.
+	// buildBasenameMap and buildOptPathMap read from the packages table, so
+	// they still succeed; only the INSERT step will fail.
+	if _, err := st.DB().Exec("DROP TABLE usage_events"); err != nil {
+		t.Fatalf("DROP TABLE usage_events: %v", err)
+	}
+
+	err := ProcessUsageLog(st)
+	// We expect an error because the INSERT fails.
+	if err == nil {
+		t.Fatal("ProcessUsageLog: expected error after usage_events dropped, got nil")
+	}
+
+	// The offset file must NOT have been written — the position must remain at 0.
+	if _, statErr := os.Stat(offsetPath); !os.IsNotExist(statErr) {
+		savedOffset, _ := readShimOffset(offsetPath)
+		t.Errorf("offset file written despite insert failure: offset=%d (want file absent)", savedOffset)
+	}
+}
