@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -173,7 +174,12 @@ func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 func showUsageTrends(a *analyzer.Analyzer, days int) error {
 	trends, err := a.GetUsageTrends(days)
 	if err != nil {
-		return fmt.Errorf("failed to get usage trends: %w", err)
+		// Surface only the terminal error message to avoid exposing internal chain
+		cause := err
+		for errors.Unwrap(cause) != nil {
+			cause = errors.Unwrap(cause)
+		}
+		return cause
 	}
 
 	if len(trends) == 0 {

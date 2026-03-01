@@ -1405,3 +1405,65 @@ func TestTrendColumn_ZeroUsage(t *testing.T) {
 		t.Errorf("expected '→' in output for package with usage, got:\n%s", out)
 	}
 }
+
+// TestStats_PackageNotFoundReturnsError verifies that showPackageStats returns
+// a non-nil error (not a crash) when the requested package is not in the DB.
+// This simulates the post-undo state where packages were removed from DB but
+// not yet re-indexed by 'brewprune scan'.
+func TestStats_PackageNotFoundReturnsError(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Do NOT insert any packages — simulates empty DB after undo.
+	a := analyzer.New(st)
+
+	showErr := showPackageStats(a, "jq")
+	if showErr == nil {
+		t.Error("expected showPackageStats to return a non-nil error for missing package, got nil")
+	}
+	// Must not crash with panic/nil dereference — the test reaching this point
+	// proves exit 139 (segfault) does not occur.
+}
+
+// TestStats_ErrorChainUnwrapped verifies that showUsageTrends returns the
+// terminal error message (ErrNotInitialized) when the DB has no schema, rather
+// than exposing the full internal error chain to the user.
+func TestStats_ErrorChainUnwrapped(t *testing.T) {
+	// Open a store with no schema — simulates a fresh, uninitialized DB.
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	// Intentionally do NOT call st.CreateSchema() so GetUsageTrends
+	// returns a wrapped ErrNotInitialized chain.
+
+	a := analyzer.New(st)
+	showErr := showUsageTrends(a, 30)
+
+	if showErr == nil {
+		t.Fatal("expected showUsageTrends to return an error on uninitialized DB, got nil")
+	}
+
+	errMsg := showErr.Error()
+
+	// The terminal error must mention "brewprune scan".
+	if !strings.Contains(errMsg, "brewprune scan") {
+		t.Errorf("expected terminal error to mention 'brewprune scan', got: %q", errMsg)
+	}
+
+	// The internal chain wrappers ("failed to get usage trends:", "failed to
+	// list packages:") must NOT be exposed to the user.
+	if strings.Contains(errMsg, "failed to get usage trends") {
+		t.Errorf("error exposes internal chain wrapper 'failed to get usage trends', got: %q", errMsg)
+	}
+	if strings.Contains(errMsg, "failed to list packages") {
+		t.Errorf("error exposes internal chain wrapper 'failed to list packages', got: %q", errMsg)
+	}
+}
