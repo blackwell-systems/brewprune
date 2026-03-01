@@ -242,6 +242,13 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		if !daemonRunning {
 			fmt.Println("⊘ Pipeline test skipped (daemon not running)")
 			fmt.Println("  The pipeline test requires a running daemon to record usage events")
+		} else if shimPathConfigured && !shimPathActive {
+			// Shims are set up but the user hasn't opened a new shell yet.
+			// The pipeline CANNOT work until the shell is restarted — this is expected state.
+			fmt.Println(colorize("33", "⚠") + " Pipeline test: SKIPPED")
+			fmt.Println("  Shims are configured but PATH is not active yet.")
+			fmt.Println("  Open a new terminal to activate tracking, then re-run 'brewprune doctor'.")
+			// Do NOT increment criticalIssues — this is expected post-install state
 		} else {
 			pipelineStart := time.Now()
 			db2, dbErr := store.New(resolvedDBPath)
@@ -260,13 +267,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 					fmt.Printf("  %v\n", pipelineErr)
 					// Choose the action message based on what we know about the
 					// daemon and PATH state:
-					//   - Daemon is running but shims not in active PATH → user
-					//     needs to source their profile (not restart the daemon).
 					//   - Daemon is not running → user needs to start the daemon.
 					//   - Otherwise → fall back to generic restart guidance.
-					if daemonRunning && !shimPathActive && shimPathConfigured {
-						fmt.Println("  Action: Shims not in active PATH — run: source " + detectShellConfig() + " (or restart your shell)")
-					} else if !daemonRunning {
+					if !daemonRunning {
 						fmt.Println("  Action: Run 'brewprune watch --daemon' to start the daemon")
 					} else {
 						fmt.Println("  Action: Run 'brewprune watch --daemon' to restart the daemon")
