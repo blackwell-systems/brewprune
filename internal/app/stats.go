@@ -240,6 +240,12 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 			len(filteredStats), totalPackages, hiddenCount)
 	}
 
+	// Print a sort-order hint when multiple packages are displayed so the user
+	// understands why the most-used package appears first.
+	if len(filteredStats) > 1 {
+		fmt.Println("Sorted by: most used first")
+	}
+
 	table := output.RenderUsageTable(filteredStats)
 	fmt.Print(table)
 
