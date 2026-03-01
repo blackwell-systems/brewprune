@@ -549,3 +549,101 @@ func TestRunExplain_NilPackageGraceful(t *testing.T) {
 		t.Errorf("expected output to contain package name 'curl', got: %q", output)
 	}
 }
+
+// TestExplain_PackageNotFoundAfterUndo verifies that when a package is missing
+// from the DB (as happens after 'brewprune undo'), runExplain exits with a
+// helpful message that includes a hint about running 'brewprune scan', and does
+// not crash with a segfault (exit 139).
+//
+// Uses the subprocess pattern because runExplain calls os.Exit(1) on not-found.
+func TestExplain_PackageNotFoundAfterUndo(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_EXPLAIN_UNDO_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		// Use an empty temp DB to simulate post-undo state where packages
+		// were removed from the DB (brew reinstalled them, but scan wasn't run).
+		tmpDB := filepath.Join(t.TempDir(), "test.db")
+		dbPath = tmpDB
+
+		cmd := &cobra.Command{}
+		_ = runExplain(cmd, []string{"git"})
+		// runExplain calls os.Exit(1) for not-found; should not reach here.
+		os.Exit(0)
+		return
+	}
+
+	// ---- Parent process ----
+	proc := exec.Command(os.Args[0], "-test.run=TestExplain_PackageNotFoundAfterUndo", "-test.v")
+	proc.Env = append(os.Environ(), "BREWPRUNE_TEST_EXPLAIN_UNDO_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	proc.Stderr = &stderrBuf
+
+	err := proc.Run()
+
+	// Must exit non-zero (exit 1), not zero, and not 139 (segfault).
+	if err == nil {
+		t.Error("expected subprocess to exit non-zero for package-not-found after undo, got exit 0")
+		return
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Errorf("unexpected error running subprocess: %v", err)
+		return
+	}
+	code := exitErr.ExitCode()
+	if code == 139 {
+		t.Errorf("subprocess crashed with exit 139 (segfault) — nil pointer dereference after undo state")
+		return
+	}
+	if code != 1 {
+		t.Errorf("expected exit code 1 for not-found after undo, got %d", code)
+	}
+
+	stderrOutput := stderrBuf.String()
+	// The message must suggest running brewprune scan.
+	if !strings.Contains(stderrOutput, "brewprune scan") {
+		t.Errorf("expected error message to contain 'brewprune scan' hint, got: %q", stderrOutput)
+	}
+	// The undo-specific hint must be present.
+	if !strings.Contains(stderrOutput, "brewprune undo") {
+		t.Errorf("expected error message to contain 'brewprune undo' context hint, got: %q", stderrOutput)
+	}
+}
+
+// TestExplain_ProtectedCountMessage verifies that the Protected line for a
+// critical package uses the new descriptive wording instead of the numeric
+// "part of 47 core dependencies" which was confusing to new users.
+func TestExplain_ProtectedCountMessage(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("openssl", true), "2019-01-01")
+
+	if !strings.Contains(output, "core system dependency") {
+		t.Errorf("expected Protected line to contain 'core system dependency', got: %q", output)
+	}
+	if !strings.Contains(output, "kept even if unused") {
+		t.Errorf("expected Protected line to contain 'kept even if unused', got: %q", output)
+	}
+	// Old wording must be absent.
+	if strings.Contains(output, "part of 47 core dependencies") {
+		t.Errorf("expected old '47 core dependencies' wording to be removed, got: %q", output)
+	}
+}
+
+// TestExplain_RecommendationNumberedList verifies that the safe-tier
+// recommendation uses the two-step numbered list format.
+func TestExplain_RecommendationNumberedList(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("wget", false), "2022-01-01")
+
+	if !strings.Contains(output, "1. Preview:") {
+		t.Errorf("expected recommendation to contain '1. Preview:', got: %q", output)
+	}
+	if !strings.Contains(output, "2. Remove:") {
+		t.Errorf("expected recommendation to contain '2. Remove:', got: %q", output)
+	}
+	// Both steps must reference the safe remove command.
+	if !strings.Contains(output, "brewprune remove --safe --dry-run") {
+		t.Errorf("expected step 1 to contain 'brewprune remove --safe --dry-run', got: %q", output)
+	}
+	if !strings.Contains(output, "brewprune remove --safe") {
+		t.Errorf("expected step 2 to contain 'brewprune remove --safe', got: %q", output)
+	}
+}

@@ -60,7 +60,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 	// exit code is non-zero for the error condition.
 	_, err = st.GetPackage(packageName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\n", packageName, packageName)
+		fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\nIf you recently ran 'brewprune undo', run 'brewprune scan' to update the index.\n", packageName, packageName)
 		os.Exit(1)
 	}
 
@@ -155,7 +155,8 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 	switch score.Tier {
 	case "safe":
 		fmt.Printf("%sSafe to remove.%s This package scores high for removal confidence.\n", colorGreen, colorReset)
-		fmt.Println("Run 'brewprune remove --safe --dry-run' to preview, then without --dry-run to remove all safe-tier packages.")
+		fmt.Println("  1. Preview:  brewprune remove --safe --dry-run")
+		fmt.Println("  2. Remove:   brewprune remove --safe")
 	case "medium":
 		fmt.Printf("%sReview before removing.%s Check if you use this package indirectly.\n", colorYellow, colorReset)
 		fmt.Println("If certain, run 'brewprune remove " + score.Package + " --dry-run' to preview, then without --dry-run to remove.")
@@ -172,7 +173,7 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 	}
 
 	if score.IsCritical {
-		fmt.Printf("\n%sProtected:%s YES (part of 47 core dependencies)\n", colorBold, colorReset)
+		fmt.Printf("\n%sProtected:%s YES (core system dependency — kept even if unused)\n", colorBold, colorReset)
 	}
 
 	fmt.Println()
