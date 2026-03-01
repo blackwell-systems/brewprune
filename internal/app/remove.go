@@ -110,13 +110,6 @@ func runRemove(cmd *cobra.Command, args []string) error {
 				filteredArgs = append(filteredArgs, pkg)
 			}
 		}
-		if len(lockedExplicit) > 0 {
-			fmt.Fprintf(os.Stderr, "⚠  %d packages skipped (locked by installed dependents):\n", len(lockedExplicit))
-			for _, l := range lockedExplicit {
-				fmt.Fprintf(os.Stderr, "  - %s\n", l)
-			}
-			fmt.Fprintln(os.Stderr)
-		}
 
 		// Validate remaining packages exist and calculate size
 		for _, pkg := range filteredArgs {
@@ -128,10 +121,16 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		}
 		packagesToRemove = filteredArgs
 
-		// Validate removal
-		warnings, err := anlzr.ValidateRemoval(packagesToRemove)
+		// Validate removal — suppress "explicitly installed" warning for named packages
+		allWarnings, err := anlzr.ValidateRemoval(packagesToRemove)
 		if err != nil {
 			return fmt.Errorf("validation failed: %w", err)
+		}
+		var warnings []string
+		for _, w := range allWarnings {
+			if !strings.Contains(w, "explicitly installed") {
+				warnings = append(warnings, w)
+			}
 		}
 
 		// Compute scores for explicit packages to display the same table as tier-based removal
@@ -155,6 +154,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		if len(explicitScores) > 0 {
 			fmt.Printf("\nPackages to remove (explicit):\n\n")
 			displayConfidenceScores(st, explicitScores)
+		}
+
+		// Print skipped summary after the table
+		if len(lockedExplicit) > 0 {
+			fmt.Fprintf(os.Stderr, "\n⚠  %d packages skipped (locked by dependents)\n", len(lockedExplicit))
 		}
 	} else {
 		// Use recommendation based on tier flags
@@ -188,13 +192,6 @@ func runRemove(cmd *cobra.Command, args []string) error {
 				filteredScores = append(filteredScores, score)
 			}
 		}
-		if len(lockedPackages) > 0 {
-			fmt.Fprintf(os.Stderr, "⚠  %d packages skipped (locked by installed dependents):\n", len(lockedPackages))
-			for _, l := range lockedPackages {
-				fmt.Fprintf(os.Stderr, "  - %s\n", l)
-			}
-			fmt.Fprintln(os.Stderr)
-		}
 		scores = filteredScores
 
 		// Extract package names and calculate total size
@@ -209,6 +206,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		// Display table of packages to remove
 		fmt.Printf("\nPackages to remove (%s tier):\n\n", tier)
 		displayConfidenceScores(st, scores)
+
+		// Print skipped summary after the table
+		if len(lockedPackages) > 0 {
+			fmt.Fprintf(os.Stderr, "\n⚠  %d packages skipped (locked by dependents) — run with --verbose to see details\n", len(lockedPackages))
+		}
 	}
 
 	if len(packagesToRemove) == 0 {
@@ -353,7 +355,18 @@ func determineTier() (string, error) {
 	}
 
 	if len(setFlags) > 1 {
-		return "", fmt.Errorf("only one tier flag can be specified at a time (got %s and %s)", setFlags[0], setFlags[1])
+		var flagList string
+		if len(setFlags) == 2 {
+			flagList = fmt.Sprintf("got %s and %s", setFlags[0], setFlags[1])
+		} else {
+			// 3+ flags: Oxford comma formatting
+			all := make([]string, len(setFlags))
+			copy(all, setFlags)
+			last := all[len(all)-1]
+			rest := strings.Join(all[:len(all)-1], ", ")
+			flagList = fmt.Sprintf("got %s, and %s", rest, last)
+		}
+		return "", fmt.Errorf("only one tier flag can be specified at a time (%s)", flagList)
 	}
 
 	if removeFlagRisky {
