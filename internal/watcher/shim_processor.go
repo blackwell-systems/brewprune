@@ -16,6 +16,14 @@ import (
 
 const maxShimLogLinesPerTick = 10_000
 
+// ProcessingStats holds per-cycle summary from ProcessUsageLog.
+type ProcessingStats struct {
+	LinesRead int
+	Resolved  int
+	Skipped   int
+	Inserted  int
+}
+
 // ProcessUsageLog reads new entries from ~/.brewprune/usage.log since the last
 // processed offset, resolves binary names to package names, and batch-inserts
 // usage events into the store in a single transaction.
@@ -30,10 +38,12 @@ const maxShimLogLinesPerTick = 10_000
 //
 // This is designed to be called on the watcher's 30-second ticker. It returns
 // nil (no error) when the log file does not yet exist.
-func ProcessUsageLog(st *store.Store) error {
+func ProcessUsageLog(st *store.Store) (ProcessingStats, error) {
+	var stats ProcessingStats
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("shim_processor: get home dir: %w", err)
+		return stats, fmt.Errorf("shim_processor: get home dir: %w", err)
 	}
 
 	logPath := filepath.Join(homeDir, ".brewprune", "usage.log")
@@ -41,31 +51,35 @@ func ProcessUsageLog(st *store.Store) error {
 
 	// No-op: shim has not been set up yet.
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		return nil
+		return stats, nil
 	}
 
 	// Read byte offset from last run (0 if first run).
 	offset, err := readShimOffset(offsetPath)
 	if err != nil {
-		return fmt.Errorf("shim_processor: read offset: %w", err)
+		return stats, fmt.Errorf("shim_processor: read offset: %w", err)
 	}
 
 	// Build basename → package name lookup from stored packages (fallback).
 	binaryMap, err := buildBasenameMap(st)
 	if err != nil {
-		return fmt.Errorf("shim_processor: build binary map: %w", err)
+		return stats, fmt.Errorf("shim_processor: build binary map: %w", err)
 	}
 
 	// Build full opt path → package name lookup (preferred, avoids basename collisions).
 	optPathMap, err := buildOptPathMap(st)
 	if err != nil {
-		return fmt.Errorf("shim_processor: build opt path map: %w", err)
+		return stats, fmt.Errorf("shim_processor: build opt path map: %w", err)
+	}
+
+	if len(binaryMap) == 0 && len(optPathMap) == 0 {
+		log.Printf("shim_processor: warning: no packages indexed yet — run 'brewprune scan' first")
 	}
 
 	// Open log and seek to last known position.
 	f, err := os.Open(logPath)
 	if err != nil {
-		return fmt.Errorf("shim_processor: open log: %w", err)
+		return stats, fmt.Errorf("shim_processor: open log: %w", err)
 	}
 	defer f.Close()
 
@@ -74,7 +88,7 @@ func ProcessUsageLog(st *store.Store) error {
 			// Offset may be stale after log rotation — reset to 0.
 			log.Printf("shim_processor: seek failed (offset=%d), resetting: %v", offset, err)
 			if _, err := f.Seek(0, io.SeekStart); err != nil {
-				return fmt.Errorf("shim_processor: seek reset failed: %w", err)
+				return stats, fmt.Errorf("shim_processor: seek reset failed: %w", err)
 			}
 			offset = 0 // reset so newOffset starts from 0 after seek failure
 		}
@@ -114,7 +128,7 @@ func ProcessUsageLog(st *store.Store) error {
 				}
 				break
 			}
-			return fmt.Errorf("shim_processor: read log: %w", err)
+			return stats, fmt.Errorf("shim_processor: read log: %w", err)
 		}
 
 		// raw includes the trailing '\n'; advance offset by the full raw length.
@@ -131,6 +145,8 @@ func ProcessUsageLog(st *store.Store) error {
 			log.Printf("shim_processor: skipping malformed line: %q", line)
 			continue
 		}
+
+		stats.LinesRead++
 
 		basename := filepath.Base(argv0)
 
@@ -150,9 +166,11 @@ func ProcessUsageLog(st *store.Store) error {
 		}
 		if !found {
 			log.Printf("shim_processor: no package found for binary %q (tried opt paths and basename map)", basename)
+			stats.Skipped++
 			continue // Not a managed Homebrew binary.
 		}
 
+		stats.Resolved++
 		events = append(events, pendingEvent{
 			pkg:        pkg,
 			binaryPath: argv0,
@@ -163,21 +181,21 @@ func ProcessUsageLog(st *store.Store) error {
 	if len(events) == 0 {
 		// Advance offset even if no events matched (skip unknown binaries).
 		if newOffset != offset {
-			return writeShimOffsetAtomic(offsetPath, newOffset)
+			return stats, writeShimOffsetAtomic(offsetPath, newOffset)
 		}
-		return nil
+		return stats, nil
 	}
 
 	// Batch-insert all resolved events in a single transaction.
 	tx, err := st.DB().Begin()
 	if err != nil {
-		return fmt.Errorf("shim_processor: begin transaction: %w", err)
+		return stats, fmt.Errorf("shim_processor: begin transaction: %w", err)
 	}
 
 	stmt, err := tx.Prepare(`INSERT INTO usage_events (package, event_type, binary_path, timestamp) VALUES (?, ?, ?, ?)`)
 	if err != nil {
 		tx.Rollback() //nolint:errcheck
-		return fmt.Errorf("shim_processor: prepare statement: %w", err)
+		return stats, fmt.Errorf("shim_processor: prepare statement: %w", err)
 	}
 	defer stmt.Close()
 
@@ -188,16 +206,17 @@ func ProcessUsageLog(st *store.Store) error {
 		}
 		if _, err := stmt.Exec(e.pkg, eventType, e.binaryPath, e.timestamp.Format("2006-01-02T15:04:05Z07:00")); err != nil {
 			tx.Rollback() //nolint:errcheck
-			return fmt.Errorf("shim_processor: insert event for %s: %w", e.pkg, err)
+			return stats, fmt.Errorf("shim_processor: insert event for %s: %w", e.pkg, err)
 		}
+		stats.Inserted++
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("shim_processor: commit: %w", err)
+		return stats, fmt.Errorf("shim_processor: commit: %w", err)
 	}
 
 	// Only advance the offset after successful commit — crash-safe.
-	return writeShimOffsetAtomic(offsetPath, newOffset)
+	return stats, writeShimOffsetAtomic(offsetPath, newOffset)
 }
 
 // buildBasenameMap builds a map of binary basename → package name from

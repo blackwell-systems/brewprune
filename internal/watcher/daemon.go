@@ -37,7 +37,11 @@ func (w *Watcher) StartDaemon(pidFile, logFile string) error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	cmd := exec.Command(executable, "watch", "--daemon-child")
+	args := []string{"watch", "--daemon-child"}
+	if logFile != "" {
+		args = append(args, "--log-file", logFile)
+	}
+	cmd := exec.Command(executable, args...)
 	cmd.Stdout = logF
 	cmd.Stderr = logF
 	cmd.Stdin = nil
