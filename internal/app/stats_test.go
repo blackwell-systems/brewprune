@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -1406,29 +1408,58 @@ func TestTrendColumn_ZeroUsage(t *testing.T) {
 	}
 }
 
-// TestStats_PackageNotFoundReturnsError verifies that showPackageStats returns
-// a non-nil error (not a crash) when the requested package is not in the DB.
+// TestStats_PackageNotFoundReturnsError verifies that showPackageStats exits
+// with code 1 (not a crash) when the requested package is not in the DB.
 // This simulates the post-undo state where packages were removed from DB but
 // not yet re-indexed by 'brewprune scan'.
+//
+// Because showPackageStats calls os.Exit(1) for not-found, this test uses the
+// subprocess pattern to verify the exit code without terminating the test process.
 func TestStats_PackageNotFoundReturnsError(t *testing.T) {
-	st, err := store.New(":memory:")
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-	defer st.Close()
-	if err := st.CreateSchema(); err != nil {
-		t.Fatalf("failed to create schema: %v", err)
+	if os.Getenv("BREWPRUNE_TEST_STATS_NOTFOUND_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDB := filepath.Join(t.TempDir(), "test.db")
+		st, err := store.New(tmpDB)
+		if err != nil {
+			os.Exit(2)
+		}
+		if err := st.CreateSchema(); err != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		// Open a fresh store and create analyzer — no packages inserted.
+		st2, err := store.New(tmpDB)
+		if err != nil {
+			os.Exit(2)
+		}
+		defer st2.Close()
+		a := analyzer.New(st2)
+		// showPackageStats will call os.Exit(1) for not-found.
+		_ = showPackageStats(a, "jq")
+		// Should never reach here.
+		os.Exit(0)
+		return
 	}
 
-	// Do NOT insert any packages — simulates empty DB after undo.
-	a := analyzer.New(st)
-
-	showErr := showPackageStats(a, "jq")
-	if showErr == nil {
-		t.Error("expected showPackageStats to return a non-nil error for missing package, got nil")
+	// ---- Parent process ----
+	proc := exec.Command(os.Args[0], "-test.run=TestStats_PackageNotFoundReturnsError", "-test.v")
+	proc.Env = append(os.Environ(), "BREWPRUNE_TEST_STATS_NOTFOUND_SUBPROCESS=1")
+	err := proc.Run()
+	if err == nil {
+		t.Error("expected subprocess to exit non-zero for package-not-found, got exit 0")
+		return
 	}
-	// Must not crash with panic/nil dereference — the test reaching this point
-	// proves exit 139 (segfault) does not occur.
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Errorf("unexpected error running subprocess: %v", err)
+		return
+	}
+	code := exitErr.ExitCode()
+	if code != 1 {
+		t.Errorf("expected exit code 1 from subprocess for not-found package, got %d", code)
+	}
 }
 
 // TestStats_ErrorChainUnwrapped verifies that showUsageTrends returns the
@@ -1465,5 +1496,64 @@ func TestStats_ErrorChainUnwrapped(t *testing.T) {
 	}
 	if strings.Contains(errMsg, "failed to list packages") {
 		t.Errorf("error exposes internal chain wrapper 'failed to list packages', got: %q", errMsg)
+	}
+}
+
+// TestStatsPackageNotFoundUndoHint verifies that when stats --package is called
+// for a package not in the DB, the error output written to stderr contains both
+// "brewprune undo" and "brewprune scan" so the user knows how to recover after
+// an undo operation.
+//
+// Because showPackageStats calls os.Exit(1) for not-found, this test uses the
+// subprocess pattern to capture stderr without terminating the test process.
+func TestStatsPackageNotFoundUndoHint(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_STATS_UNDOHINT_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpDB := filepath.Join(t.TempDir(), "test.db")
+		st, err := store.New(tmpDB)
+		if err != nil {
+			os.Exit(2)
+		}
+		if err := st.CreateSchema(); err != nil {
+			st.Close()
+			os.Exit(2)
+		}
+		st.Close()
+
+		// Open fresh store with no packages — simulates post-undo state.
+		st2, err := store.New(tmpDB)
+		if err != nil {
+			os.Exit(2)
+		}
+		defer st2.Close()
+		a := analyzer.New(st2)
+		// showPackageStats will write to stderr and call os.Exit(1).
+		_ = showPackageStats(a, "jq")
+		// Should never reach here.
+		os.Exit(0)
+		return
+	}
+
+	// ---- Parent process ----
+	proc := exec.Command(os.Args[0], "-test.run=TestStatsPackageNotFoundUndoHint", "-test.v")
+	proc.Env = append(os.Environ(), "BREWPRUNE_TEST_STATS_UNDOHINT_SUBPROCESS=1")
+
+	var stderrBuf bytes.Buffer
+	proc.Stderr = &stderrBuf
+
+	err := proc.Run()
+	// We expect a non-zero exit (exit 1 from os.Exit(1)).
+	if err == nil {
+		t.Error("expected subprocess to exit non-zero for not-found package, got exit 0")
+		return
+	}
+
+	stderrOutput := stderrBuf.String()
+
+	if !strings.Contains(stderrOutput, "brewprune undo") {
+		t.Errorf("expected 'brewprune undo' in stderr error message, got: %q", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "brewprune scan") {
+		t.Errorf("expected 'brewprune scan' in stderr error message, got: %q", stderrOutput)
 	}
 }
