@@ -465,6 +465,66 @@ func TestGetDependencyChain_Cycle(t *testing.T) {
 	}
 }
 
+// TestScanPackagesReplacesDeps verifies that after clearing and re-inserting
+// dependencies, stale rows from a previous scan do not survive. This mirrors
+// the undo + re-scan scenario described in finding 7.1.
+func TestScanPackagesReplacesDeps(t *testing.T) {
+	s := setupTestStore(t)
+	defer s.Close()
+
+	// Insert packages
+	packages := []*brew.Package{
+		{Name: "app", Version: "1.0", InstalledAt: time.Now(), InstallType: "explicit"},
+		{Name: "libOld", Version: "1.0", InstalledAt: time.Now(), InstallType: "dependency"},
+		{Name: "libNew", Version: "1.0", InstalledAt: time.Now(), InstallType: "dependency"},
+	}
+	for _, pkg := range packages {
+		if err := s.InsertPackage(pkg); err != nil {
+			t.Fatalf("failed to insert package %s: %v", pkg.Name, err)
+		}
+	}
+
+	// First scan: app depends on libOld
+	if err := s.InsertDependency("app", "libOld"); err != nil {
+		t.Fatalf("failed to insert first scan dependency: %v", err)
+	}
+
+	deps, err := s.GetDependencies("app")
+	if err != nil {
+		t.Fatalf("GetDependencies failed: %v", err)
+	}
+	if len(deps) != 1 || deps[0] != "libOld" {
+		t.Fatalf("expected [libOld] after first scan, got %v", deps)
+	}
+
+	// Simulate re-scan: clear stale deps, then insert fresh deps
+	if err := s.ClearDependencies("app"); err != nil {
+		t.Fatalf("ClearDependencies failed: %v", err)
+	}
+
+	// Second scan: app now depends on libNew (libOld is gone after undo)
+	if err := s.InsertDependency("app", "libNew"); err != nil {
+		t.Fatalf("failed to insert second scan dependency: %v", err)
+	}
+
+	deps, err = s.GetDependencies("app")
+	if err != nil {
+		t.Fatalf("GetDependencies failed after re-scan: %v", err)
+	}
+
+	if len(deps) != 1 {
+		t.Fatalf("expected exactly 1 dep after re-scan, got %d: %v", len(deps), deps)
+	}
+	if deps[0] != "libNew" {
+		t.Errorf("expected dep = libNew after re-scan, got %s", deps[0])
+	}
+
+	// Verify stale dep (libOld) is gone
+	if contains(deps, "libOld") {
+		t.Error("libOld should not appear after re-scan with ClearDependencies")
+	}
+}
+
 // Helper function to check if a slice contains a string
 func contains(slice []string, item string) bool {
 	for _, s := range slice {

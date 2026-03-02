@@ -202,6 +202,16 @@ func (s *Store) InsertDependency(pkg, dep string) error {
 	return nil
 }
 
+// ClearDependencies removes all dependency rows for pkg.
+// Call before InsertDependency to ensure stale rows are replaced on re-scan.
+func (s *Store) ClearDependencies(pkg string) error {
+	_, err := s.db.Exec(`DELETE FROM dependencies WHERE package = ?`, pkg)
+	if err != nil {
+		return fmt.Errorf("failed to clear dependencies for %s: %w", pkg, err)
+	}
+	return nil
+}
+
 // GetDependencies returns all packages that the given package depends on.
 func (s *Store) GetDependencies(pkg string) ([]string, error) {
 	query := `

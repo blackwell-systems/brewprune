@@ -461,6 +461,82 @@ func TestGetDependents(t *testing.T) {
 	}
 }
 
+func TestClearDependencies(t *testing.T) {
+	store := newTestStore(t)
+	defer store.Close()
+
+	// Insert test packages A, B, C
+	for _, name := range []string{"pkgA", "pkgB", "pkgC"} {
+		pkg := &brew.Package{
+			Name:        name,
+			Version:     "1.0.0",
+			InstalledAt: time.Now(),
+			InstallType: "explicit",
+			Tap:         "homebrew/core",
+			IsCask:      false,
+			SizeBytes:   1048576,
+			HasBinary:   false,
+			BinaryPaths: []string{},
+		}
+		if err := store.InsertPackage(pkg); err != nil {
+			t.Fatalf("InsertPackage() failed for %s: %v", name, err)
+		}
+	}
+
+	// Insert dependencies: pkgA depends on pkgB and pkgC
+	if err := store.InsertDependency("pkgA", "pkgB"); err != nil {
+		t.Fatalf("InsertDependency() failed: %v", err)
+	}
+	if err := store.InsertDependency("pkgA", "pkgC"); err != nil {
+		t.Fatalf("InsertDependency() failed: %v", err)
+	}
+
+	// Verify deps are present
+	deps, err := store.GetDependencies("pkgA")
+	if err != nil {
+		t.Fatalf("GetDependencies() failed: %v", err)
+	}
+	if len(deps) != 2 {
+		t.Fatalf("expected 2 deps before clear, got %d", len(deps))
+	}
+
+	// Call ClearDependencies on pkgA
+	if err := store.ClearDependencies("pkgA"); err != nil {
+		t.Fatalf("ClearDependencies() failed: %v", err)
+	}
+
+	// Verify GetDependencies(pkgA) returns empty
+	deps, err = store.GetDependencies("pkgA")
+	if err != nil {
+		t.Fatalf("GetDependencies() after clear failed: %v", err)
+	}
+	if len(deps) != 0 {
+		t.Errorf("expected 0 deps after ClearDependencies, got %d: %v", len(deps), deps)
+	}
+
+	// Verify GetDependents(pkgB) no longer includes pkgA
+	dependents, err := store.GetDependents("pkgB")
+	if err != nil {
+		t.Fatalf("GetDependents() failed: %v", err)
+	}
+	for _, d := range dependents {
+		if d == "pkgA" {
+			t.Errorf("pkgA should not appear in GetDependents(pkgB) after ClearDependencies")
+		}
+	}
+
+	// Verify GetDependents(pkgC) no longer includes pkgA
+	dependents, err = store.GetDependents("pkgC")
+	if err != nil {
+		t.Fatalf("GetDependents() failed: %v", err)
+	}
+	for _, d := range dependents {
+		if d == "pkgA" {
+			t.Errorf("pkgA should not appear in GetDependents(pkgC) after ClearDependencies")
+		}
+	}
+}
+
 func TestInsertDependencyIdempotent(t *testing.T) {
 	store := newTestStore(t)
 	defer store.Close()
