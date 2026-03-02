@@ -143,8 +143,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Warn if daemon is running but no recent events
 	if daemonRunning && events24h == 0 && totalEvents <= 2 {
-		fmt.Printf("              ⚠ Daemon running but no events logged. Shims may not be intercepting commands.\n")
-		fmt.Printf("              Run 'brewprune doctor' to diagnose.\n")
+		ageMin := daemonAgeMinutes(pidFile)
+		if ageMin < 5 {
+			fmt.Printf("              (no events yet — daemon started just now, this is normal)\n")
+		} else {
+			fmt.Printf("              ⚠ Daemon running but no events logged. Shims may not be intercepting commands.\n")
+			fmt.Printf("              Run 'brewprune doctor' to diagnose.\n")
+		}
 	}
 
 	// Shims line
@@ -302,6 +307,16 @@ func isConfiguredInShellProfile(dir string) bool {
 	content := string(data)
 	// Check for the exact quoted path or the unquoted path (both valid).
 	return strings.Contains(content, searchPattern) || strings.Contains(content, fmt.Sprintf("export PATH=%s", dir))
+}
+
+// daemonAgeMinutes returns the age of the daemon in minutes based on its PID file mtime.
+// Returns 0 if the PID file is missing or its mtime cannot be read.
+func daemonAgeMinutes(pidFile string) int {
+	info, err := os.Stat(pidFile)
+	if err != nil {
+		return 0
+	}
+	return int(time.Since(info.ModTime()).Minutes())
 }
 
 // daemonSince returns a human-readable age of the PID file (proxy for daemon start time).
