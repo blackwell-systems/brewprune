@@ -109,7 +109,8 @@ Examples:
 func init() {
 	// Global flags
 	RootCmd.PersistentFlags().StringVar(&dbPath, "db", "", "database path (default: ~/.brewprune/brewprune.db)")
-	RootCmd.Flags().BoolVarP(&versionFlag, "version", "v", false, "show version information")
+	// -v not registered as shorthand; use --version explicitly. -v is reserved for --verbose in subcommands.
+	RootCmd.Flags().BoolVar(&versionFlag, "version", false, "show version information")
 
 	// Enable cobra's built-in suggestion feature for unknown subcommands
 	RootCmd.SuggestionsMinimumDistance = 2
