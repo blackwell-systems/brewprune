@@ -294,8 +294,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	if criticalIssues > 0 {
-		fmt.Println(colorize("31", fmt.Sprintf("Found %d critical issue(s) and %d warning(s).", criticalIssues, warningIssues)))
-		return fmt.Errorf("diagnostics failed")
+		fmt.Println(colorize("31", fmt.Sprintf("Found %d critical issue(s) and %d warning(s). Run the suggested actions above to fix.", criticalIssues, warningIssues)))
+		os.Exit(1)
 	}
 
 	// [DOCTOR-2] Warning-only path: exit 0 since warnings don't prevent usage.

@@ -70,21 +70,62 @@ func TestRunDoctor_WarningOnlyExitsCode0(t *testing.T) {
 	}
 }
 
-// TestRunDoctor_CriticalIssueReturnsError verifies that when runDoctor
-// encounters a critical issue, it returns a non-nil error so main.go can
-// print "Error: diagnostics failed" and exit 1.
-func TestRunDoctor_CriticalIssueReturnsError(t *testing.T) {
-	// Point at a path that cannot exist so DB stat fails as critical.
-	oldDBPath := dbPath
-	dbPath = "/dev/null/no/such/path/test.db"
-	defer func() { dbPath = oldDBPath }()
-
-	err := runDoctor(doctorCmd, []string{})
-	if err == nil {
-		t.Error("expected runDoctor to return non-nil error for critical issues")
+// TestRunDoctor_CriticalIssueExitsOne verifies that when runDoctor encounters a
+// critical issue, it calls os.Exit(1) (exit code 1) without returning an error
+// that cobra would re-print as "Error: diagnostics failed".
+// This test uses a subprocess pattern since os.Exit terminates the process.
+func TestRunDoctor_CriticalIssueExitsOne(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_CRITICAL_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		// Point at a path that cannot exist so DB stat fails as critical.
+		dbPath = "/dev/null/no/such/path/test.db"
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) is called
+		return
 	}
-	if !strings.Contains(err.Error(), "diagnostics failed") {
-		t.Errorf("expected error to contain 'diagnostics failed', got: %v", err)
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunDoctor_CriticalIssueExitsOne", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_CRITICAL_SUBPROCESS=1")
+	err := cmd.Run()
+
+	if err == nil {
+		t.Error("expected exit code 1 from doctor with critical issues, got exit code 0")
+		return
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Errorf("unexpected error type running subprocess: %v", err)
+		return
+	}
+	if exitErr.ExitCode() != 1 {
+		t.Errorf("expected exit code 1 from doctor with critical issues, got exit code %d", exitErr.ExitCode())
+	}
+}
+
+// TestDoctorBlankStateNoRedundantError verifies that when doctor encounters
+// critical issues, the output does NOT contain the string "diagnostics failed".
+// Previously, cobra would append "Error: diagnostics failed" after doctor's own
+// clear summary line — this test ensures that message no longer appears.
+func TestDoctorBlankStateNoRedundantError(t *testing.T) {
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_BLANK_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		// Point at a missing path so the DB check fails as critical.
+		dbPath = "/dev/null/no/such/path/test.db"
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) called
+		return
+	}
+
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestDoctorBlankStateNoRedundantError", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_BLANK_SUBPROCESS=1")
+	var combinedOut bytes.Buffer
+	cmd.Stdout = &combinedOut
+	cmd.Stderr = &combinedOut
+	cmd.Run() //nolint:errcheck — non-zero exit is expected
+
+	out := combinedOut.String()
+	if strings.Contains(out, "diagnostics failed") {
+		t.Errorf("doctor output must not contain 'diagnostics failed' (cobra redundant error), got:\n%s", out)
 	}
 }
 
@@ -110,17 +151,23 @@ func captureStdout(t *testing.T, f func()) string {
 
 // TestRunDoctor_ActionLabelNotFix verifies that the doctor output never contains
 // the string "Fix:" — all action hints must use "Action:" instead.
+// Uses subprocess pattern because doctor calls os.Exit(1) on critical issues.
 func TestRunDoctor_ActionLabelNotFix(t *testing.T) {
-	oldDBPath := dbPath
-	// Point at a missing DB so doctor prints its "not found" output (which
-	// previously contained "Fix:").
-	dbPath = "/dev/null/no/such/path/test.db"
-	defer func() { dbPath = oldDBPath }()
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_ACTIONLABEL_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		dbPath = "/dev/null/no/such/path/test.db"
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) called
+		return
+	}
 
-	out := captureStdout(t, func() {
-		runDoctor(doctorCmd, []string{}) //nolint:errcheck — expected to fail
-	})
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunDoctor_ActionLabelNotFix", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_ACTIONLABEL_SUBPROCESS=1")
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Run() //nolint:errcheck — non-zero exit expected
 
+	out := stdoutBuf.String()
 	if strings.Contains(out, "Fix:") {
 		t.Errorf("doctor output must not contain 'Fix:' — found it in:\n%s", out)
 	}
@@ -135,64 +182,62 @@ func TestRunDoctor_ActionLabelNotFix(t *testing.T) {
 // all pass and check 8 (the pipeline test) is reached.  The pipeline test will
 // fail (the stub shim won't actually record events), but the progress line must
 // still appear in the output before the failure message.
+// Uses subprocess pattern because the pipeline failure triggers os.Exit(1).
 func TestRunDoctor_PipelineTestShowsProgress(t *testing.T) {
-	// Create a temp home directory that the shim package will use for its
-	// default path (~/.brewprune/bin).
-	tmpHome := t.TempDir()
-	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
-	if err := os.MkdirAll(shimDir, 0755); err != nil {
-		t.Fatalf("MkdirAll shimDir: %v", err)
-	}
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_PIPELINE_PROGRESS_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpHome := t.TempDir()
+		shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+		if err := os.MkdirAll(shimDir, 0755); err != nil {
+			t.Fatalf("MkdirAll shimDir: %v", err)
+		}
+		shimBin := filepath.Join(shimDir, "brewprune-shim")
+		if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+			t.Fatalf("WriteFile shimBin: %v", err)
+		}
 
-	// Create a stub shim binary (empty executable) so check 6 passes.
-	shimBin := filepath.Join(shimDir, "brewprune-shim")
-	if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
-		t.Fatalf("WriteFile shimBin: %v", err)
-	}
-
-	// Create a real database with one package so checks 2 & 3 pass.
-	tmpDB := filepath.Join(tmpHome, "test.db")
-	st, err := store.New(tmpDB)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	if err := st.CreateSchema(); err != nil {
+		tmpDB := filepath.Join(tmpHome, "test.db")
+		st, err := store.New(tmpDB)
+		if err != nil {
+			t.Fatalf("store.New: %v", err)
+		}
+		if err := st.CreateSchema(); err != nil {
+			st.Close()
+			t.Fatalf("CreateSchema: %v", err)
+		}
+		pkg := &brew.Package{
+			Name:        "testpkg",
+			Version:     "1.0",
+			InstalledAt: time.Now(),
+			InstallType: "explicit",
+		}
+		if err := st.InsertPackage(pkg); err != nil {
+			st.Close()
+			t.Fatalf("InsertPackage: %v", err)
+		}
 		st.Close()
-		t.Fatalf("CreateSchema: %v", err)
-	}
-	pkg := &brew.Package{
-		Name:        "testpkg",
-		Version:     "1.0",
-		InstalledAt: time.Now(),
-		InstallType: "explicit",
-	}
-	if err := st.InsertPackage(pkg); err != nil {
-		st.Close()
-		t.Fatalf("InsertPackage: %v", err)
-	}
-	st.Close()
 
-	// Override global dbPath and HOME so getDBPath() and GetShimDir() both
-	// resolve into our temp directory.
-	oldDBPath := dbPath
-	dbPath = tmpDB
-	defer func() { dbPath = oldDBPath }()
+		dbPath = tmpDB
+		os.Setenv("HOME", tmpHome)
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", origHome)
+		pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+		pidContent := fmt.Sprintf("%d", os.Getpid())
+		if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+			t.Fatalf("WriteFile pidFile: %v", err)
+		}
 
-	// Create a PID file so the daemon check passes and the pipeline test runs.
-	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
-	pidContent := fmt.Sprintf("%d", os.Getpid()) // Use current process PID so it appears running
-	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
-		t.Fatalf("WriteFile pidFile: %v", err)
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) called on pipeline fail
+		return
 	}
 
-	out := captureStdout(t, func() {
-		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure is expected
-	})
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunDoctor_PipelineTestShowsProgress", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_PIPELINE_PROGRESS_SUBPROCESS=1")
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Run() //nolint:errcheck — non-zero exit expected
 
+	out := stdoutBuf.String()
 	// The spinner must have emitted the progress line (non-TTY path prints
 	// the message once with a trailing newline).
 	if !strings.Contains(out, "Running pipeline test") {
@@ -434,8 +479,8 @@ func TestDoctorExitCodes(t *testing.T) {
 	})
 
 	t.Run("exit 1 for critical failures", func(t *testing.T) {
-		// This is already tested by TestRunDoctor_CriticalIssueReturnsError
-		t.Skip("Already tested by TestRunDoctor_CriticalIssueReturnsError")
+		// This is already tested by TestRunDoctor_CriticalIssueExitsOne
+		t.Skip("Already tested by TestRunDoctor_CriticalIssueExitsOne")
 	})
 }
 
@@ -480,74 +525,74 @@ func TestDoctorPATHHint_BashConfig(t *testing.T) {
 // is not shown when the daemon is running and events are above the threshold.
 // We test this indirectly by setting up an environment where the daemon appears
 // running (PID file pointing to current process) and enough usage events exist.
+// Uses subprocess pattern because the pipeline test will fail (stub shim can't
+// record real events), triggering os.Exit(1).
 func TestDoctorAliasesTip_SuppressedWhenDaemonRunning(t *testing.T) {
-	// Create a temp home directory.
-	tmpHome := t.TempDir()
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_ALIASSUPPRESS_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpHome := t.TempDir()
 
-	// Create shim binary so check 6 passes.
-	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
-	if err := os.MkdirAll(shimDir, 0755); err != nil {
-		t.Fatalf("MkdirAll shimDir: %v", err)
-	}
-	shimBin := filepath.Join(shimDir, "brewprune-shim")
-	if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
-		t.Fatalf("WriteFile shimBin: %v", err)
-	}
-
-	// Create a database with one package and enough usage events to exceed threshold.
-	tmpDB := filepath.Join(tmpHome, "test.db")
-	st, err := store.New(tmpDB)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	if err := st.CreateSchema(); err != nil {
-		st.Close()
-		t.Fatalf("CreateSchema: %v", err)
-	}
-	pkg := &brew.Package{
-		Name:        "testpkg",
-		Version:     "1.0",
-		InstalledAt: time.Now(),
-		InstallType: "explicit",
-	}
-	if err := st.InsertPackage(pkg); err != nil {
-		st.Close()
-		t.Fatalf("InsertPackage: %v", err)
-	}
-	// Insert enough usage events to exceed the 10-event threshold.
-	for i := 0; i < 15; i++ {
-		_, insertErr := st.DB().Exec(
-			"INSERT INTO usage_events (package, event_type, timestamp) VALUES (?, ?, ?)",
-			"testpkg", "exec", time.Now().Add(time.Duration(i)*time.Minute),
-		)
-		if insertErr != nil {
-			st.Close()
-			t.Fatalf("insert usage event: %v", insertErr)
+		shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+		if err := os.MkdirAll(shimDir, 0755); err != nil {
+			t.Fatalf("MkdirAll shimDir: %v", err)
 		}
+		shimBin := filepath.Join(shimDir, "brewprune-shim")
+		if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+			t.Fatalf("WriteFile shimBin: %v", err)
+		}
+
+		tmpDB := filepath.Join(tmpHome, "test.db")
+		st, err := store.New(tmpDB)
+		if err != nil {
+			t.Fatalf("store.New: %v", err)
+		}
+		if err := st.CreateSchema(); err != nil {
+			st.Close()
+			t.Fatalf("CreateSchema: %v", err)
+		}
+		pkg := &brew.Package{
+			Name:        "testpkg",
+			Version:     "1.0",
+			InstalledAt: time.Now(),
+			InstallType: "explicit",
+		}
+		if err := st.InsertPackage(pkg); err != nil {
+			st.Close()
+			t.Fatalf("InsertPackage: %v", err)
+		}
+		for i := 0; i < 15; i++ {
+			_, insertErr := st.DB().Exec(
+				"INSERT INTO usage_events (package, event_type, timestamp) VALUES (?, ?, ?)",
+				"testpkg", "exec", time.Now().Add(time.Duration(i)*time.Minute),
+			)
+			if insertErr != nil {
+				st.Close()
+				t.Fatalf("insert usage event: %v", insertErr)
+			}
+		}
+		st.Close()
+
+		dbPath = tmpDB
+		os.Setenv("HOME", tmpHome)
+
+		pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+		pidContent := fmt.Sprintf("%d", os.Getpid())
+		if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+			t.Fatalf("WriteFile pidFile: %v", err)
+		}
+
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) called on pipeline fail
+		return
 	}
-	st.Close()
 
-	// Override global dbPath and HOME.
-	oldDBPath := dbPath
-	dbPath = tmpDB
-	defer func() { dbPath = oldDBPath }()
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestDoctorAliasesTip_SuppressedWhenDaemonRunning", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_ALIASSUPPRESS_SUBPROCESS=1")
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Run() //nolint:errcheck — non-zero exit expected
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", origHome)
-
-	// Create a PID file pointing to the current process (so daemon appears running).
-	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
-	pidContent := fmt.Sprintf("%d", os.Getpid())
-	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
-		t.Fatalf("WriteFile pidFile: %v", err)
-	}
-
-	out := captureStdout(t, func() {
-		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure is expected
-	})
-
-	// The aliases tip should NOT appear when daemon is running with >10 events.
+	out := stdoutBuf.String()
 	if strings.Contains(out, "Tip: Create ~/.config/brewprune/aliases") {
 		t.Errorf("aliases tip should be suppressed when daemon is running with enough events, got:\n%s", out)
 	}
@@ -627,16 +672,23 @@ func TestDoctorAliasTip_NoCriticalIssues(t *testing.T) {
 
 // TestDoctorAliasTip_HiddenWhenCritical verifies that the alias tip does NOT
 // appear when criticalIssues > 0 (e.g., database not found).
+// Uses subprocess pattern because doctor calls os.Exit(1) on critical issues.
 func TestDoctorAliasTip_HiddenWhenCritical(t *testing.T) {
-	// Point at a path that cannot exist — triggers critical DB-not-found issue.
-	oldDBPath := dbPath
-	dbPath = "/dev/null/no/such/path/test.db"
-	defer func() { dbPath = oldDBPath }()
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_ALIASTIP_CRITICAL_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		dbPath = "/dev/null/no/such/path/test.db"
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) called
+		return
+	}
 
-	out := captureStdout(t, func() {
-		runDoctor(doctorCmd, []string{}) //nolint:errcheck — expected to fail
-	})
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestDoctorAliasTip_HiddenWhenCritical", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_ALIASTIP_CRITICAL_SUBPROCESS=1")
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Run() //nolint:errcheck — non-zero exit expected
 
+	out := stdoutBuf.String()
 	if strings.Contains(out, "Tip: Create ~/.config/brewprune/aliases") {
 		t.Errorf("alias tip must not appear when critical issues are present, got:\n%s", out)
 	}
@@ -768,8 +820,8 @@ func TestDoctor_PipelineSkippedWhenPathNotActive(t *testing.T) {
 	if strings.Contains(out, "CRITICAL ISSUES") || strings.Contains(out, "critical issue") {
 		t.Errorf("doctor must not report critical issues for PATH-not-yet-active state, got:\n%s", out)
 	}
-	if doctorErr != nil && strings.Contains(doctorErr.Error(), "diagnostics failed") {
-		t.Errorf("doctor must not return diagnostics-failed error for PATH-not-yet-active state, got: %v", doctorErr)
+	if doctorErr != nil {
+		t.Errorf("doctor must not return an error for PATH-not-yet-active state (warnings only), got: %v", doctorErr)
 	}
 }
 
@@ -799,28 +851,66 @@ func TestDoctor_PathActiveShowsActiveCheck(t *testing.T) {
 // TestDoctor_PipelineFailsNormallyWhenPathActive verifies that when the shim
 // PATH IS active but the pipeline test fails (e.g., shim doesn't record
 // events), the output shows FAIL (not SKIPPED).
+// Uses subprocess pattern because the pipeline failure triggers os.Exit(1).
 func TestDoctor_PipelineFailsNormallyWhenPathActive(t *testing.T) {
-	tmpHome := setupMinimalEnv(t)
+	if os.Getenv("BREWPRUNE_TEST_DOCTOR_PIPELINE_FAIL_SUBPROCESS") == "1" {
+		// ---- Child process ----
+		tmpHome := t.TempDir()
 
-	shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+		shimDir := filepath.Join(tmpHome, ".brewprune", "bin")
+		if err := os.MkdirAll(shimDir, 0755); err != nil {
+			t.Fatalf("MkdirAll shimDir: %v", err)
+		}
+		shimBin := filepath.Join(shimDir, "brewprune-shim")
+		if err := os.WriteFile(shimBin, []byte("#!/bin/sh\n"), 0755); err != nil {
+			t.Fatalf("WriteFile shimBin: %v", err)
+		}
 
-	// Add shimDir to $PATH so isOnPATH returns true — PATH is active.
-	origPath := os.Getenv("PATH")
-	os.Setenv("PATH", shimDir+":"+origPath)
-	t.Cleanup(func() { os.Setenv("PATH", origPath) })
+		tmpDB := filepath.Join(tmpHome, "test.db")
+		st, err := store.New(tmpDB)
+		if err != nil {
+			t.Fatalf("store.New: %v", err)
+		}
+		if err := st.CreateSchema(); err != nil {
+			st.Close()
+			t.Fatalf("CreateSchema: %v", err)
+		}
+		pkg := &brew.Package{
+			Name:        "testpkg",
+			Version:     "1.0",
+			InstalledAt: time.Now(),
+			InstallType: "explicit",
+		}
+		if err := st.InsertPackage(pkg); err != nil {
+			st.Close()
+			t.Fatalf("InsertPackage: %v", err)
+		}
+		st.Close()
 
-	// Create a PID file pointing at the current process so daemon appears running
-	// and the pipeline test runs.
-	pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
-	pidContent := fmt.Sprintf("%d", os.Getpid())
-	if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
-		t.Fatalf("WriteFile pidFile: %v", err)
+		dbPath = tmpDB
+		os.Setenv("HOME", tmpHome)
+
+		origPath := os.Getenv("PATH")
+		os.Setenv("PATH", shimDir+":"+origPath)
+
+		pidFile := filepath.Join(tmpHome, ".brewprune", "watch.pid")
+		pidContent := fmt.Sprintf("%d", os.Getpid())
+		if err := os.WriteFile(pidFile, []byte(pidContent), 0644); err != nil {
+			t.Fatalf("WriteFile pidFile: %v", err)
+		}
+
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck — os.Exit(1) called on pipeline fail
+		return
 	}
 
-	out := captureStdout(t, func() {
-		runDoctor(doctorCmd, []string{}) //nolint:errcheck — pipeline failure expected
-	})
+	// ---- Parent process ----
+	cmd := exec.Command(os.Args[0], "-test.run=TestDoctor_PipelineFailsNormallyWhenPathActive", "-test.v")
+	cmd.Env = append(os.Environ(), "BREWPRUNE_TEST_DOCTOR_PIPELINE_FAIL_SUBPROCESS=1")
+	var stdoutBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Run() //nolint:errcheck — non-zero exit expected
 
+	out := stdoutBuf.String()
 	// Pipeline must attempt to run (not be skipped) — it will fail since the
 	// stub shim can't record real events, but it must show "fail" not "SKIPPED".
 	if strings.Contains(out, "Pipeline test: SKIPPED") {
