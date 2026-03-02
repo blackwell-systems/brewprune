@@ -31,6 +31,14 @@ func (s *Scanner) ScanPackages() error {
 		// Log warning but continue - dependencies are optional
 		// Some systems may not have any packages with dependencies
 	} else {
+		// Clear stale dependency rows before re-inserting fresh data.
+		// INSERT OR IGNORE would silently skip updated rows without this.
+		for pkgName := range depsTree {
+			if err := s.store.ClearDependencies(pkgName); err != nil {
+				return fmt.Errorf("failed to clear dependencies for %s: %w", pkgName, err)
+			}
+		}
+
 		// Store all dependency relationships
 		for pkgName, deps := range depsTree {
 			for _, dep := range deps {
