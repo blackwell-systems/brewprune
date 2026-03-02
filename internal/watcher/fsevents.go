@@ -9,6 +9,14 @@ import (
 	"github.com/blackwell-systems/brewprune/internal/store"
 )
 
+// logProcessingStats writes a per-cycle summary line to stderr when lines were processed.
+func logProcessingStats(stats ProcessingStats) {
+	if stats.LinesRead > 0 {
+		fmt.Fprintf(os.Stderr, "%s brewprune-watch: processed %d lines, resolved %d packages, skipped %d\n",
+			time.Now().UTC().Format(time.RFC3339), stats.LinesRead, stats.Resolved, stats.Skipped)
+	}
+}
+
 // Watcher polls the PATH shim usage log to track Homebrew package executions.
 // When a user runs a shimmed command (e.g. git), the shim binary appends an
 // entry to ~/.brewprune/usage.log. The Watcher processes that log every 30
@@ -34,8 +42,10 @@ func New(st *store.Store) (*Watcher, error) {
 // Start begins usage tracking by polling the shim log on a 30-second ticker.
 // It also processes any events already in the log immediately on startup.
 func (w *Watcher) Start() error {
-	if err := ProcessUsageLog(w.store); err != nil {
+	if stats, err := ProcessUsageLog(w.store); err != nil {
 		fmt.Fprintf(os.Stderr, "watcher: initial shim log processing: %v\n", err)
+	} else {
+		logProcessingStats(stats)
 	}
 
 	w.batchTicker = time.NewTicker(30 * time.Second)
@@ -54,12 +64,16 @@ func (w *Watcher) runShimLogProcessor() {
 	for {
 		select {
 		case <-w.batchTicker.C:
-			if err := ProcessUsageLog(w.store); err != nil {
+			if stats, err := ProcessUsageLog(w.store); err != nil {
 				fmt.Fprintf(os.Stderr, "watcher: shim log processing error: %v\n", err)
+			} else {
+				logProcessingStats(stats)
 			}
 		case <-w.stopCh:
-			if err := ProcessUsageLog(w.store); err != nil {
+			if stats, err := ProcessUsageLog(w.store); err != nil {
 				fmt.Fprintf(os.Stderr, "watcher: final shim log flush error: %v\n", err)
+			} else {
+				logProcessingStats(stats)
 			}
 			return
 		}

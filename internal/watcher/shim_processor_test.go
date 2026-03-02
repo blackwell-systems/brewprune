@@ -181,7 +181,7 @@ func TestProcessUsageLog_ConfigBinariesLoggedAsProbe(t *testing.T) {
 	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	os.Setenv("HOME", tmpHome)
 
-	if err := ProcessUsageLog(st); err != nil {
+	if _, err := ProcessUsageLog(st); err != nil {
 		t.Fatalf("ProcessUsageLog: %v", err)
 	}
 
@@ -521,7 +521,7 @@ func TestProcessUsageLog_MultipleLinesRecorded(t *testing.T) {
 	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	os.Setenv("HOME", tmpHome)
 
-	if err := ProcessUsageLog(st); err != nil {
+	if _, err := ProcessUsageLog(st); err != nil {
 		t.Fatalf("ProcessUsageLog: %v", err)
 	}
 
@@ -579,7 +579,7 @@ func TestProcessUsageLog_LinuxbrewPathResolution(t *testing.T) {
 	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	os.Setenv("HOME", tmpHome)
 
-	if err := ProcessUsageLog(st); err != nil {
+	if _, err := ProcessUsageLog(st); err != nil {
 		t.Fatalf("ProcessUsageLog: %v", err)
 	}
 
@@ -628,7 +628,7 @@ func TestProcessUsageLog_OffsetAdvancesAfterInsert(t *testing.T) {
 		t.Fatalf("DROP TABLE usage_events: %v", err)
 	}
 
-	err := ProcessUsageLog(st)
+	_, err := ProcessUsageLog(st)
 	// We expect an error because the INSERT fails.
 	if err == nil {
 		t.Fatal("ProcessUsageLog: expected error after usage_events dropped, got nil")
@@ -685,7 +685,7 @@ func TestProcessUsageLog_GitResolvesAfterFix(t *testing.T) {
 	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	os.Setenv("HOME", tmpHome)
 
-	if err := ProcessUsageLog(st); err != nil {
+	if _, err := ProcessUsageLog(st); err != nil {
 		t.Fatalf("ProcessUsageLog: %v", err)
 	}
 
@@ -723,7 +723,7 @@ func TestProcessUsageLog_JqResolvesAfterFix(t *testing.T) {
 	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	os.Setenv("HOME", tmpHome)
 
-	if err := ProcessUsageLog(st); err != nil {
+	if _, err := ProcessUsageLog(st); err != nil {
 		t.Fatalf("ProcessUsageLog: %v", err)
 	}
 
@@ -800,7 +800,7 @@ func TestProcessUsageLog_UnresolvableBinaryIsSkippedNotSilent(t *testing.T) {
 	t.Cleanup(func() { os.Setenv("HOME", orig) })
 	os.Setenv("HOME", tmpHome)
 
-	if err := ProcessUsageLog(st); err != nil {
+	if _, err := ProcessUsageLog(st); err != nil {
 		t.Fatalf("ProcessUsageLog: %v", err)
 	}
 
@@ -821,5 +821,46 @@ func TestProcessUsageLog_UnresolvableBinaryIsSkippedNotSilent(t *testing.T) {
 	}
 	if savedOffset != int64(len(lines)) {
 		t.Errorf("offset = %d, want %d — offset not advanced past unresolvable line", savedOffset, len(lines))
+	}
+}
+
+// ── ProcessUsageLog — ProcessingStats returned ────────────────────────────────
+
+// TestProcessUsageLogStats verifies that ProcessUsageLog returns accurate stats
+// for a cycle: LinesRead reflects parsed entries, Resolved >= 0.
+func TestProcessUsageLogStats(t *testing.T) {
+	st := newTestStore(t)
+
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+	insertPkg(t, st, "jq", []string{"/opt/homebrew/bin/jq"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	// 3 entries: 2 resolvable (git, jq), 1 unresolvable (unknown-tool)
+	lines := "1709012345678901234,/home/u/.brewprune/bin/git\n" +
+		"1709012345678901235,/home/u/.brewprune/bin/jq\n" +
+		"1709012345678901236,/home/u/.brewprune/bin/unknown-tool\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	stats, err := ProcessUsageLog(st)
+	if err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	if stats.LinesRead != 3 {
+		t.Errorf("stats.LinesRead = %d, want 3", stats.LinesRead)
+	}
+	if stats.Resolved < 0 {
+		t.Errorf("stats.Resolved = %d, want >= 0", stats.Resolved)
 	}
 }
