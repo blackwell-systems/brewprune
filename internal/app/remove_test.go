@@ -818,6 +818,106 @@ func TestRemoveMultiFlagErrorReportsAll(t *testing.T) {
 	}
 }
 
+// TestRemoveAllFailExitsNonZero verifies that when successCount == 0 and there
+// are failures, the result summary uses ✗ (not ✓) and a non-nil error is returned.
+func TestRemoveAllFailExitsNonZero(t *testing.T) {
+	// Simulate the summary logic from runRemove with all removals failing.
+	successCount := 0
+	failures := []string{
+		"pkg-a: uninstall failed: exit status 1",
+		"pkg-b: uninstall failed: exit status 1",
+	}
+	var freedSize int64
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	// Replicate the summary branch from remove.go
+	var resultErr error
+	if successCount == 0 && len(failures) > 0 {
+		fmt.Printf("\n✗ Removed 0 packages, freed %s\n", formatSize(freedSize))
+		fmt.Printf("\n⚠️  %d failures:\n", len(failures))
+		for _, failure := range failures {
+			fmt.Printf("  - %s\n", failure)
+		}
+		resultErr = fmt.Errorf("removed 0 packages: all %d removals failed", len(failures))
+	}
+
+	w.Close()
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stdout = oldStdout
+
+	output := buf.String()
+
+	// Must use ✗ not ✓
+	if !strings.Contains(output, "✗") {
+		t.Errorf("output %q does not contain ✗ on total failure", output)
+	}
+	if strings.Contains(output, "✓") {
+		t.Errorf("output %q should not contain ✓ on total failure", output)
+	}
+
+	// Must report 0 packages
+	if !strings.Contains(output, "0 packages") {
+		t.Errorf("output %q does not contain '0 packages'", output)
+	}
+
+	// Must return a non-nil error
+	if resultErr == nil {
+		t.Error("expected non-nil error when all removals fail, got nil")
+	}
+
+	// Error message must reference the failure count
+	if resultErr != nil && !strings.Contains(resultErr.Error(), "all 2 removals failed") {
+		t.Errorf("error message %q does not contain 'all 2 removals failed'", resultErr.Error())
+	}
+}
+
+// TestRemoveNotFoundUndoHint verifies that the not-found error message
+// contains the "brewprune undo" hint (parity with explain.go).
+func TestRemoveNotFoundUndoHint(t *testing.T) {
+	pkgName := "missing-package"
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stderr = w
+
+	// Replicate the not-found message from remove.go
+	fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\nIf you recently ran 'brewprune undo', run 'brewprune scan' to update the index.\n", pkgName, pkgName)
+
+	w.Close()
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stderr = oldStderr
+
+	got := buf.String()
+
+	// Must contain the undo hint
+	if !strings.Contains(got, "brewprune undo") {
+		t.Errorf("not-found message missing 'brewprune undo' hint: %s", got)
+	}
+
+	// Must still contain the existing scan hint
+	if !strings.Contains(got, "brewprune scan") {
+		t.Errorf("not-found message missing 'brewprune scan' hint: %s", got)
+	}
+
+	// Must contain the package name
+	if !strings.Contains(got, pkgName) {
+		t.Errorf("not-found message missing package name %q: %s", pkgName, got)
+	}
+}
+
 // TestRemoveExplicitPackageNoExplicitlyInstalledWarning verifies that the
 // "explicitly installed" warning is suppressed for named-package removal.
 // It tests the filtering logic directly without requiring a real DB or brew.

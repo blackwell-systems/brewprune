@@ -116,7 +116,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		for _, pkg := range filteredArgs {
 			pkgInfo, err := st.GetPackage(pkg)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\n", pkg, pkg)
+				fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\nIf you recently ran 'brewprune undo', run 'brewprune scan' to update the index.\n", pkg, pkg)
 				os.Exit(1)
 			}
 			totalSize += pkgInfo.SizeBytes
@@ -313,6 +313,15 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	progress.Finish()
 
 	// Display results
+	if successCount == 0 && len(failures) > 0 {
+		fmt.Printf("\n✗ Removed 0 packages, freed %s\n", formatSize(freedSize))
+		fmt.Printf("\n⚠️  %d failures:\n", len(failures))
+		for _, failure := range failures {
+			fmt.Printf("  - %s\n", failure)
+		}
+		return fmt.Errorf("removed 0 packages: all %d removals failed", len(failures))
+	}
+
 	fmt.Printf("\n✓ Removed %d packages, freed %s\n", successCount, formatSize(freedSize))
 
 	if len(failures) > 0 {
