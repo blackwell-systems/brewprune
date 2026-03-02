@@ -343,6 +343,21 @@ func TestRootUnknownCommandIncludesValidCommands(t *testing.T) {
 	}
 }
 
+func TestRootVersionFlagNoShorthand(t *testing.T) {
+	// Verify that -v is NOT a valid shorthand for --version on the root command.
+	// The -v shorthand is reserved for --verbose on the unused subcommand.
+	flag := RootCmd.Flags().ShorthandLookup("v")
+	if flag != nil {
+		t.Errorf("expected -v to NOT be registered on root command, but found flag: %s", flag.Name)
+	}
+
+	// Also verify that --version long form is still registered.
+	versionFlag := RootCmd.Flags().Lookup("version")
+	if versionFlag == nil {
+		t.Error("expected --version flag to still be registered on root command")
+	}
+}
+
 func TestUnknownSubcommandErrorOrder(t *testing.T) {
 	// Verify that unknown subcommand error appears before the hint
 	// Note: Execute() writes to os.Stderr directly, so we can't fully capture it,
