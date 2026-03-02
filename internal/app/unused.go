@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -136,7 +137,12 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	// Get all packages
 	packages, err := st.ListPackages()
 	if err != nil {
-		return fmt.Errorf("failed to list packages: %w", err)
+		// Unwrap to surface terminal error directly (avoid internal chain exposure)
+		cause := err
+		for errors.Unwrap(cause) != nil {
+			cause = errors.Unwrap(cause)
+		}
+		return cause
 	}
 
 	if len(packages) == 0 {
