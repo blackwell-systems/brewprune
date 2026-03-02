@@ -1401,3 +1401,60 @@ func TestUnusedAllTierMutualExclusiveError(t *testing.T) {
 		t.Errorf("error must not start with 'Error:' prefix, got: %q", conflictErr.Error())
 	}
 }
+
+// TestUnusedNoDBErrorMessage verifies that when the store is not initialized
+// (no schema), the error returned by runUnused does NOT contain the internal
+// chain prefix "failed to list packages:" and DOES contain "database not initialized".
+func TestUnusedNoDBErrorMessage(t *testing.T) {
+	// Create a temp DB file without calling CreateSchema, so ListPackages
+	// will return store.ErrNotInitialized.
+	tmpDir := t.TempDir()
+	tmpDB := tmpDir + "/test.db"
+
+	// Open (create) the DB file without a schema.
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("failed to create temp store: %v", err)
+	}
+	st.Close()
+
+	// Point the command at our schema-less DB.
+	savedDBPath := dbPath
+	defer func() { dbPath = savedDBPath }()
+	dbPath = tmpDB
+
+	// Reset all unused flags to their defaults to avoid interference.
+	savedTier := unusedTier
+	savedMinScore := unusedMinScore
+	savedSort := unusedSort
+	savedAll := unusedAll
+	savedCasks := unusedCasks
+	defer func() {
+		unusedTier = savedTier
+		unusedMinScore = savedMinScore
+		unusedSort = savedSort
+		unusedAll = savedAll
+		unusedCasks = savedCasks
+	}()
+	unusedTier = ""
+	unusedMinScore = 0
+	unusedSort = "score"
+	unusedAll = false
+	unusedCasks = false
+
+	err = runUnused(unusedCmd, nil)
+
+	if err == nil {
+		t.Fatal("expected an error when DB has no schema, got nil")
+	}
+
+	if strings.Contains(err.Error(), "failed to list packages:") {
+		t.Errorf("error must not contain internal chain prefix %q, got: %q",
+			"failed to list packages:", err.Error())
+	}
+
+	if !strings.Contains(err.Error(), "database not initialized") {
+		t.Errorf("error should contain %q, got: %q",
+			"database not initialized", err.Error())
+	}
+}
