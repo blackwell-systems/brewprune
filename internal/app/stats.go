@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	isatty "github.com/mattn/go-isatty"
@@ -107,6 +108,10 @@ func runStats(cmd *cobra.Command, args []string) error {
 func showPackageStats(a *analyzer.Analyzer, pkg string) error {
 	stats, err := a.GetUsageStats(pkg)
 	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			fmt.Fprintf(os.Stderr, "Error: package %s not found.\nCheck the name with 'brew list' or 'brew search %s'.\nIf you recently ran 'brewprune undo', run 'brewprune scan' to update the index.\n", pkg, pkg)
+			os.Exit(1)
+		}
 		return fmt.Errorf("failed to get stats for %s: %w", pkg, err)
 	}
 
@@ -246,14 +251,14 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 			len(filteredStats), totalPackages, hiddenCount)
 	}
 
+	table := output.RenderUsageTable(filteredStats)
+	fmt.Print(table)
 	// Print a sort-order hint when multiple packages are displayed so the user
 	// understands why the most-used package appears first.
 	if len(filteredStats) > 1 {
+		fmt.Println()
 		fmt.Println("Sorted by: most used first")
 	}
-
-	table := output.RenderUsageTable(filteredStats)
-	fmt.Print(table)
 
 	fmt.Printf("\nSummary: %d %s used in the last %d %s (out of %d total)\n",
 		usedCount, pluralize(usedCount, "package", "packages"),
