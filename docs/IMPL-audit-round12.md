@@ -948,4 +948,71 @@ Then verifies each regression item:
 
 ---
 
+### Agent B — Completion Report
+
+agent: B
+status: complete
+findings_fixed: [2]
+files_modified:
+  - internal/watcher/shim_processor.go
+  - internal/watcher/shim_processor_test.go
+tests_added:
+  - TestProcessUsageLog_EmptyMapsDoNotAdvanceOffset
+  - TestProcessUsageLog_WithPackagesAdvancesOffset
+  - TestProcessUsageLog_PartialMapsAdvanceOffset
+build_ok: true
+vet_ok: true
+notes: ""
+
+### Agent A — Completion Report
+
+agent: A
+status: complete   # or partial/blocked
+findings_fixed: [1, 10, 15]
+files_modified:
+  - internal/app/root.go
+  - internal/app/root_test.go
+tests_added:
+  - TestRootVersionFlagShorthand
+  - TestUnknownFlagSuggestsHelp
+tests_updated:
+  - TestRootVersionFlagNoShorthand (renamed + assertion flipped)
+build_ok: true
+vet_ok: true
+notes: "FlagErrorFunc setup extracted into setupFlagErrorFuncs() called from Execute(); TestMain in root_test.go calls setupFlagErrorFuncs() before tests so TestUnknownFlagSuggestsHelp can inspect the func without calling Execute(). This is needed because subcommands (unused, etc.) are registered by other files' init() functions that run after root.go's init(), making a simple post-AddCommand loop in init() incomplete."
+
+### Agent C — Completion Report
+
+agent: C
+status: complete
+findings_fixed: [3, 11 (remove.go prereq note), 13, 17]
+files_modified:
+  - internal/app/remove.go
+  - internal/app/remove_test.go
+tests_added:
+  - TestRemoveAllLockedExitsNonZero
+  - TestDryRunBannerAppearsAtTop
+  - TestNoSnapshotFlagDescription
+build_ok: true
+vet_ok: true
+notes: ""
+
+### Agent E — Completion Report
+
+agent: E
+status: complete
+findings_fixed: [9, 11 (stats.go and unused.go prereq notes)]
+files_modified:
+  - internal/app/stats.go
+  - internal/app/stats_test.go
+  - internal/app/unused.go
+  - internal/app/unused_test.go
+tests_added:
+  - TestStatsNoUsageMessageIncludesTotalCount
+  - TestStatsLongHasPrereqNote
+  - TestUnusedLongHasPrereqNote
+build_ok: true
+vet_ok: true
+notes: "Agents C and D handle prereq notes for remove.go and explain.go respectively"
+
 *End of IMPL-audit-round12.md*
