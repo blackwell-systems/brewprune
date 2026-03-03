@@ -15,7 +15,9 @@ var explainCmd = &cobra.Command{
 	Short: "Show detailed scoring explanation for a package",
 	Long: `Display detailed breakdown of removal confidence score for a specific package.
 
-Shows component scores, reasoning, and recommendations for the package.`,
+Shows component scores, reasoning, and recommendations for the package.
+
+Requires: run 'brewprune scan' first to initialize the database.`,
 	Example: `  # Explain score for git package
   brewprune explain git
 
@@ -78,8 +80,14 @@ func runExplain(cmd *cobra.Command, args []string) error {
 		installedDate = pkg.InstalledAt.Format("2006-01-02")
 	}
 
+	// Retrieve dependents (best effort — non-fatal if this fails)
+	dependents, err := st.GetDependents(packageName)
+	if err != nil {
+		dependents = nil // non-fatal: best effort
+	}
+
 	// Display detailed explanation
-	renderExplanation(score, installedDate)
+	renderExplanation(score, installedDate, dependents)
 
 	return nil
 }
@@ -87,7 +95,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 // renderExplanation displays a detailed breakdown of a package's confidence score.
 //
 // ANSI color codes are emitted only when stdout is a TTY and NO_COLOR is unset.
-func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
+func renderExplanation(score *analyzer.ConfidenceScore, installedDate string, dependents []string) {
 	// TTY detection: use os.Stdout.Stat() directly (os.Stdout is *os.File, not an interface).
 	isColor := func() bool {
 		if os.Getenv("NO_COLOR") != "" {
@@ -133,9 +141,19 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string) {
 
 	// Breakdown section — plain-text compact format matching showConfidenceAssessment.
 	fmt.Println("\nBreakdown:")
-	fmt.Println("  (removal confidence score: 0 = keep, 100 = safe to remove)")
+	fmt.Println("  (score measures removal confidence: higher = safer to remove)")
 	fmt.Printf("  %-13s %2d/40 pts - %s%s\n", "Usage:", score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 40), usageSignalLabel(score.UsageScore))
 	fmt.Printf("  %-13s %2d/30 pts - %s\n", "Dependencies:", score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 50))
+	if len(dependents) > 0 {
+		const maxNames = 8
+		if len(dependents) <= maxNames {
+			fmt.Printf("  Depended on by: %s\n", strings.Join(dependents, ", "))
+		} else {
+			fmt.Printf("  Depended on by: %s, and %d more\n",
+				strings.Join(dependents[:maxNames], ", "),
+				len(dependents)-maxNames)
+		}
+	}
 	fmt.Printf("  %-13s %2d/20 pts - %s\n", "Age:", score.AgeScore, truncateDetail(score.Explanation.AgeDetail, 50))
 	fmt.Printf("  %-13s %2d/10 pts - %s\n", "Type:", score.TypeScore, truncateDetail(score.Explanation.TypeDetail, 50))
 

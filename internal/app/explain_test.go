@@ -148,7 +148,7 @@ func TestRenderExplanation_ScoringNote(t *testing.T) {
 		},
 	}
 
-	renderExplanation(score, "2025-01-01")
+	renderExplanation(score, "2025-01-01", nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -158,8 +158,8 @@ func TestRenderExplanation_ScoringNote(t *testing.T) {
 	output := buf.String()
 
 	// The framing note now appears inline before the breakdown components.
-	if !strings.Contains(output, "removal confidence score: 0 = keep") {
-		t.Errorf("expected output to contain scoring framing 'removal confidence score: 0 = keep', got: %q", output)
+	if !strings.Contains(output, "score measures removal confidence") {
+		t.Errorf("expected output to contain scoring framing 'score measures removal confidence', got: %q", output)
 	}
 	if !strings.Contains(output, "recently used") {
 		t.Errorf("expected output to contain 'recently used', got: %q", output)
@@ -204,7 +204,7 @@ func TestRenderExplanation_DetailNotTruncated(t *testing.T) {
 		},
 	}
 
-	renderExplanation(score, "2024-01-01")
+	renderExplanation(score, "2024-01-01", nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -254,7 +254,7 @@ func TestExplainNoteWording(t *testing.T) {
 		},
 	}
 
-	renderExplanation(score, "2024-01-01")
+	renderExplanation(score, "2024-01-01", nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -264,8 +264,8 @@ func TestExplainNoteWording(t *testing.T) {
 	output := buf.String()
 
 	// Verify the inline framing note appears in the breakdown section.
-	if !strings.Contains(output, "removal confidence score: 0 = keep") {
-		t.Errorf("expected output to contain 'removal confidence score: 0 = keep', got: %q", output)
+	if !strings.Contains(output, "score measures removal confidence") {
+		t.Errorf("expected output to contain 'score measures removal confidence', got: %q", output)
 	}
 	// Verify all four scoring components are present in plain-text format.
 	if !strings.Contains(output, "Usage:") {
@@ -285,6 +285,12 @@ func TestExplainNoteWording(t *testing.T) {
 // captureRenderExplanation is a helper that redirects stdout, calls
 // renderExplanation, and returns the captured output.
 func captureRenderExplanation(score *analyzer.ConfidenceScore, installedDate string) string {
+	return captureRenderExplanationWithDeps(score, installedDate, nil)
+}
+
+// captureRenderExplanationWithDeps is a helper that redirects stdout, calls
+// renderExplanation with dependents, and returns the captured output.
+func captureRenderExplanationWithDeps(score *analyzer.ConfidenceScore, installedDate string, dependents []string) string {
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -292,7 +298,7 @@ func captureRenderExplanation(score *analyzer.ConfidenceScore, installedDate str
 	}
 	os.Stdout = w
 
-	renderExplanation(score, installedDate)
+	renderExplanation(score, installedDate, dependents)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -330,14 +336,14 @@ func makeTestScore(pkg string, isCritical bool) *analyzer.ConfidenceScore {
 }
 
 // TestRenderExplanation_ScoreNoteBeforeBreakdown verifies that the score framing
-// ("removal confidence score: 0 = keep") appears before the first Usage: component line.
+// ("score measures removal confidence") appears before the first Usage: component line.
 func TestRenderExplanation_ScoreNoteBeforeBreakdown(t *testing.T) {
 	output := captureRenderExplanation(makeTestScore("git", false), "2024-01-01")
 
-	noteIdx := strings.Index(output, "removal confidence score: 0 = keep")
+	noteIdx := strings.Index(output, "score measures removal confidence")
 	usageIdx := strings.Index(output, "Usage:")
 	if noteIdx == -1 {
-		t.Errorf("expected output to contain 'removal confidence score: 0 = keep', got: %q", output)
+		t.Errorf("expected output to contain 'score measures removal confidence', got: %q", output)
 		return
 	}
 	if usageIdx == -1 {
@@ -625,6 +631,74 @@ func TestExplain_ProtectedCountMessage(t *testing.T) {
 	// Old wording must be absent.
 	if strings.Contains(output, "part of 47 core dependencies") {
 		t.Errorf("expected old '47 core dependencies' wording to be removed, got: %q", output)
+	}
+}
+
+// TestRenderExplanation_ListsDependentNames verifies that renderExplanation
+// lists dependent package names when dependents are provided.
+func TestRenderExplanation_ListsDependentNames(t *testing.T) {
+	score := &analyzer.ConfidenceScore{
+		Package:    "openssl@3",
+		Score:      15,
+		Tier:       "risky",
+		UsageScore: 0,
+		DepsScore:  0,
+		AgeScore:   5,
+		TypeScore:  10,
+		Reason:     "many dependents",
+		Explanation: analyzer.ScoreExplanation{
+			UsageDetail: "used today",
+			DepsDetail:  "3 dependents",
+			AgeDetail:   "installed 730 days ago",
+			TypeDetail:  "formula",
+		},
+	}
+
+	dependents := []string{"curl", "libssh2", "krb5"}
+	output := captureRenderExplanationWithDeps(score, "2022-01-01", dependents)
+
+	if !strings.Contains(output, "Depended on by:") {
+		t.Errorf("expected output to contain 'Depended on by:', got: %q", output)
+	}
+	for _, dep := range dependents {
+		if !strings.Contains(output, dep) {
+			t.Errorf("expected output to contain dependent name %q, got: %q", dep, output)
+		}
+	}
+}
+
+// TestRenderExplanation_TruncatesLongDependentList verifies that when there are
+// more than 8 dependents, the output truncates and shows "and N more".
+func TestRenderExplanation_TruncatesLongDependentList(t *testing.T) {
+	score := makeTestScore("openssl@3", false)
+	dependents := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	output := captureRenderExplanationWithDeps(score, "2022-01-01", dependents)
+
+	if !strings.Contains(output, "and 2 more") {
+		t.Errorf("expected output to contain 'and 2 more' for 10 dependents (max 8), got: %q", output)
+	}
+}
+
+// TestRenderExplanation_NoDependents verifies that when dependents is nil,
+// "Depended on by" does not appear in the output.
+func TestRenderExplanation_NoDependents(t *testing.T) {
+	output := captureRenderExplanationWithDeps(makeTestScore("wget", false), "2022-01-01", nil)
+
+	if strings.Contains(output, "Depended on by") {
+		t.Errorf("expected 'Depended on by' to NOT appear when dependents is nil, got: %q", output)
+	}
+}
+
+// TestRenderExplanation_BreakdownFramingConsistent verifies that the new unified
+// breakdown framing is present and the old wording is not.
+func TestRenderExplanation_BreakdownFramingConsistent(t *testing.T) {
+	output := captureRenderExplanation(makeTestScore("git", false), "2024-01-01")
+
+	if !strings.Contains(output, "score measures removal confidence") {
+		t.Errorf("expected output to contain 'score measures removal confidence', got: %q", output)
+	}
+	if strings.Contains(output, "0 = keep, 100 = safe to remove") {
+		t.Errorf("old framing '0 = keep, 100 = safe to remove' must not appear in output, got: %q", output)
 	}
 }
 

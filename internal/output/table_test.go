@@ -990,6 +990,36 @@ func TestTierSummaryColorCoded(t *testing.T) {
 // TestTierSummaryPlainTextWhenNoTTY verifies that RenderTierSummary does NOT
 // include ANSI color codes when stdout is not a terminal (e.g., piped output).
 // This test simulates non-TTY behavior by setting NO_COLOR.
+// TestRenderConfidenceTableVerbose_BreakdownHeader verifies that the verbose
+// table output contains the unified breakdown framing line.
+func TestRenderConfidenceTableVerbose_BreakdownHeader(t *testing.T) {
+	scores := []VerboseScore{
+		{
+			Package:    "wget",
+			Score:      80,
+			Tier:       "safe",
+			UsageScore: 40,
+			DepsScore:  20,
+			AgeScore:   15,
+			TypeScore:  5,
+			Reason:     "not used recently",
+		},
+	}
+	scores[0].Explanation.UsageDetail = "last used 180 days ago"
+	scores[0].Explanation.DepsDetail = "no dependents"
+	scores[0].Explanation.AgeDetail = "installed 2 years ago"
+	scores[0].Explanation.TypeDetail = "leaf package"
+
+	result := RenderConfidenceTableVerbose(scores)
+
+	if !strings.Contains(result, "score measures removal confidence") {
+		t.Errorf("expected verbose output to contain 'score measures removal confidence', got:\n%s", result)
+	}
+	if strings.Contains(result, "0 = keep, 100 = safe to remove") {
+		t.Errorf("old framing '0 = keep, 100 = safe to remove' must not appear in verbose output, got:\n%s", result)
+	}
+}
+
 func TestTierSummaryPlainTextWhenNoTTY(t *testing.T) {
 	// Force colors off
 	t.Setenv("NO_COLOR", "1")
