@@ -1,6 +1,6 @@
 # brewprune
 
-*Usage-tracked Homebrew cleanup with automatic rollback*
+*Know what you actually use. Remove what you don't.*
 
 [![Blackwell Systems™](https://raw.githubusercontent.com/blackwell-systems/blackwell-docs-theme/main/badge-trademark.svg)](https://github.com/blackwell-systems)
 [![CI](https://github.com/blackwell-systems/brewprune/actions/workflows/ci.yml/badge.svg)](https://github.com/blackwell-systems/brewprune/actions/workflows/ci.yml)
@@ -8,13 +8,33 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/blackwell-systems/brewprune)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-You have 100+ Homebrew packages installed. You use 20 of them. The rest can quietly add up to gigs of disk space, but you don't know which ones are safe to remove. `brew autoremove` only handles dependency chains—it doesn't track whether you actually *use* a package. Removing things manually is scary because one wrong move could break your workflow.
+You have 100+ Homebrew packages installed. But which ones do you actually use? `brewprune` monitors your real usage via PATH shims and tells you — from day one. After a couple of weeks of data, it scores packages by removal safety and lets you reclaim disk space with automatic rollback if anything breaks.
 
-**brewprune solves this.** It monitors what you actually use, scores packages by removal safety, and creates automatic snapshots so you can undo any removal with one command. Less guesswork. Just data-driven cleanup.
+**Day 1:** `brewprune stats` shows what you've used today, this week, ever.
+**Day 14+:** `brewprune unused` shows what's safe to remove — backed by real data, not guesswork.
 
 ## Quick example
 
-*Risky-tier packages are hidden by default. Use `--all` to show them. See [How it works](#how-it-works) for scoring details.*
+**From day one — see what you actually use:**
+
+```bash
+$ brewprune stats --days 7
+
+Most used (last 7 days):
+Package    Uses   Last Used
+────────────────────────────
+git        47     today
+gh         12     today
+jq         8      yesterday
+node       3      3 days ago
+ripgrep    1      5 days ago
+
+Sorted by: most used first
+```
+
+**After 14 days of tracking — see what's safe to remove:**
+
+*Risky-tier packages are hidden by default. Use `--all` to show them.*
 
 ```bash
 $ brewprune unused
@@ -33,24 +53,10 @@ Reclaimable: 1.2 GB (safe) · 456 MB (medium) · 3.8 GB (risky, hidden)
 ```bash
 $ brewprune remove --safe
 Creating snapshot...
-Snapshot created: ID 1
 
-Removing 3 packages...
+✓ Removed 3 packages, freed 1.2 GB
 
-✓ Removed 3 packages, freed 4.2 GB
-
-Snapshot: ID 1
-Undo with: brewprune undo 1
-```
-
-```bash
-# If something breaks, rollback is one command:
-$ brewprune undo latest
-Restoring 3 packages from snapshot...
-
-✓ Restored 3 packages from snapshot 1
-
-Run 'brewprune scan' to update the package database.
+Undo with: brewprune undo latest
 ```
 
 ## Installation
@@ -103,7 +109,12 @@ If you installed from source rather than Homebrew, use `brewprune watch --daemon
 
 **Without both steps above, brewprune cannot track usage and all packages will show "never used".**
 
-**4. Wait 1-2 weeks** for meaningful usage data, then:
+**4. See your usage immediately:**
+```bash
+brewprune stats
+```
+
+After 1-2 weeks of tracking, removal recommendations become meaningful:
 ```bash
 brewprune unused --tier safe
 ```
@@ -141,11 +152,11 @@ $ brewprune scan
 # 2. Start monitoring (runs in background)
 $ brewprune watch --daemon
 
-# 3. After 1-2 weeks minimum, view unused packages
-$ brewprune unused --tier safe
+# 3. See what you're using right now
+$ brewprune stats --days 7
 
-# 4. Check usage statistics
-$ brewprune stats --days 30
+# 4. After 1-2 weeks, view unused packages
+$ brewprune unused --tier safe
 
 # 5. Remove safe packages with dry-run first
 $ brewprune remove --safe --dry-run
@@ -155,9 +166,6 @@ $ brewprune remove --safe
 
 # 7. If something breaks, rollback
 $ brewprune undo latest
-
-# 8. Stop the monitoring daemon when not needed
-$ brewprune watch --stop
 ```
 
 ### Key flags
@@ -243,15 +251,15 @@ Snapshots enable rollback via `brewprune undo`. If an exact version can't be fet
 
 ## Timeline & Expectations
 
-**Day 1:** Install → scan → start daemon → verify with `brewprune status`
+**Day 1:** Install → scan → start daemon → verify with `brewprune status` → explore `brewprune stats`
 
-**Days 2-14:** Daemon collects usage data in background (no action needed)
+**Days 2-14:** Daemon collects usage data in background. Use `brewprune stats` anytime to see what you've been using.
 
-**Day 14+:** View unused packages → review carefully → remove safe tier with `--dry-run` first
+**Day 14+:** `brewprune unused` scores are now meaningful — view, review with `--dry-run`, then remove.
 
-**Ongoing:** Rescan after manual brew installs (`brewprune scan`), check status occasionally
+**Ongoing:** Rescan after manual brew installs (`brewprune scan`), check status occasionally.
 
-**Important:** First 1-2 weeks show "never used" for most packages because tracking hasn't captured your workflow patterns yet. This is normal - wait for meaningful data.
+**Note:** `unused` scores show COLLECTING for the first 1-2 weeks while tracking builds a picture of your workflow. This is normal — `stats` works immediately and gives you real data while you wait.
 
 ## Daemon Mode
 
@@ -372,8 +380,8 @@ This checks:
 
 ## FAQ
 
-**Q: How long should I wait before running cleanup?**
-A: At least 1-2 weeks of monitoring. The longer you wait, the better the heuristic scores.
+**Q: When does brewprune start being useful?**
+A: Immediately — `brewprune stats` shows real usage from the first day. For removal recommendations (`brewprune unused`), wait at least 1-2 weeks so scores reflect your actual workflow patterns. The longer you track, the more accurate the scores.
 
 **Q: What happens if I remove something I need?**
 A: Run `brewprune undo latest` to reinstall the same package set (and specific versions when available from Homebrew). Exact version restoration depends on Homebrew bottle/formula availability.
