@@ -53,7 +53,9 @@ Example: 'brewprune unused --tier risky' shows only risky packages.
 Example: 'brewprune unused --all' shows all three tiers.
 
 When no --tier or --all flag is set and no usage data exists, the risky tier is
-shown automatically with a warning banner.`,
+shown automatically with a warning banner.
+
+Requires: run 'brewprune scan' first to initialize the database.`,
 	Example: `  # Show all unused packages
   brewprune unused
 
