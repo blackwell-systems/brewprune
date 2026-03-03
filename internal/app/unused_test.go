@@ -1458,3 +1458,11 @@ func TestUnusedNoDBErrorMessage(t *testing.T) {
 			"database not initialized", err.Error())
 	}
 }
+
+// TestUnusedLongHasPrereqNote verifies that unusedCmd.Long mentions
+// 'brewprune scan' as a prerequisite.
+func TestUnusedLongHasPrereqNote(t *testing.T) {
+	if !strings.Contains(unusedCmd.Long, "brewprune scan") {
+		t.Error("unusedCmd.Long should mention 'brewprune scan' as a prerequisite")
+	}
+}

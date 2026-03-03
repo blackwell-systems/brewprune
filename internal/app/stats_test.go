@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -1555,5 +1556,77 @@ func TestStatsPackageNotFoundUndoHint(t *testing.T) {
 	}
 	if !strings.Contains(stderrOutput, "brewprune scan") {
 		t.Errorf("expected 'brewprune scan' in stderr error message, got: %q", stderrOutput)
+	}
+}
+
+// TestStatsNoUsageMessageIncludesTotalCount verifies that when all packages have
+// 0 usage runs (no usage events recorded), the no-usage message reports the
+// total number of scanned packages, not just the hidden subset.
+func TestStatsNoUsageMessageIncludesTotalCount(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Insert N packages with no usage events.
+	const N = 7
+	now := time.Now()
+	for i := 0; i < N; i++ {
+		pkg := &brew.Package{
+			Name:        fmt.Sprintf("no-usage-pkg-%d", i),
+			Version:     "1.0.0",
+			InstalledAt: now.AddDate(0, 0, -30),
+			InstallType: "explicit",
+			Tap:         "homebrew/core",
+		}
+		if err := st.InsertPackage(pkg); err != nil {
+			t.Fatalf("failed to insert package %s: %v", pkg.Name, err)
+		}
+	}
+
+	a := analyzer.New(st)
+
+	origStatsAll := statsAll
+	statsAll = false
+	defer func() { statsAll = origStatsAll }()
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("os.Pipe: %v", pipeErr)
+	}
+	os.Stdout = w
+
+	showErr := showUsageTrends(a, 30)
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	out := buf.String()
+
+	if showErr != nil {
+		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
+	}
+
+	// The no-usage message must contain the total count (N), not a subset.
+	want := fmt.Sprintf("%d packages with 0 runs", N)
+	if !strings.Contains(out, want) {
+		t.Errorf("expected no-usage message to contain %q (total count), got:\n%s", want, out)
+	}
+}
+
+// TestStatsLongHasPrereqNote verifies that statsCmd.Long mentions
+// 'brewprune scan' as a prerequisite.
+func TestStatsLongHasPrereqNote(t *testing.T) {
+	if !strings.Contains(statsCmd.Long, "brewprune scan") {
+		t.Error("statsCmd.Long should mention 'brewprune scan' as a prerequisite")
 	}
 }

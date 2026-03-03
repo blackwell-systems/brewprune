@@ -36,7 +36,9 @@ Usage frequency is classified as:
   - daily: Used in last 7 days with high frequency
   - weekly: Used in last 30 days
   - monthly: Used in last 90 days
-  - never: No recorded usage`,
+  - never: No recorded usage
+
+Requires: run 'brewprune scan' first to initialize the database.`,
 	Example: `  # Show usage trends for all packages (last 30 days)
   brewprune stats
 
@@ -237,7 +239,7 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 
 	if len(filteredStats) == 0 {
 		if hiddenCount > 0 {
-			fmt.Printf("No usage recorded yet (%d packages with 0 runs). Run 'brewprune watch --daemon' to start tracking.\n", hiddenCount)
+			fmt.Printf("No usage recorded yet (%d packages with 0 runs). Run 'brewprune watch --daemon' to start tracking.\n", len(trends))
 		} else {
 			fmt.Println("No usage data found. Run 'brewprune watch' to collect usage data.")
 		}
