@@ -89,12 +89,20 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--daemon and --stop are mutually exclusive: use one or the other")
 	}
 
-	// Handle stop command
+	// Handle stop command (no database needed)
 	if watchStop {
 		return stopWatchDaemon()
 	}
 
-	// Get database path
+	// Handle daemon mode: spawn child without opening the database in the parent.
+	// The daemon child opens its own connection after exec; opening the DB here
+	// causes a WAL checkpoint race between the parent's defer db.Close() and the
+	// child's store.New(), which can leave the child with an empty package view.
+	if watchDaemon {
+		return startWatchDaemon()
+	}
+
+	// Foreground and daemon-child modes both need the database.
 	dbPath, err := getDBPath()
 	if err != nil {
 		return fmt.Errorf("failed to get database path: %w", err)
@@ -116,11 +124,6 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	w, err := watcher.New(db)
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
-	}
-
-	// Handle daemon mode
-	if watchDaemon {
-		return startWatchDaemon(w)
 	}
 
 	// Handle daemon child process
@@ -162,7 +165,7 @@ func stopWatchDaemon() error {
 	return nil
 }
 
-func startWatchDaemon(w *watcher.Watcher) error {
+func startWatchDaemon() error {
 	// Check if already running
 	running, err := watcher.IsDaemonRunning(watchPIDFile)
 	if err != nil {
@@ -177,7 +180,7 @@ func startWatchDaemon(w *watcher.Watcher) error {
 
 	spinner := output.NewSpinner("Starting daemon...")
 	spinner.Start()
-	if err := w.StartDaemon(watchPIDFile, watchLogFile); err != nil {
+	if err := watcher.LaunchDaemon(watchPIDFile, watchLogFile); err != nil {
 		spinner.Stop()
 		return fmt.Errorf("failed to start daemon: %w", err)
 	}

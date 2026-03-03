@@ -10,9 +10,11 @@ import (
 	"syscall"
 )
 
-// StartDaemon starts the watcher as a background daemon process.
-// It forks the current process, writes the PID to pidFile, and redirects logs to logFile.
-func (w *Watcher) StartDaemon(pidFile, logFile string) error {
+// LaunchDaemon starts brewprune-watch as a background daemon process.
+// It forks the current process, writes the PID to pidFile, and redirects
+// daemon output to logFile. The store is not opened by the launcher —
+// the daemon child opens its own database connection after exec.
+func LaunchDaemon(pidFile, logFile string) error {
 	// Check if daemon is already running
 	running, err := IsDaemonRunning(pidFile)
 	if err != nil {
@@ -29,9 +31,6 @@ func (w *Watcher) StartDaemon(pidFile, logFile string) error {
 	}
 	defer logF.Close()
 
-	// Fork the process
-	// Note: This is a simplified daemon implementation
-	// In production, you might want to use a proper daemonization library
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
@@ -56,7 +55,7 @@ func (w *Watcher) StartDaemon(pidFile, logFile string) error {
 	// Write PID file
 	pid := cmd.Process.Pid
 	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", pid)), 0644); err != nil {
-		cmd.Process.Kill()
+		cmd.Process.Kill() //nolint:errcheck
 		return fmt.Errorf("failed to write PID file: %w", err)
 	}
 
@@ -66,6 +65,12 @@ func (w *Watcher) StartDaemon(pidFile, logFile string) error {
 	}
 
 	return nil
+}
+
+// StartDaemon starts the watcher as a background daemon process.
+// Deprecated: use LaunchDaemon for new code; the store (w) is not used.
+func (w *Watcher) StartDaemon(pidFile, logFile string) error {
+	return LaunchDaemon(pidFile, logFile)
 }
 
 // RunDaemon runs the watcher in daemon mode (called by daemon child process).

@@ -305,9 +305,7 @@ func TestStartWatchDaemon_AlreadyRunningIsIdempotent(t *testing.T) {
 	}
 	os.Stdout = w
 
-	// startWatchDaemon takes a *watcher.Watcher but we will not reach the
-	// w.StartDaemon call when running==true, so nil is safe.
-	gotErr := startWatchDaemon(nil)
+	gotErr := startWatchDaemon()
 
 	w.Close()
 	var buf strings.Builder
