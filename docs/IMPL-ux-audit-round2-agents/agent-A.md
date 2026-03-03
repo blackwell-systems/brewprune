@@ -1,12 +1,12 @@
-# Wave 1 Agent A: root.go — no-arg output, quickstart in help, subcommand suggestion
+# Wave 1 Agent A: root.go  -  no-arg output, quickstart in help, subcommand suggestion
 
 You are Wave 1 Agent A. Fix three UX issues in the root command.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/root.go` — modify
-- `internal/app/root_test.go` — modify
+- `internal/app/root.go`  -  modify
+- `internal/app/root_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -25,7 +25,7 @@ Fix these three findings from `docs/cold-start-audit.md`:
 ### Finding 1: `brewprune` with no args exits 0 showing minimal output
 
 The `RunE` function for the root command currently exits 0 with a 3-line tip
-block. The audit found this is too minimal — new users don't know what the tool
+block. The audit found this is too minimal  -  new users don't know what the tool
 does or what commands are available.
 
 **Fix:** Change `RunE` to return `cmd.Help()` instead of the custom tip block.
@@ -70,7 +70,7 @@ no close match (like `blorp`), cobra only says:
 `SilenceErrors = false` so cobra's default error handler appends a usage hint.
 
 Actually the better approach: Register a custom template or set
-`RootCmd.SetUsageTemplate` — but that's complex.
+`RootCmd.SetUsageTemplate`  -  but that's complex.
 
 Simpler: Add a cobra annotation. Actually the simplest fix is to override cobra's
 error handling via `RootCmd.SetFlagErrorFunc` or just accept the current behavior
@@ -107,13 +107,13 @@ existing imports in root.go first.
 
 Update `internal/app/root_test.go`:
 
-1. `TestRootCmd_BareInvocationShowsHelp` — verify that running the root command
+1. `TestRootCmd_BareInvocationShowsHelp`  -  verify that running the root command
    with no args calls `cmd.Help()` (outputs something containing "Usage:" and
    subcommand names, exits 0). The existing test `TestRootCmd_BareInvocationPrintsHint`
    must be updated or replaced to match the new behavior.
-2. `TestRootCommandHelp_QuickstartMentioned` — verify that `brewprune --help`
+2. `TestRootCommandHelp_QuickstartMentioned`  -  verify that `brewprune --help`
    output contains the string "quickstart".
-3. `TestExecute_UnknownCommandHelpHint` — verify that running an unknown
+3. `TestExecute_UnknownCommandHelpHint`  -  verify that running an unknown
    subcommand causes `Execute()` to append the help hint message to stderr.
 
 ## 6. Verification Gate
@@ -130,9 +130,9 @@ All must pass before reporting completion.
 
 ## 7. Constraints
 
-- Do NOT change `cmd/brewprune/main.go` — that's out of scope.
-- Do not modify any subcommand's `RunE` — only root.go.
-- The `RunE: cmd.Help()` approach means the tip block (Tip: Run 'brewprune status'...) is removed. That's intentional — the full help is better.
+- Do NOT change `cmd/brewprune/main.go`  -  that's out of scope.
+- Do not modify any subcommand's `RunE`  -  only root.go.
+- The `RunE: cmd.Help()` approach means the tip block (Tip: Run 'brewprune status'...) is removed. That's intentional  -  the full help is better.
 - Existing tests that check the old "Tip:" output must be updated to reflect
   the new `cmd.Help()` behavior.
 - If you discover that correct implementation requires changing a file not in
@@ -141,7 +141,7 @@ All must pass before reporting completion.
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent A — Completion Report`.
+`### Agent A  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

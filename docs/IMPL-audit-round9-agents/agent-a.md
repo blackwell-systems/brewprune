@@ -50,10 +50,10 @@ If verification fails: write ISOLATION VERIFICATION FAILED to completion report 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/explain.go` — modify
-- `internal/app/explain_test.go` — modify
-- `internal/app/stats.go` — modify
-- `internal/app/stats_test.go` — modify
+- `internal/app/explain.go`  -  modify
+- `internal/app/explain_test.go`  -  modify
+- `internal/app/stats.go`  -  modify
+- `internal/app/stats_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -121,7 +121,7 @@ B. **Double-close or use-after-close**: If `undo.go` or `remove.go` closes the D
 C. **Missing package panic**: After remove deletes jq/bat/etc from DB, `stats --package jq`
    calls `GetUsageStats("jq")`. `GetPackage("jq")` returns error. `GetUsageStats` returns
    `nil, err`. `showPackageStats` returns the error. Cobra prints it. Exit 1. This path is
-   safe — NOT exit 139. So crash must be elsewhere.
+   safe  -  NOT exit 139. So crash must be elsewhere.
 
 D. **SQLite in-process corruption from WAL + multiple connections**: The daemon (`watch`)
    has the DB open with a writer connection. Both `remove` and `undo` also open connections.
@@ -143,7 +143,7 @@ that verifies the package exists in the DB before proceeding. If the package is 
 emit: "Package not found in database. If you recently ran 'brewprune undo', run
 'brewprune scan' to update the index."
 
-### 4.2 Bonus: Fix explain.go — "Protected: YES (part of 47 core dependencies)" (UX-polish)
+### 4.2 Bonus: Fix explain.go  -  "Protected: YES (part of 47 core dependencies)" (UX-polish)
 
 Current text at `explain.go:175`:
 ```go
@@ -152,10 +152,10 @@ fmt.Printf("\n%sProtected:%s YES (part of 47 core dependencies)\n", colorBold, c
 
 Change the wording. The number 47 is unexplained and confusing to new users. Replace with:
 ```go
-fmt.Printf("\n%sProtected:%s YES (core system dependency — kept even if unused)\n", colorBold, colorReset)
+fmt.Printf("\n%sProtected:%s YES (core system dependency  -  kept even if unused)\n", colorBold, colorReset)
 ```
 
-### 4.3 Bonus: Fix explain.go — recommendation numbered list (UX-polish)
+### 4.3 Bonus: Fix explain.go  -  recommendation numbered list (UX-polish)
 
 Current text at `explain.go:158`:
 ```go
@@ -168,16 +168,16 @@ fmt.Println("  1. Preview:  brewprune remove --safe --dry-run")
 fmt.Println("  2. Remove:   brewprune remove --safe")
 ```
 
-### 4.4 Bonus: Fix stats.go — error chain exposure (UX-improvement)
+### 4.4 Bonus: Fix stats.go  -  error chain exposure (UX-improvement)
 
 Current at `stats.go:177`:
 ```go
 return fmt.Errorf("failed to get usage trends: %w", err)
 ```
 
-When `err` is `ErrNotInitialized` ("database not initialized — run 'brewprune scan'..."), the
+When `err` is `ErrNotInitialized` ("database not initialized  -  run 'brewprune scan'..."), the
 full error chain exposed to the user is: "failed to get usage trends: failed to list packages:
-database not initialized — run 'brewprune scan' to create the database"
+database not initialized  -  run 'brewprune scan' to create the database"
 
 Fix: unwrap the chain for known terminal errors:
 ```go
@@ -198,20 +198,20 @@ Add `"errors"` to the import list if not already present.
 
 After fixing the segfault, add tests that cover the post-undo state:
 
-1. `TestExplain_PackageNotFoundAfterUndo` — verify that when a package is missing from DB,
+1. `TestExplain_PackageNotFoundAfterUndo`  -  verify that when a package is missing from DB,
    `runExplain` exits with a helpful message (not a segfault). Use a test DB where the
    package was deleted.
 
-2. `TestStats_PackageNotFoundReturnsError` — verify that `showPackageStats` returns a
+2. `TestStats_PackageNotFoundReturnsError`  -  verify that `showPackageStats` returns a
    non-nil error (not crash) when the package is not in the DB.
 
-3. `TestExplain_ProtectedCountMessage` — verify the new wording "core system dependency —
+3. `TestExplain_ProtectedCountMessage`  -  verify the new wording "core system dependency  - 
    kept even if unused" appears in explain output for a core package.
 
-4. `TestExplain_RecommendationNumberedList` — verify "1. Preview:" and "2. Remove:" appear
+4. `TestExplain_RecommendationNumberedList`  -  verify "1. Preview:" and "2. Remove:" appear
    in explain output for a safe-tier package.
 
-5. `TestStats_ErrorChainUnwrapped` — verify that `showUsageTrends` returns the terminal
+5. `TestStats_ErrorChainUnwrapped`  -  verify that `showUsageTrends` returns the terminal
    error message when DB is not initialized, not a chain of "failed to..." messages.
 
 ## 6. Verification Gate
@@ -240,9 +240,9 @@ All must pass before reporting completion.
   `internal/app/stats.go`, `internal/app/stats_test.go`. If you discover the segfault requires
   changes to `internal/store/db.go` or another file, document it in the out_of_scope_deps
   field of your completion report.
-- The fix for the segfault must NOT require users to change their workflow — it must be
+- The fix for the segfault must NOT require users to change their workflow  -  it must be
   transparent (either a crash-safe DB open, or a graceful error message).
-- The recommendation numbered list change must maintain the same logical content — just
+- The recommendation numbered list change must maintain the same logical content  -  just
   reformatted.
 
 ## 8. Report
@@ -255,10 +255,10 @@ git add internal/app/explain.go internal/app/explain_test.go internal/app/stats.
 git commit -m "wave0-agent-a: fix post-undo crash + explain/stats polish"
 ```
 
-Append your completion report to this file under `### Agent A — Completion Report`:
+Append your completion report to this file under `### Agent A  -  Completion Report`:
 
 ```yaml
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave0-agent-a
 commit: {sha}
@@ -275,7 +275,7 @@ tests_added:
   - TestExplain_ProtectedCountMessage
   - TestExplain_RecommendationNumberedList
   - TestStats_ErrorChainUnwrapped
-verification: PASS | FAIL ({command} — N/N tests)
+verification: PASS | FAIL ({command}  -  N/N tests)
 ```
 
 After the structured block, add free-form notes: root cause of segfault, what file(s) were
@@ -283,7 +283,7 @@ affected, what fix was applied, any out-of-scope deps discovered.
 
 ---
 
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 
 ```yaml
 status: complete
@@ -303,7 +303,7 @@ tests_added:
   - TestExplain_ProtectedCountMessage
   - TestExplain_RecommendationNumberedList
   - TestStats_ErrorChainUnwrapped
-verification: PASS (go test ./internal/app -run 'TestExplain|TestStats' -skip 'TestDoctorHelpIncludesFixNote' -v — 34/34 tests)
+verification: PASS (go test ./internal/app -run 'TestExplain|TestStats' -skip 'TestDoctorHelpIncludesFixNote' -v  -  34/34 tests)
 ```
 
 **Root cause investigation:**
@@ -317,7 +317,7 @@ Investigating the code paths for `explain git` and `stats --package jq` after `u
 - `stats.go` `showPackageStats` returned a wrapped error on not-found. Also safe.
 - `ComputeScore` in `analyzer/confidence.go` calls `store.GetPackage` and would panic on
   `pkgInfo.SizeBytes` if `GetPackage` returned `(nil, nil)`, but the store never returns
-  `(nil, nil)` — it always wraps `sql.ErrNoRows` as a non-nil error.
+  `(nil, nil)`  -  it always wraps `sql.ErrNoRows` as a non-nil error.
 
 **Conclusion:** The post-undo exit-139 could not be reproduced from code analysis. The
 current code handles all not-found paths gracefully. The most likely historical cause was
@@ -329,7 +329,7 @@ scan' to update the index." This makes the user workflow transparent without req
 architectural changes.
 
 **Bonus fixes applied:**
-- `explain.go`: "part of 47 core dependencies" → "core system dependency — kept even if
+- `explain.go`: "part of 47 core dependencies" → "core system dependency  -  kept even if
   unused" (line 175)
 - `explain.go`: safe-tier recommendation reformatted as numbered two-step list (line 158)
 - `stats.go`: `showUsageTrends` now unwraps the error chain to surface only the terminal

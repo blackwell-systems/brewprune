@@ -13,10 +13,10 @@
 Two investigation-first items exist: a post-undo segfault (exit 139, no output, UX-critical) and
 a shim event resolution failure for git/jq (UX-improvement). Both are assigned to Wave 0 agents
 with fully disjoint file ownership. Wave 0 runs two parallel investigation agents rather than a
-single solo agent — this is a deliberate deviation from the strict convention, justified by the
+single solo agent  -  this is a deliberate deviation from the strict convention, justified by the
 fact that the two investigations operate on completely separate packages
 (`internal/app/{explain,stats}.go` vs `internal/watcher/shim_processor.go`) and neither result
-gates the other. Wave 1 is not blocked by either Wave 0 agent — the 6 Wave 1 files are all
+gates the other. Wave 1 is not blocked by either Wave 0 agent  -  the 6 Wave 1 files are all
 independent of both investigation areas.
 
 Remaining 13 items are straightforward text/logic changes with known file assignments. Each
@@ -38,7 +38,7 @@ is parallelized. Proceed.
 
 ## Known Issues
 
-- `TestDoctorHelpIncludesFixNote` — Hangs (tries to execute test binary as CLI)
+- `TestDoctorHelpIncludesFixNote`  -  Hangs (tries to execute test binary as CLI)
   - Status: Pre-existing, unrelated to this work
   - Workaround: Skip with `-skip 'TestDoctorHelpIncludesFixNote'`
 
@@ -51,7 +51,7 @@ Pre-implementation scan results:
 - Total items: 15 findings
 - Already implemented: 0 items
 - Partially implemented: 2 items
-  - Quickstart: "Setup complete — one step remains:" added, but PATH warning still appears AFTER summary text (not before)
+  - Quickstart: "Setup complete  -  one step remains:" added, but PATH warning still appears AFTER summary text (not before)
   - Unused casks: early exit for empty casks is AFTER checkUsageWarning (warning still prints first)
 - To-do: 13 items
 
@@ -68,11 +68,11 @@ All 8 agents own disjoint files. No cross-agent type or function dependencies ex
 
 ```
 Wave 0:  [A]  [B]   <- two parallel investigation-first agents
-              | (A+B complete — no downstream dependency, Wave 1 proceeds independently)
+              | (A+B complete  -  no downstream dependency, Wave 1 proceeds independently)
 Wave 1: [C] [D] [E] [F] [G] [H]  <- 6 parallel agents
 ```
 
-**Root nodes (no dependencies):** All Wave 0 and Wave 1 files are leaves — no new types or
+**Root nodes (no dependencies):** All Wave 0 and Wave 1 files are leaves  -  no new types or
 functions cross agent boundaries.
 
 **Cascade candidates:** None. All changes are behavior-only (output text, error handling,
@@ -119,7 +119,7 @@ Wave 0:  [A] [B]               <- 2 parallel investigation-first agents (disjoin
 Wave 1: [C] [D] [E] [F] [G] [H]  <- 6 parallel agents
 ```
 
-Wave 0 does NOT gate Wave 1 — the 6 Wave 1 files are independent of both investigation areas.
+Wave 0 does NOT gate Wave 1  -  the 6 Wave 1 files are independent of both investigation areas.
 Wave 1 may launch as soon as Wave 0 agents commit their findings (or even in parallel, since
 Wave 1 files do not depend on Wave 0 outputs).
 
@@ -129,21 +129,21 @@ Wave 1 files do not depend on Wave 0 outputs).
 
 Full prompts are in per-agent files:
 
-- [Agent A — segfault + explain fixes](IMPL-audit-round9-agents/agent-a.md)
-- [Agent B — shim processor git/jq resolution](IMPL-audit-round9-agents/agent-b.md)
-- [Agent C — doctor pipeline WARN + PATH check](IMPL-audit-round9-agents/agent-c.md)
-- [Agent D — quickstart ordering + self-test duration](IMPL-audit-round9-agents/agent-d.md)
-- [Agent E — unused sort footer + casks banner](IMPL-audit-round9-agents/agent-e.md)
-- [Agent F — remove error + error chain](IMPL-audit-round9-agents/agent-f.md)
-- [Agent G — status shims label](IMPL-audit-round9-agents/agent-g.md)
-- [Agent H — undo progress + stale DB warning](IMPL-audit-round9-agents/agent-h.md)
+- [Agent A  -  segfault + explain fixes](IMPL-audit-round9-agents/agent-a.md)
+- [Agent B  -  shim processor git/jq resolution](IMPL-audit-round9-agents/agent-b.md)
+- [Agent C  -  doctor pipeline WARN + PATH check](IMPL-audit-round9-agents/agent-c.md)
+- [Agent D  -  quickstart ordering + self-test duration](IMPL-audit-round9-agents/agent-d.md)
+- [Agent E  -  unused sort footer + casks banner](IMPL-audit-round9-agents/agent-e.md)
+- [Agent F  -  remove error + error chain](IMPL-audit-round9-agents/agent-f.md)
+- [Agent G  -  status shims label](IMPL-audit-round9-agents/agent-g.md)
+- [Agent H  -  undo progress + stale DB warning](IMPL-audit-round9-agents/agent-h.md)
 
 ---
 
 ## Wave Execution Loop
 
 After each wave completes:
-1. Read each agent's completion report from `### Agent {letter} — Completion Report` sections appended to their per-agent files.
+1. Read each agent's completion report from `### Agent {letter}  -  Completion Report` sections appended to their per-agent files.
 2. Merge all agent worktrees back into the main branch.
 3. Run: `cd /Users/dayna.blackwell/code/brewprune && go build ./... && go vet ./... && go test ./... -skip 'TestDoctorHelpIncludesFixNote'`
 4. Fix any compiler errors or integration issues.
@@ -155,11 +155,11 @@ After each wave completes:
 
 ## Status
 
-- [x] Wave 0 Agent A — segfault investigation + fix (explain.go, stats.go)
-- [x] Wave 0 Agent B — shim processor git/jq resolution (shim_processor.go)
-- [x] Wave 1 Agent C — doctor pipeline WARN + active-PATH check (doctor.go)
-- [x] Wave 1 Agent D — quickstart PATH warning ordering + self-test duration (quickstart.go)
-- [x] Wave 1 Agent E — unused sort footer + casks banner skip (unused.go)
-- [x] Wave 1 Agent F — remove nonexistent error + error chain (remove.go)
-- [x] Wave 1 Agent G — status shims "0 commands" label (status.go)
-- [x] Wave 1 Agent H — undo progress rendering + stale DB warning (undo.go)
+- [x] Wave 0 Agent A  -  segfault investigation + fix (explain.go, stats.go)
+- [x] Wave 0 Agent B  -  shim processor git/jq resolution (shim_processor.go)
+- [x] Wave 1 Agent C  -  doctor pipeline WARN + active-PATH check (doctor.go)
+- [x] Wave 1 Agent D  -  quickstart PATH warning ordering + self-test duration (quickstart.go)
+- [x] Wave 1 Agent E  -  unused sort footer + casks banner skip (unused.go)
+- [x] Wave 1 Agent F  -  remove nonexistent error + error chain (remove.go)
+- [x] Wave 1 Agent G  -  status shims "0 commands" label (status.go)
+- [x] Wave 1 Agent H  -  undo progress rendering + stale DB warning (undo.go)

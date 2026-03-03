@@ -47,8 +47,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/watcher/shim_processor.go` — modify
-- `internal/watcher/shim_processor_test.go` — modify
+- `internal/watcher/shim_processor.go`  -  modify
+- `internal/watcher/shim_processor_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -163,7 +163,7 @@ if !found {
 Note: This is O(n·packages) per log line. If optPathMap is large, consider pre-building
 a `basenameToOptPkg` map in `buildOptPathMap` as a secondary map.
 
-**If hypothesis C (timing):** The fix is in the binaryMap rebuild strategy — ensure that
+**If hypothesis C (timing):** The fix is in the binaryMap rebuild strategy  -  ensure that
 after undo/rescan, the watcher process picks up the fresh DB. This is out of scope for this
 agent; document it in the completion report as an out_of_scope_dep.
 
@@ -186,16 +186,16 @@ This replaces the silent `continue`.
 
 ## 5. Tests to Write
 
-1. `TestProcessUsageLog_GitResolvesAfterFix` — verify that a usage.log entry with
+1. `TestProcessUsageLog_GitResolvesAfterFix`  -  verify that a usage.log entry with
    `/home/brewuser/.brewprune/bin/git` resolves to the "git" package and is inserted into
    the store. (Build a test DB with git's actual BinaryPaths from the container.)
 
-2. `TestProcessUsageLog_JqResolvesAfterFix` — same for jq.
+2. `TestProcessUsageLog_JqResolvesAfterFix`  -  same for jq.
 
-3. `TestBuildBasenameMap_NoCollisionOnPackageName` — verify that when two packages share a
+3. `TestBuildBasenameMap_NoCollisionOnPackageName`  -  verify that when two packages share a
    binary basename, the package whose name matches the binary wins (hypothesis A fix).
 
-4. `TestProcessUsageLog_UnresolvableBinaryIsSkippedNotSilent` — verify that an unresolvable
+4. `TestProcessUsageLog_UnresolvableBinaryIsSkippedNotSilent`  -  verify that an unresolvable
    binary produces a log message (not a silent skip).
 
 Update existing tests if the lookup order changes.
@@ -228,10 +228,10 @@ git add internal/watcher/shim_processor.go internal/watcher/shim_processor_test.
 git commit -m "wave0-agent-b: fix shim resolution for git/jq + add resolution failure logging"
 ```
 
-Append completion report to this file under `### Agent B — Completion Report`:
+Append completion report to this file under `### Agent B  -  Completion Report`:
 
 ```yaml
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave0-agent-b
 commit: {sha}
@@ -253,7 +253,7 @@ Free-form notes: root cause found, hypothesis confirmed, fix applied, any discov
 
 ---
 
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 
 ```yaml
 status: complete
@@ -287,7 +287,7 @@ proactively. Investigation of the container state revealed a compounding scenari
 
 3. The container's usage.offset had already been advanced to EOF (108 bytes) by the time
    investigation began, meaning both the git and bat shim entries were processed but produced
-   zero usage events — confirming that resolution failed for all Linuxbrew-hosted packages
+   zero usage events  -  confirming that resolution failed for all Linuxbrew-hosted packages
    during that tick.
 
 **Fix applied (Hypothesis A):** Changed `buildBasenameMap` to use an unconditional second pass:

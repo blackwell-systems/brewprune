@@ -338,14 +338,14 @@ brewprune remove --safe --dry-run
 
 Standard mode displays:
 
-1. **Tier summary header** — counts and total size per tier (e.g. `SAFE: 3 packages (1.2 GB) · MEDIUM: 2 packages (456 MB) · RISKY: 48 packages (hidden, use --all)`)
+1. **Tier summary header**  -  counts and total size per tier (e.g. `SAFE: 3 packages (1.2 GB) · MEDIUM: 2 packages (456 MB) · RISKY: 48 packages (hidden, use --all)`)
 2. **Package table** with columns: Package, Size, Uses (7d), Last Used, Depended On, Status
-3. **Reclaimable footer** — disk space recoverable per tier (e.g. `Reclaimable: 1.2 GB (safe) · 456 MB (medium) · 3.8 GB (risky, hidden)`)
-4. **Confidence assessment** — overall tracking quality based on event count and tracking duration
+3. **Reclaimable footer**  -  disk space recoverable per tier (e.g. `Reclaimable: 1.2 GB (safe) · 456 MB (medium) · 3.8 GB (risky, hidden)`)
+4. **Confidence assessment**  -  overall tracking quality based on event count and tracking duration
 
 **Column notes:**
-- Casks (GUI apps) show `n/a` for Uses (7d) and Last Used — GUI launches cannot be tracked via PATH shims
-- Packages with zero reverse dependencies show `—` (em dash)
+- Casks (GUI apps) show `n/a` for Uses (7d) and Last Used  -  GUI launches cannot be tracked via PATH shims
+- Packages with zero reverse dependencies show ` - ` (em dash)
 - Risky-tier packages are hidden unless `--all` or `--tier risky` is specified
 
 Verbose mode (`-v`) adds a detailed scoring breakdown per package:

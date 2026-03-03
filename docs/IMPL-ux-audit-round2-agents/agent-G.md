@@ -1,12 +1,12 @@
-# Wave 1 Agent G: unused.go — stable secondary sort for --sort age + --min-score help
+# Wave 1 Agent G: unused.go  -  stable secondary sort for --sort age + --min-score help
 
 You are Wave 1 Agent G. Fix two UX issues in unused.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/unused.go` — modify
-- `internal/app/unused_test.go` — modify
+- `internal/app/unused.go`  -  modify
+- `internal/app/unused_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -14,7 +14,7 @@ No new exported functions. You are modifying existing behavior only.
 
 ## 3. Interfaces You May Call
 
-Existing `sort`, `analyzer`, and `output` functions — no new imports needed.
+Existing `sort`, `analyzer`, and `output` functions  -  no new imports needed.
 
 ## 4. What to Implement
 
@@ -100,12 +100,12 @@ unusedCmd.Flags().IntVar(&unusedMinScore, "min-score", 0, "Minimum confidence sc
 
 Update `internal/app/unused_test.go`:
 
-1. `TestSortScores_AgeWithTieBreak` — create a slice with packages that all
+1. `TestSortScores_AgeWithTieBreak`  -  create a slice with packages that all
    have identical `InstalledAt` times, call `sortScores(scores, "age")`, and
    verify the result is sorted alphabetically (the tertiary sort key).
-2. `TestSortScores_ScoreWithTieBreak` — create a slice with packages that have
+2. `TestSortScores_ScoreWithTieBreak`  -  create a slice with packages that have
    identical scores, verify alphabetical secondary sort.
-3. `TestMinScoreFlagDescription` — verify `unusedCmd.Flag("min-score").Usage`
+3. `TestMinScoreFlagDescription`  -  verify `unusedCmd.Flag("min-score").Usage`
    contains "explain".
 
 ## 6. Verification Gate
@@ -125,14 +125,14 @@ All must pass before reporting completion.
 - Only change `sortScores` and the flag description. Do not change any other
   logic in `runUnused`.
 - The `analyzer.ConfidenceScore` struct has `InstalledAt time.Time` and
-  `Package string` — both are safe to access.
+  `Package string`  -  both are safe to access.
 - If you discover that correct implementation requires changing a file not in
   your ownership list, do NOT modify it. Report it in section 8.
 
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent G — Completion Report`.
+`### Agent G  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

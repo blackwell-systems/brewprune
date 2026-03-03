@@ -9,14 +9,14 @@
 **Verdict: SUITABLE WITH CAVEATS**
 
 20 findings span 8 distinct file ownership groups with fully disjoint assignments. The one caveat:
-finding 1 (daemon event pipeline drops most shim events) is investigation-first — the offset
+finding 1 (daemon event pipeline drops most shim events) is investigation-first  -  the offset
 tracking or path resolution logic needs to be understood before a fix can be written. This
 receives a solo Wave 0 investigation before the 7-agent Wave 1 parallel pass.
 
 Several findings are already implemented:
-- Doctor 3-state PATH check (in-profile / active / missing) — already in `doctor.go`
-- Doctor alias tip suppressed during critical failures — already gated by `criticalIssues == 0`
-- Doctor "All checks passed!" line — already present at line 264-265
+- Doctor 3-state PATH check (in-profile / active / missing)  -  already in `doctor.go`
+- Doctor alias tip suppressed during critical failures  -  already gated by `criticalIssues == 0`
+- Doctor "All checks passed!" line  -  already present at line 264-265
 
 ```
 Estimated times:
@@ -37,34 +37,34 @@ Recommendation: Clear speedup. Proceed with Wave 0 → Wave 1.
 ### Pre-Implementation Scan
 
 **TO-DO:**
-- `internal/watcher/shim_processor.go` — only 1 of 5+ shim events reaches DB; offset tracking
+- `internal/watcher/shim_processor.go`  -  only 1 of 5+ shim events reaches DB; offset tracking
   or Linuxbrew path resolution suspected
-- `internal/app/doctor.go:254` — pipeline failure action says "restart daemon" but daemon IS
+- `internal/app/doctor.go:254`  -  pipeline failure action says "restart daemon" but daemon IS
   running; real fix is `source ~/.profile`
-- `internal/app/quickstart.go:227-249` — PATH warning block appears after "Setup complete!";
+- `internal/app/quickstart.go:227-249`  -  PATH warning block appears after "Setup complete!";
   needs reordering or integration into success message
-- `internal/app/quickstart.go:~75` — "already in PATH" wording misleading (it's in profile, not
+- `internal/app/quickstart.go:~75`  -  "already in PATH" wording misleading (it's in profile, not
   active shell PATH); should say "already configured in ~/.profile"
-- `internal/app/unused.go:501-514 + 224-229` — two separate warning blocks when no usage data;
+- `internal/app/unused.go:501-514 + 224-229`  -  two separate warning blocks when no usage data;
   consolidate into one
-- `internal/app/unused.go:394` — footer says "(risky, hidden)" when risky IS being shown due to
+- `internal/app/unused.go:394`  -  footer says "(risky, hidden)" when risky IS being shown due to
   no-data fallback (`showRiskyImplicit == true`); add `|| showRiskyImplicit` to showAll condition
-- `internal/app/unused.go` — `--sort age` output shows no sort direction indicator
-- `internal/app/unused.go` — `--tier safe --all` error message slightly circular; make more
+- `internal/app/unused.go`  -  `--sort age` output shows no sort direction indicator
+- `internal/app/unused.go`  -  `--tier safe --all` error message slightly circular; make more
   actionable
-- `internal/app/remove.go:191-197, 210` — skipped packages list printed before action table;
+- `internal/app/remove.go:191-197, 210`  -  skipped packages list printed before action table;
   reorder
-- `internal/app/remove.go:355-356` — multiple flag error only reports first two flags; report all
-- `internal/app/remove.go` — "explicitly installed (not a dependency)" warning when user named
+- `internal/app/remove.go:355-356`  -  multiple flag error only reports first two flags; report all
+- `internal/app/remove.go`  -  "explicitly installed (not a dependency)" warning when user named
   the package; remove or reframe
-- `internal/app/explain.go:161` — MEDIUM recommendation suggests `brewprune remove <pkg>` without
+- `internal/app/explain.go:161`  -  MEDIUM recommendation suggests `brewprune remove <pkg>` without
   `--dry-run`; add `--dry-run` to suggested command
-- `internal/app/status.go:174` — "Last scan: just now · 0 formulae" shown when DB doesn't exist
+- `internal/app/status.go:174`  -  "Last scan: just now · 0 formulae" shown when DB doesn't exist
   (dir stat succeeds because `getDBPath()` creates directory); should show "never"
-- `internal/app/stats.go` — default sort order (TotalRuns desc) not shown to user; add note
-- `internal/app/root.go` — unknown subcommand error redirects to `--help` without listing
+- `internal/app/stats.go`  -  default sort order (TotalRuns desc) not shown to user; add note
+- `internal/app/root.go`  -  unknown subcommand error redirects to `--help` without listing
   valid commands inline
-- `internal/app/watch.go` — 30-second polling interval note buried at end of description
+- `internal/app/watch.go`  -  30-second polling interval note buried at end of description
 
 **DONE (no agent needed):**
 - Doctor 3-state PATH check (already implemented in `doctor.go`)
@@ -77,7 +77,7 @@ Recommendation: Clear speedup. Proceed with Wave 0 → Wave 1.
 ### Dependency Graph
 
 ```
-                  [Leaf nodes — no agent cross-deps]
+                  [Leaf nodes  -  no agent cross-deps]
 shim_processor.go          (Wave 0 Agent A: investigation + fix)
 doctor.go                  (Agent B)
 quickstart.go              (Agent C)
@@ -183,12 +183,12 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/watcher/shim_processor.go` — modify (fix pipeline event loss)
-- `internal/watcher/shim_processor_test.go` — modify (add regression tests)
+- `internal/watcher/shim_processor.go`  -  modify (fix pipeline event loss)
+- `internal/watcher/shim_processor_test.go`  -  modify (add regression tests)
 
 **Read-only references:**
-- `internal/store/queries.go` — understand BatchInsertUsage and GetUsageOffset/SetUsageOffset
-- `internal/watcher/watcher.go` — understand how shim_processor is called in the poll loop
+- `internal/store/queries.go`  -  understand BatchInsertUsage and GetUsageOffset/SetUsageOffset
+- `internal/watcher/watcher.go`  -  understand how shim_processor is called in the poll loop
 
 ## 2. Interfaces You Must Implement
 
@@ -211,9 +211,9 @@ quickstart self-test), but 5 are lost.
 
 **Investigation steps:**
 
-1. Read `internal/watcher/shim_processor.go` — the full `ProcessUsageLog` function
-2. Read `internal/store/queries.go` — `GetUsageOffset` and `SetUsageOffset` contract
-3. Read `internal/watcher/watcher.go` — how often `ProcessUsageLog` is called, whether it
+1. Read `internal/watcher/shim_processor.go`  -  the full `ProcessUsageLog` function
+2. Read `internal/store/queries.go`  -  `GetUsageOffset` and `SetUsageOffset` contract
+3. Read `internal/watcher/watcher.go`  -  how often `ProcessUsageLog` is called, whether it
    runs in a loop or once per poll tick
 
 **Primary suspects (in priority order):**
@@ -226,7 +226,7 @@ quickstart self-test), but 5 are lost.
 - **Linuxbrew path resolution failure**: `optPathMap` is keyed by full opt path
   (`/opt/homebrew/bin/git`, `/usr/local/bin/git`). Linuxbrew uses
   `/home/linuxbrew/.linuxbrew/bin/`. The basename fallback via `binaryMap[basename]` should
-  handle this — confirm it actually works, and confirm the fallback fires for all 5 packages.
+  handle this  -  confirm it actually works, and confirm the fallback fires for all 5 packages.
 
 - **Single-event batch limit**: Check if `BatchInsertUsage` is called with a batch of 1 when
   multiple events are available. If the function inserts only the first event and discards the
@@ -242,11 +242,11 @@ quickstart self-test), but 5 are lost.
 
 ## 5. Tests to Write
 
-1. `TestProcessUsageLog_MultipleLinesRecorded` — writes 5 shim log entries, calls
+1. `TestProcessUsageLog_MultipleLinesRecorded`  -  writes 5 shim log entries, calls
    `ProcessUsageLog`, verifies all 5 events inserted (not just 1)
-2. `TestProcessUsageLog_LinuxbrewPathResolution` — log entry with Linuxbrew path
+2. `TestProcessUsageLog_LinuxbrewPathResolution`  -  log entry with Linuxbrew path
    (`/home/linuxbrew/.linuxbrew/bin/git`) resolves to the correct package name
-3. `TestProcessUsageLog_OffsetAdvancesAfterInsert` — verifies offset is not advanced
+3. `TestProcessUsageLog_OffsetAdvancesAfterInsert`  -  verifies offset is not advanced
    if batch insert fails (events not silently lost on error)
 
 ## 6. Verification Gate
@@ -262,7 +262,7 @@ go test ./...
 ## 7. Constraints
 
 - Do not change the `ProcessUsageLog` function signature
-- Do not modify store layer files (queries.go) — report any needed store changes as
+- Do not modify store layer files (queries.go)  -  report any needed store changes as
   out-of-scope dependencies
 - If root cause is not found, document all investigation findings in the completion report
   and add defensive logging (write to watcher's log file, not stdout)
@@ -276,10 +276,10 @@ git add internal/watcher/
 git commit -m "wave0-agent-a: fix shim event pipeline loss in ProcessUsageLog"
 ```
 
-Append completion report to this IMPL doc under `### Agent A — Completion Report`.
+Append completion report to this IMPL doc under `### Agent A  -  Completion Report`.
 
 ```yaml
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave0-agent-a
 commit: {sha}
@@ -330,8 +330,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/doctor.go` — modify
-- `internal/app/doctor_test.go` — modify
+- `internal/app/doctor.go`  -  modify
+- `internal/app/doctor_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -339,7 +339,7 @@ No new interfaces. Behavior change only.
 
 ## 3. Interfaces You May Call
 
-Existing doctor helper functions — read the file to understand the check structure.
+Existing doctor helper functions  -  read the file to understand the check structure.
 
 ## 4. What to Implement
 
@@ -348,7 +348,7 @@ the pipeline test fails because shims are not yet in the active shell PATH (they
 `~/.profile` but the shell hasn't been restarted). Doctor currently says:
 
 ```
-✗ Pipeline test: fail (35.4s) — no usage event recorded after 35.4s
+✗ Pipeline test: fail (35.4s)  -  no usage event recorded after 35.4s
   Action: Run 'brewprune watch --daemon' to restart the daemon
 ```
 
@@ -361,7 +361,7 @@ daemon is running AND the shim directory is configured in profile but not in the
 use the action message:
 
 ```
-Action: Shims not in active PATH — run: source ~/.profile (or restart your shell)
+Action: Shims not in active PATH  -  run: source ~/.profile (or restart your shell)
 ```
 
 When the pipeline fails AND the daemon is NOT running:
@@ -375,10 +375,10 @@ structured and where the pipeline test result is set.
 
 ## 5. Tests to Write
 
-1. `TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive` — verifies that when pipeline
+1. `TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive`  -  verifies that when pipeline
    fails with daemon running and PATH not active, the action message mentions `source ~/.profile`
    (or PATH activation), not `watch --daemon`
-2. `TestDoctorPipelineFailureMessage_DaemonNotRunning` — verifies that when pipeline fails with
+2. `TestDoctorPipelineFailureMessage_DaemonNotRunning`  -  verifies that when pipeline fails with
    daemon not running, the action message mentions `watch --daemon`
 
 ## 6. Verification Gate
@@ -406,10 +406,10 @@ git add internal/app/doctor.go internal/app/doctor_test.go
 git commit -m "wave1-agent-b: fix doctor pipeline failure action message"
 ```
 
-Append to `### Agent B — Completion Report` in this IMPL doc.
+Append to `### Agent B  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-b
 commit: {sha}
@@ -457,8 +457,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/quickstart.go` — modify
-- `internal/app/quickstart_test.go` — modify
+- `internal/app/quickstart.go`  -  modify
+- `internal/app/quickstart_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -466,7 +466,7 @@ No new interfaces. Output order and wording changes only.
 
 ## 3. Interfaces You May Call
 
-Existing quickstart helpers — read the file to understand structure.
+Existing quickstart helpers  -  read the file to understand structure.
 
 ## 4. What to Implement
 
@@ -476,9 +476,9 @@ reading top-to-bottom feels done after "Setup complete!" and is then confused by
 
 Read `quickstart.go` lines 227-249 to see the exact output order. Fix: either
 (a) print the PATH warning *before* the "Setup complete!" summary, or
-(b) change "Setup complete!" to "Setup complete — one step remains:" when PATH is not yet active.
+(b) change "Setup complete!" to "Setup complete  -  one step remains:" when PATH is not yet active.
 
-Option (b) is preferred — it avoids splitting the summary block.
+Option (b) is preferred  -  it avoids splitting the summary block.
 
 **Finding 2 (UX-polish):** On second quickstart run, Step 2 reports:
 `✓ /home/brewuser/.brewprune/bin is already in PATH`
@@ -496,10 +496,10 @@ Keep it to 1-2 sentences.
 
 ## 5. Tests to Write
 
-1. `TestQuickstartPathWarningBeforeOrInSuccess` — verifies that when PATH is not yet active,
+1. `TestQuickstartPathWarningBeforeOrInSuccess`  -  verifies that when PATH is not yet active,
    the PATH activation reminder is not separated from the final step output (appears integrated
    into success message or before it, not after a "Setup complete!" line)
-2. `TestQuickstartAlreadyConfiguredWording` — verifies that the "already in PATH" message
+2. `TestQuickstartAlreadyConfiguredWording`  -  verifies that the "already in PATH" message
    uses "configured" or "added to ~/.profile" rather than "already in PATH"
 
 ## 6. Verification Gate
@@ -514,7 +514,7 @@ go test ./...
 
 ## 7. Constraints
 
-- Do not change the quickstart logic — only output order and wording
+- Do not change the quickstart logic  -  only output order and wording
 - Do not modify any file outside `quickstart.go` and `quickstart_test.go`
 - The `⚠ TRACKING IS NOT ACTIVE YET` block content may remain as-is; only its placement changes
 
@@ -526,10 +526,10 @@ git add internal/app/quickstart.go internal/app/quickstart_test.go
 git commit -m "wave1-agent-c: fix quickstart PATH warning order and wording"
 ```
 
-Append to `### Agent C — Completion Report` in this IMPL doc.
+Append to `### Agent C  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-c
 commit: {sha}
@@ -577,8 +577,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/unused.go` — modify
-- `internal/app/unused_test.go` — modify
+- `internal/app/unused.go`  -  modify
+- `internal/app/unused_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -601,7 +601,7 @@ banner (lines 224-229). Consolidate into one. When `showRiskyImplicit` is true, 
 warning message to include the note that risky packages are being shown:
 
 ```
-⚠  No usage data yet — run 'brewprune quickstart' to set up tracking.
+⚠  No usage data yet  -  run 'brewprune quickstart' to set up tracking.
    All packages (including risky tier) are shown until usage data is collected.
    To set up tracking:
    1. Run 'brewprune quickstart' to configure shims and start the daemon
@@ -641,13 +641,13 @@ Error: --all and --tier are mutually exclusive
 
 ## 5. Tests to Write
 
-1. `TestUnusedDoubleWarningConsolidated` — verifies that with no usage data, only ONE warning
+1. `TestUnusedDoubleWarningConsolidated`  -  verifies that with no usage data, only ONE warning
    block appears in output (not two)
-2. `TestUnusedFooterNoHiddenWhenRiskyImplicit` — verifies that when `showRiskyImplicit` is
+2. `TestUnusedFooterNoHiddenWhenRiskyImplicit`  -  verifies that when `showRiskyImplicit` is
    true, the footer does not contain "(risky, hidden)"
-3. `TestUnusedSortAgeDirectionNote` — verifies that `--sort age` output includes a sort
+3. `TestUnusedSortAgeDirectionNote`  -  verifies that `--sort age` output includes a sort
    direction note
-4. `TestUnusedAllTierMutualExclusiveError` — verifies improved error message format for
+4. `TestUnusedAllTierMutualExclusiveError`  -  verifies improved error message format for
    `--all --tier` combination
 
 ## 6. Verification Gate
@@ -662,7 +662,7 @@ go test ./...
 
 ## 7. Constraints
 
-- Do not modify `output/table.go` or `output/` — only `unused.go`
+- Do not modify `output/table.go` or `output/`  -  only `unused.go`
 - Do not change the `RenderReclaimableFooter` signature
 - The `checkUsageWarning()` function may be modified or its output suppressed in the no-data
   case, but do not delete it if it serves other code paths
@@ -675,10 +675,10 @@ git add internal/app/unused.go internal/app/unused_test.go
 git commit -m "wave1-agent-d: fix unused double warning, footer, sort note, error message"
 ```
 
-Append to `### Agent D — Completion Report` in this IMPL doc.
+Append to `### Agent D  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-d
 commit: {sha}
@@ -729,8 +729,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/remove.go` — modify
-- `internal/app/remove_test.go` — modify
+- `internal/app/remove.go`  -  modify
+- `internal/app/remove_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -738,7 +738,7 @@ No new interfaces.
 
 ## 3. Interfaces You May Call
 
-Existing remove helpers — read the file fully before implementing.
+Existing remove helpers  -  read the file fully before implementing.
 
 ## 4. What to Implement
 
@@ -755,7 +755,7 @@ summary. Alternatively (preferred): collapse the skipped list to a summary line 
 expand only with `--verbose`:
 
 ```
-31 packages skipped (locked by dependents) — run with --verbose to see details
+31 packages skipped (locked by dependents)  -  run with --verbose to see details
 ```
 
 When `--verbose` is set, print the full list after the action table.
@@ -773,18 +773,18 @@ before the last item (Oxford comma style for 3+ items).
 **Finding 3 (UX-polish):** "explicitly installed (not a dependency)" warning when the user
 named the package. When a user runs `brewprune remove bat fd --dry-run`, they explicitly chose
 to remove `bat` and `fd`. Seeing `⚠ bat: explicitly installed (not a dependency)` is
-confusing — it sounds like a reason NOT to remove.
+confusing  -  it sounds like a reason NOT to remove.
 
 Fix: suppress this warning when packages are explicitly named on the command line. The warning
 is useful in tier-based mode (where the tool decides what to consider), not in name-based mode.
 
 ## 5. Tests to Write
 
-1. `TestRemoveSkippedListAppearsAfterTable` — verifies that skipped packages appear after the
+1. `TestRemoveSkippedListAppearsAfterTable`  -  verifies that skipped packages appear after the
    removal table in output, not before it
-2. `TestRemoveMultiFlagErrorReportsAll` — verifies that `--safe --medium --risky` error message
+2. `TestRemoveMultiFlagErrorReportsAll`  -  verifies that `--safe --medium --risky` error message
    includes all three flags, not just the first two
-3. `TestRemoveExplicitPackageNoExplicitlyInstalledWarning` — verifies that named-package removal
+3. `TestRemoveExplicitPackageNoExplicitlyInstalledWarning`  -  verifies that named-package removal
    does not emit the "explicitly installed" warning
 
 ## 6. Verification Gate
@@ -812,10 +812,10 @@ git add internal/app/remove.go internal/app/remove_test.go
 git commit -m "wave1-agent-e: fix remove skipped order, multi-flag error, explicit warning"
 ```
 
-Append to `### Agent E — Completion Report` in this IMPL doc.
+Append to `### Agent E  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-e
 commit: {sha}
@@ -864,8 +864,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/explain.go` — modify
-- `internal/app/explain_test.go` — modify
+- `internal/app/explain.go`  -  modify
+- `internal/app/explain_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -873,7 +873,7 @@ No new interfaces. Single string change in recommendation output.
 
 ## 3. Interfaces You May Call
 
-Existing explain helpers — read the file to find where recommendations are rendered.
+Existing explain helpers  -  read the file to find where recommendations are rendered.
 
 ## 4. What to Implement
 
@@ -902,9 +902,9 @@ label is in `output/` or `analyzer/`, document as out-of-scope dep.
 
 ## 5. Tests to Write
 
-1. `TestExplainMediumRecommendationIncludesDryRun` — verifies that MEDIUM recommendation
+1. `TestExplainMediumRecommendationIncludesDryRun`  -  verifies that MEDIUM recommendation
    contains `--dry-run` in the suggested command
-2. `TestExplainSafeRecommendationIncludesDryRun` — verifies that SAFE recommendation (if it
+2. `TestExplainSafeRecommendationIncludesDryRun`  -  verifies that SAFE recommendation (if it
    suggests `brewprune remove`) also contains `--dry-run`
 
 ## 6. Verification Gate
@@ -930,10 +930,10 @@ git add internal/app/explain.go internal/app/explain_test.go
 git commit -m "wave1-agent-f: add --dry-run to explain MEDIUM removal recommendation"
 ```
 
-Append to `### Agent F — Completion Report` in this IMPL doc.
+Append to `### Agent F  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-f
 commit: {sha}
@@ -981,10 +981,10 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/status.go` — modify
-- `internal/app/status_test.go` — modify
-- `internal/app/stats.go` — modify
-- `internal/app/stats_test.go` — modify
+- `internal/app/status.go`  -  modify
+- `internal/app/status_test.go`  -  modify
+- `internal/app/stats.go`  -  modify
+- `internal/app/stats_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -1002,7 +1002,7 @@ directory, making the `os.Stat` succeed and returning the directory's fresh mtim
 
 Fix at line 174: Before setting `dbMtime` from `fi.ModTime()`, check if `formulaeCount == 0`.
 When `formulaeCount == 0`, set `dbMtime = "never"` (or equivalent "never" constant/string) and
-the scan line to `Last scan: never — run 'brewprune scan'`.
+the scan line to `Last scan: never  -  run 'brewprune scan'`.
 
 Read the file to find the exact pattern used for the "never" case (there may be an existing
 pattern for other "never" displays in the file).
@@ -1023,11 +1023,11 @@ shown. If `--package` is specified (single package view), no sort note is needed
 
 ## 5. Tests to Write
 
-1. `TestStatusLastScanNeverWhenZeroFormulae` — verifies that when `formulaeCount == 0`, the
+1. `TestStatusLastScanNeverWhenZeroFormulae`  -  verifies that when `formulaeCount == 0`, the
    status output shows "never" for last scan (not "just now")
-2. `TestStatsAllShowsSortNote` — verifies that `stats --all` output includes the sort note
+2. `TestStatsAllShowsSortNote`  -  verifies that `stats --all` output includes the sort note
    "Sorted by: most used first"
-3. `TestStatsSinglePackageNoSortNote` — verifies that `stats --package <name>` output does
+3. `TestStatsSinglePackageNoSortNote`  -  verifies that `stats --package <name>` output does
    NOT include the sort note
 
 ## 6. Verification Gate
@@ -1055,10 +1055,10 @@ git add internal/app/status.go internal/app/status_test.go internal/app/stats.go
 git commit -m "wave1-agent-g: fix status just-now zero formulae, add stats sort note"
 ```
 
-Append to `### Agent G — Completion Report` in this IMPL doc.
+Append to `### Agent G  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-g
 commit: {sha}
@@ -1110,10 +1110,10 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/root.go` — modify
-- `internal/app/root_test.go` — modify (or create if it doesn't exist)
-- `internal/app/watch.go` — modify
-- `internal/app/watch_test.go` — modify
+- `internal/app/root.go`  -  modify
+- `internal/app/root_test.go`  -  modify (or create if it doesn't exist)
+- `internal/app/watch.go`  -  modify
+- `internal/app/watch_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -1144,7 +1144,7 @@ Read `root.go` to understand how the cobra command is configured. Cobra's
 `SilenceErrors`/`SilenceUsage` settings and `RunE` on RootCmd may need adjustment.
 
 If cobra doesn't easily allow custom error text here, set a custom usage template or use
-`cobra.OnInitialize` / `cmd.SetHelpTemplate`. Do not fight cobra's error handling — find the
+`cobra.OnInitialize` / `cmd.SetHelpTemplate`. Do not fight cobra's error handling  -  find the
 path of least resistance that adds the valid commands line.
 
 **Finding 2 (UX-polish) in `watch.go`:** The watch command's `Long` description ends with
@@ -1158,9 +1158,9 @@ checking `watch --help` while waiting for tracking to appear.
 
 ## 5. Tests to Write
 
-1. `TestRootUnknownCommandIncludesValidCommands` — verifies that `brewprune blorp` error
+1. `TestRootUnknownCommandIncludesValidCommands`  -  verifies that `brewprune blorp` error
    output includes a list of valid command names (e.g., contains "scan" and "unused")
-2. `TestWatchHelpPollingNoteProminent` — verifies that "30 seconds" appears before the last
+2. `TestWatchHelpPollingNoteProminent`  -  verifies that "30 seconds" appears before the last
    line of the watch Long description (i.e., it is not the last sentence)
 
 ## 6. Verification Gate
@@ -1188,10 +1188,10 @@ git add internal/app/root.go internal/app/root_test.go internal/app/watch.go int
 git commit -m "wave1-agent-h: list valid commands in unknown subcommand error, move watch polling note"
 ```
 
-Append to `### Agent H — Completion Report` in this IMPL doc.
+Append to `### Agent H  -  Completion Report` in this IMPL doc.
 
 ```yaml
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-h
 commit: {sha}
@@ -1208,7 +1208,7 @@ verification: PASS | FAIL ({command})
 
 ---
 
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 
 ```yaml
 status: complete
@@ -1222,13 +1222,13 @@ tests_added:
   - TestProcessUsageLog_MultipleLinesRecorded
   - TestProcessUsageLog_LinuxbrewPathResolution
   - TestProcessUsageLog_OffsetAdvancesAfterInsert
-verification: PASS (go test ./... — 34/34 tests pass, 1 skipped)
+verification: PASS (go test ./...  -  34/34 tests pass, 1 skipped)
 ```
 
 **Root cause identified:** `bufio.Scanner` internal read-ahead. When the scanner is wrapping
 a file, its first `Read` call on the underlying `*os.File` typically reads the entire small file
 (or a 64KB chunk) into an internal buffer. After `scanner.Scan()` returns the first line,
-`f.Seek(0, io.SeekCurrent)` does NOT return the byte offset after that line — it returns
+`f.Seek(0, io.SeekCurrent)` does NOT return the byte offset after that line  -  it returns
 wherever the OS file cursor landed after the scanner's last `Read` call, which for a sub-64KB
 file is EOF.
 
@@ -1241,7 +1241,7 @@ at EOF, so nothing was re-scanned. The 5 unresolved events were permanently lost
 
 There was a second latent bug: when `maxShimLogLinesPerTick` is hit on a large file, the
 scanner would have buffered ahead past the cap boundary, causing `newOffset` to jump past
-lines that were never logically processed — silently skipping them on subsequent ticks.
+lines that were never logically processed  -  silently skipping them on subsequent ticks.
 
 **Fix applied:** Replaced `bufio.Scanner` with `bufio.Reader.ReadString('\n')` and manual
 per-line offset accumulation (`newOffset += int64(len(raw))`). This tracks exactly how many
@@ -1249,19 +1249,19 @@ bytes have been logically consumed from the reader's perspective, independent of
 read buffer position. Also added the Linuxbrew prefix
 (`/home/linuxbrew/.linuxbrew/bin/<name>`) to the opt-path lookup chain.
 
-**Confidence: high.** The scanner read-ahead behavior is verified experimentally — after
+**Confidence: high.** The scanner read-ahead behavior is verified experimentally  -  after
 reading 1 line from a 278-byte file with `bufio.Scanner`, `f.Seek(0, io.SeekCurrent)`
 returns 278. The `bufio.Reader` approach tracks bytes returned by `ReadString`, not OS
 cursor position.
 
 **For Wave 1 agents:** No store-layer changes needed. The fix is entirely within
 `ProcessUsageLog`. The Linuxbrew path resolution lookup was added in the opt-path chain
-(after the basename fallback, not before it — Linuxbrew is tertiary priority). Wave 1 agents
+(after the basename fallback, not before it  -  Linuxbrew is tertiary priority). Wave 1 agents
 working on unrelated files should not encounter conflicts.
 
 ---
 
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 
 ```yaml
 status: complete
@@ -1275,14 +1275,14 @@ out_of_scope_deps: []
 tests_added:
   - TestDoctorPipelineFailureMessage_DaemonRunningPathNotActive
   - TestDoctorPipelineFailureMessage_DaemonNotRunning
-verification: PASS (go test ./... — all 11 packages pass)
+verification: PASS (go test ./...  -  all 11 packages pass)
 ```
 
 Implementation notes: Two boolean variables (`shimPathActive`, `shimPathConfigured`) are now tracked before Check 6 and populated during the existing shim/PATH check so they are accessible at the pipeline failure branch in Check 8. The action message is now selected based on three conditions: (1) daemon running + shim dir in profile but not in active PATH → tells user to `source ~/.zprofile` (shell-specific via `detectShellConfig()`); (2) daemon not running → `watch --daemon` to start; (3) fallback → original "restart the daemon" message. `TestDoctorPipelineFailureMessage_DaemonNotRunning` exercises the skip path (not pipeline failure), since doctor skips the pipeline test when the daemon is not running, and verifies the daemon check action mentions `watch --daemon` and the skip message appears.
 
 ---
 
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 
 ```yaml
 status: complete
@@ -1296,12 +1296,12 @@ out_of_scope_deps: []
 tests_added:
   - TestQuickstartSuccessMessageWhenPathNotActive
   - TestQuickstartAlreadyConfiguredWording
-verification: PASS (go test ./... — 11/11 packages)
+verification: PASS (go test ./...  -  11/11 packages)
 ```
 
 All three findings addressed:
 
-- Finding 1: Introduced `pathNotActive` bool in the summary block. When true, heading reads "Setup complete — one step remains:" so the PATH warning block follows as the natural "one step." When false (PATH already active), heading stays "Setup complete!" with no warning block.
+- Finding 1: Introduced `pathNotActive` bool in the summary block. When true, heading reads "Setup complete  -  one step remains:" so the PATH warning block follows as the natural "one step." When false (PATH already active), heading stays "Setup complete!" with no warning block.
 - Finding 2: Changed "already in PATH" to "already configured in ~/.profile" to clarify the entry is in the profile file, not necessarily the live shell environment.
 - Finding 3: Added two sentences to the `Long` description: "The self-test takes approximately 30 seconds. If it fails, run 'brewprune doctor' to diagnose."
 
@@ -1309,7 +1309,7 @@ No existing test assertions referenced the old "Setup complete!" or "already in 
 
 ---
 
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 
 ```yaml
 status: complete
@@ -1325,12 +1325,12 @@ tests_added:
   - TestUnusedFooterNoHiddenWhenRiskyImplicit
   - TestUnusedSortAgeDirectionNote
   - TestUnusedAllTierMutualExclusiveError
-verification: PASS (go test ./... — all packages pass, 19/19 TestUnused* tests pass)
+verification: PASS (go test ./...  -  all packages pass, 19/19 TestUnused* tests pass)
 ```
 
 All four findings addressed:
 
-- **Finding 1 (double warning)**: Removed the second `showRiskyImplicit` banner block. Updated `checkUsageWarning` to accept a `showRiskyImplicit bool` parameter; when true, the consolidated warning includes "All tiers (including risky) are shown as a result." in the single block. The old separate `⚠ No usage data yet — showing all packages (risky tier included)` notice is gone.
+- **Finding 1 (double warning)**: Removed the second `showRiskyImplicit` banner block. Updated `checkUsageWarning` to accept a `showRiskyImplicit bool` parameter; when true, the consolidated warning includes "All tiers (including risky) are shown as a result." in the single block. The old separate `⚠ No usage data yet  -  showing all packages (risky tier included)` notice is gone.
 
 - **Finding 2 (footer contradiction)**: Fixed `RenderReclaimableFooter` call to pass `unusedAll || unusedTier != "" || showRiskyImplicit` as `showAll`, preventing the "(risky, hidden)" label when risky IS shown implicitly.
 
@@ -1342,7 +1342,7 @@ Tests run with `GOWORK=off` from the worktree root since the parent `go.work` on
 
 ---
 
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 
 ```yaml
 status: complete
@@ -1357,18 +1357,18 @@ tests_added:
   - TestRemoveSkippedSummaryAppearsAfterTable
   - TestRemoveMultiFlagErrorReportsAll
   - TestRemoveExplicitPackageNoExplicitlyInstalledWarning
-verification: PASS (go test ./... — 11/11 packages)
+verification: PASS (go test ./...  -  11/11 packages)
 ```
 
 All three findings implemented:
 
-- Finding 1: Skipped packages list now deferred until after the action table in both the explicit-args and tier-based branches. Tier-based branch emits `N packages skipped (locked by dependents) — run with --verbose to see details`; explicit-args branch emits a simpler summary (no verbose note, since no `--verbose` flag exists on the remove command).
+- Finding 1: Skipped packages list now deferred until after the action table in both the explicit-args and tier-based branches. Tier-based branch emits `N packages skipped (locked by dependents)  -  run with --verbose to see details`; explicit-args branch emits a simpler summary (no verbose note, since no `--verbose` flag exists on the remove command).
 - Finding 2: Multi-flag error now uses Oxford comma formatting for 3+ flags: `got --safe, --medium, and --risky`. Two-flag case unchanged: `got --safe and --medium`.
 - Finding 3: In the explicit-args branch, `ValidateRemoval` warnings containing "explicitly installed" are filtered out before display. Other warnings (e.g., "used recently") pass through unchanged.
 
 ---
 
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 
 ```yaml
 status: complete
@@ -1379,23 +1379,23 @@ files_changed:
   - internal/app/explain_test.go
 interface_deviations: []
 out_of_scope_deps:
-  - "1 used, N unused dependents" label — not generated in explain.go; search needed in output/ or analyzer/ packages (not modified per constraints)
+  - "1 used, N unused dependents" label  -  not generated in explain.go; search needed in output/ or analyzer/ packages (not modified per constraints)
 tests_added:
   - TestExplainMediumRecommendationIncludesDryRun
   - TestExplainSafeRecommendationIncludesDryRun
-verification: PASS (go test ./... — 11/11 packages)
+verification: PASS (go test ./...  -  11/11 packages)
 ```
 
 **Notes:**
 
 - MEDIUM recommendation updated: `"If certain, run 'brewprune remove git --dry-run' to preview, then without --dry-run to remove."`
-- SAFE recommendation also updated to include `--dry-run`: `"Run 'brewprune remove --safe --dry-run' to preview, then without --dry-run to remove all safe-tier packages."` The SAFE tier does not suggest `brewprune remove <pkg>` (per-package), it suggests `--safe` (bulk), but the same UX risk applies — a user following the advice would run `remove --safe` without a preview first.
+- SAFE recommendation also updated to include `--dry-run`: `"Run 'brewprune remove --safe --dry-run' to preview, then without --dry-run to remove all safe-tier packages."` The SAFE tier does not suggest `brewprune remove <pkg>` (per-package), it suggests `--safe` (bulk), but the same UX risk applies  -  a user following the advice would run `remove --safe` without a preview first.
 - Fix 3 ("1 used, N unused dependents" label): Not present in `explain.go` or `explain_test.go`. Likely generated in `internal/output/` or `internal/analyzer/`. Documented as out-of-scope per constraints.
 - Build and all tests pass with `GOWORK=off go test ./...`.
 
 ---
 
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 
 ```yaml
 status: complete
@@ -1412,18 +1412,18 @@ tests_added:
   - TestStatusLastScanNeverWhenZeroFormulae
   - TestStatsAllShowsSortNote
   - TestStatsSinglePackageNoSortNote
-verification: PASS (go test ./... — 11/11 packages)
+verification: PASS (go test ./...  -  11/11 packages)
 ```
 
 **Implementation notes:**
 
-Finding 1 (status.go): The "Last scan" line previously always used `formatDuration(time.Since(fi.ModTime()))`, which produced "just now" when `formulaeCount == 0` because `getDBPath()` creates the `.brewprune` directory as a side effect, making `os.Stat` succeed on a freshly-created directory. The fix checks `formulaeCount == 0` first and unconditionally sets `dbMtime = "never — run 'brewprune scan'"` in that case. The time-based path is only taken when formulae exist. This follows the same "never" string convention already used elsewhere in the file (e.g. `formatTime` returns "never" for zero `time.Time` values).
+Finding 1 (status.go): The "Last scan" line previously always used `formatDuration(time.Since(fi.ModTime()))`, which produced "just now" when `formulaeCount == 0` because `getDBPath()` creates the `.brewprune` directory as a side effect, making `os.Stat` succeed on a freshly-created directory. The fix checks `formulaeCount == 0` first and unconditionally sets `dbMtime = "never  -  run 'brewprune scan'"` in that case. The time-based path is only taken when formulae exist. This follows the same "never" string convention already used elsewhere in the file (e.g. `formatTime` returns "never" for zero `time.Time` values).
 
 Finding 2 (stats.go): Added a `fmt.Println("Sorted by: most used first")` call in `showUsageTrends` guarded by `len(filteredStats) > 1`, inserted just before the `output.RenderUsageTable` call. The `showPackageStats` path (single-package `--package` mode) is untouched, so the note never appears there. The guard `> 1` also suppresses the note for edge cases where only a single package ends up in the filtered set even with `--all`.
 
 ---
 
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 
 ```yaml
 status: complete
@@ -1439,16 +1439,16 @@ out_of_scope_deps: []
 tests_added:
   - TestRootUnknownCommandIncludesValidCommands
   - TestWatchHelpPollingNoteProminent
-verification: PASS (go test ./... — all packages pass)
+verification: PASS (go test ./...  -  all packages pass)
 ```
 
-**Approach for Finding 1 (root.go — unknown command error):**
+**Approach for Finding 1 (root.go  -  unknown command error):**
 
 Used a custom `Args` validator on `RootCmd` instead of intercepting cobra's error path. Cobra's `Find()` function checks whether `commandFound.Args == nil`: when nil it calls `legacyArgs` (which generates the plain "unknown command" error); when non-nil it returns `nil` and defers validation to `execute()` → `ValidateArgs()`. By setting a non-nil `Args` function that checks `len(args) > 0 && cmd.HasSubCommands()`, the custom error is generated inside `execute()` and propagated through cobra's standard error-printing path (`SilenceErrors: false`).
 
 The hardcoded `validCommandsList` constant was added as a package-level `var` alongside the other root command vars.
 
-**Approach for Finding 2 (watch.go — polling note prominence):**
+**Approach for Finding 2 (watch.go  -  polling note prominence):**
 
 Moved "Usage data is written every 30 seconds to minimise I/O overhead." from the last line of the `Long` description to the second line (immediately after the opening sentence). The note now appears in the first paragraph, before the detailed explanation of the shim log mechanism.
 

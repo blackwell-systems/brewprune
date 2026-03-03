@@ -1,4 +1,4 @@
-# IMPL: Cold-Start Audit Round 5 — Complete UX Fixes
+# IMPL: Cold-Start Audit Round 5  -  Complete UX Fixes
 
 ## Suitability Assessment
 
@@ -148,7 +148,7 @@ Wave 2:       [F] [G]            <- 2 parallel agents (critical PATH messaging f
 
 ## Agent Prompts
 
-### Agent A — Version Output Documentation
+### Agent A  -  Version Output Documentation
 
 **Scope:** Document version output behavior (improvement, not a bug)
 
@@ -175,11 +175,11 @@ go test ./internal/app -run TestRoot -skip TestDoctorHelpIncludesFixNote
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent A — Completion Report`
+**Completion report location:** `### Agent A  -  Completion Report`
 
 ---
 
-### Agent B — Undo Error Message Deduplication
+### Agent B  -  Undo Error Message Deduplication
 
 **Scope:** Fix duplicate error message in undo command
 
@@ -206,11 +206,11 @@ go test ./internal/app -run TestUndo -skip TestDoctorHelpIncludesFixNote
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent B — Completion Report`
+**Completion report location:** `### Agent B  -  Completion Report`
 
 ---
 
-### Agent C — Stats Output Pagination Tip
+### Agent C  -  Stats Output Pagination Tip
 
 **Scope:** Add helpful tip for long stats output
 
@@ -236,11 +236,11 @@ go test ./internal/app -run TestStats -skip TestDoctorHelpIncludesFixNote
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent C — Completion Report`
+**Completion report location:** `### Agent C  -  Completion Report`
 
 ---
 
-### Agent D — Explain ANSI Code Documentation
+### Agent D  -  Explain ANSI Code Documentation
 
 **Scope:** Document ANSI code visibility (not a brewprune bug)
 
@@ -267,11 +267,11 @@ go test ./internal/app -run TestExplain -skip TestDoctorHelpIncludesFixNote
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent D — Completion Report`
+**Completion report location:** `### Agent D  -  Completion Report`
 
 ---
 
-### Agent E — Unused Command Improvements
+### Agent E  -  Unused Command Improvements
 
 **Scope:** Fix 4 usability improvements in unused command
 
@@ -288,8 +288,8 @@ go test ./internal/app -run TestExplain -skip TestDoctorHelpIncludesFixNote
 
 2. **[UNUSED] "Last Used" column shows "never" for most packages** (UX-improvement, line 211-218 of audit)
    - Current: Fresh installs show "never" for all packages
-   - Expected: "not tracked (tracking started today)" OR just "—" to indicate no data
-   - Fix: Check tracking duration; if < 1 day, show "—" instead of "never"
+   - Expected: "not tracked (tracking started today)" OR just " - " to indicate no data
+   - Fix: Check tracking duration; if < 1 day, show " - " instead of "never"
 
 3. **[UNUSED] Data confidence indicator is helpful but subtle** (UX-polish, line 232-238 of audit)
    - Current: Footer shows "Confidence: MEDIUM (2 events, tracking for 0 days)" in plain text
@@ -315,11 +315,11 @@ go test ./internal/app -run TestUnused -skip TestDoctorHelpIncludesFixNote
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent E — Completion Report`
+**Completion report location:** `### Agent E  -  Completion Report`
 
 ---
 
-### Agent F — Status & Doctor PATH Messaging + Doctor Improvements
+### Agent F  -  Status & Doctor PATH Messaging + Doctor Improvements
 
 **Scope:** Fix critical PATH messaging conflicts and doctor command improvements
 
@@ -389,11 +389,11 @@ go test ./internal/app -run "TestDoctor|TestStatus" -skip TestDoctorHelpIncludes
 - Depends on `isConfiguredInShellProfile()` and `isOnPATH()` helpers (already exist)
 - Establishes PATH messaging conventions for Agent G to follow
 
-**Completion report location:** `### Agent F — Completion Report`
+**Completion report location:** `### Agent F  -  Completion Report`
 
 ---
 
-### Agent G — Quickstart Messaging Improvements
+### Agent G  -  Quickstart Messaging Improvements
 
 **Scope:** Fix critical post-quickstart tracking status messaging
 
@@ -406,11 +406,11 @@ go test ./internal/app -run "TestDoctor|TestStatus" -skip TestDoctorHelpIncludes
 **CRITICAL:**
 
 1. **[SETUP] PATH configuration is confusing after quickstart** (UX-critical, line 80-93 of audit)
-   - Current: Step 4/4 says "✓ Tracking verified — brewprune is working"
+   - Current: Step 4/4 says "✓ Tracking verified  -  brewprune is working"
    - Problem: This message appears even when PATH isn't active in current shell
    - Fix: Qualify the success message:
      - If PATH not active: "✓ Self-test passed (tracking will work after shell restart)"
-     - If PATH active: "✓ Tracking verified — brewprune is working"
+     - If PATH active: "✓ Tracking verified  -  brewprune is working"
 
 2. **[SETUP] Quickstart daemon startup uses confusing dots animation** (UX-polish, line 125-139 of audit)
    - Current: "Starting daemon......" with ambiguous dots
@@ -433,7 +433,7 @@ go test ./internal/app -run TestQuickstart -skip TestDoctorHelpIncludesFixNote
 - Follows PATH messaging conventions established by Agent F
 - Uses existing `output.Spinner` (no interface changes)
 
-**Completion report location:** `### Agent G — Completion Report`
+**Completion report location:** `### Agent G  -  Completion Report`
 
 ---
 
@@ -441,7 +441,7 @@ go test ./internal/app -run TestQuickstart -skip TestDoctorHelpIncludesFixNote
 
 After each wave completes:
 
-1. **Read completion reports** from `### Agent X — Completion Report` sections below
+1. **Read completion reports** from `### Agent X  -  Completion Report` sections below
    - Check for interface contract deviations
    - Note any out-of-scope dependencies discovered during implementation
 
@@ -505,7 +505,7 @@ After each wave completes:
 
 ## Completion Reports
 
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 
 **Files modified:**
 - `/Users/dayna.blackwell/code/brewprune/internal/app/root.go` (doc comment already present)
@@ -554,7 +554,7 @@ ok  	github.com/blackwell-systems/brewprune/internal/app	0.539s
 
 ---
 
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 
 **Files modified:**
 - None (verification only - implementation already correct)
@@ -642,7 +642,7 @@ Manual testing confirms the error message appears exactly once with the helpful 
 
 ---
 
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 
 **Files modified:**
 - `/Users/dayna.blackwell/code/brewprune/internal/app/stats.go` (added pagination tip)
@@ -694,7 +694,7 @@ ok  	github.com/blackwell-systems/brewprune/internal/app	0.383s
 
 ---
 
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 
 **Files modified:**
 - `/Users/dayna.blackwell/code/brewprune/internal/app/explain.go` (added doc comment)
@@ -725,7 +725,7 @@ ok  	github.com/blackwell-systems/brewprune/internal/app	0.859s
 
 ---
 
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 
 **Files modified:**
 - `/Users/dayna.blackwell/code/brewprune/internal/app/unused.go` (added ANSI color codes to confidence assessment)
@@ -742,7 +742,7 @@ ok  	github.com/blackwell-systems/brewprune/internal/app	0.859s
 2. **"Last Used" shows "never" for fresh installs** - Already implemented (lines 327-342 of unused.go, 350-354 of table.go)
    - Checks if tracking has been active for less than 1 day
    - Uses sentinel time value (Unix timestamp 1) to signal "not enough tracking data yet"
-   - Displays "—" instead of "never" when tracking < 24 hours
+   - Displays " - " instead of "never" when tracking < 24 hours
    - Added test `TestFreshInstallLastUsedDisplay` to verify behavior
 
 3. **Confidence indicator color** - Implemented
@@ -800,13 +800,13 @@ ok  	github.com/blackwell-systems/brewprune/internal/output	3.166s
 
 **Recommendations:**
 - The color-coded confidence indicator significantly improves visibility of the confidence level
-- The "—" vs "never" distinction helps users understand when tracking data is insufficient (fresh install) vs when a package has genuinely never been used (after sufficient tracking)
+- The " - " vs "never" distinction helps users understand when tracking data is insufficient (fresh install) vs when a package has genuinely never been used (after sufficient tracking)
 - The min-score clarification message addresses user confusion about why displayed counts don't match tier header counts
 - The terminology consistency fix ("~ medium" instead of "~ review") aligns status labels with tier names used throughout the codebase
 
 ---
 
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 
 **Isolation verification:** ✅ SUCCESS (after cd to worktree)
 
@@ -961,7 +961,7 @@ Running brewprune diagnostics...
 
 ---
 
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 
 **Isolation verification:** ✅ SUCCESS (after cd to worktree)
 
@@ -980,7 +980,7 @@ Initial attempt to verify isolation from `/Users/dayna.blackwell/code/gsm` faile
    - Modified Step 4/4 self-test success message to reflect actual PATH status
    - Implementation uses `isOnPATH()` and `isConfiguredInShellProfile()` helpers from `status.go` (established by Agent F)
    - Three-state messaging follows PATH messaging conventions:
-     - **PATH active**: "✓ Tracking verified — brewprune is working"
+     - **PATH active**: "✓ Tracking verified  -  brewprune is working"
      - **PATH configured but not active**: "✓ Self-test passed (tracking will work after shell restart)"
      - **PATH missing entirely**: "✓ Self-test passed (run 'brewprune doctor' to check PATH)"
    - This prevents misleading "brewprune is working" message when PATH setup requires shell restart

@@ -1,4 +1,4 @@
-# brewprune Cold-Start UX Audit — Round 4
+# brewprune Cold-Start UX Audit  -  Round 4
 
 **Date:** 2026-02-28
 **Environment:** Docker container `bp-audit4`, brewprune installed at `/home/linuxbrew/.linuxbrew/bin/brewprune`
@@ -65,12 +65,12 @@
 ### [SETUP] Quickstart writes PATH to .profile twice
 - **Severity:** UX-critical
 - **What happens:** Quickstart adds the PATH export to `/home/brewuser/.profile` twice, resulting in duplicate entries ("# brewprune shims" + export line appears twice)
-- **Expected:** Idempotent config modification — should detect existing entries and not duplicate them
+- **Expected:** Idempotent config modification  -  should detect existing entries and not duplicate them
 - **Repro:** `grep brewprune ~/.profile` shows 4 lines (2 duplicate sets)
 
 ### [SETUP] PATH status messages contradict each other
 - **Severity:** UX-improvement
-- **What happens:** Status and doctor both report "PATH configured (restart shell to activate)" but also warn "⚠ Shim directory not in PATH — executions won't be intercepted". These messages contradict each other.
+- **What happens:** Status and doctor both report "PATH configured (restart shell to activate)" but also warn "⚠ Shim directory not in PATH  -  executions won't be intercepted". These messages contradict each other.
 - **Expected:** Clear distinction between "written to shell config" vs "active in current session"
 - **Repro:**
 ```bash
@@ -99,7 +99,7 @@ docker exec bp-audit4 brewprune doctor
 
 ---
 
-## Area 3: Core Feature — Unused Package Detection
+## Area 3: Core Feature  -  Unused Package Detection
 
 ### [UNUSED] Verbose mode output is extremely long
 - **Severity:** UX-improvement
@@ -145,7 +145,7 @@ docker exec bp-audit4 brewprune doctor
 
 ## Area 4: Data / Tracking
 
-### [TRACKING] Silent tracking failure — no warning when shims don't intercept
+### [TRACKING] Silent tracking failure  -  no warning when shims don't intercept
 - **Severity:** UX-critical
 - **What happens:** After running `git --version && jq --version && fd --version` in the container, the event count didn't increase (remained at 2). This means shims aren't working, but the user gets no feedback about this critical failure.
 - **Expected:** Either status should show "⚠ shims not active - no events in last 30s" warning, or doctor should fail if events aren't being logged
@@ -247,7 +247,7 @@ docker exec bp-audit4 brewprune status
 
 ### [DOCTOR] Pipeline test failure message too technical
 - **Severity:** UX-polish
-- **What happens:** Error says "no usage event recorded after 35.322s (waited 35s) — shim executed git but daemon did not write to database"
+- **What happens:** Error says "no usage event recorded after 35.322s (waited 35s)  -  shim executed git but daemon did not write to database"
 - **Expected:** Simplify: "Pipeline test failed: shim logged event but daemon didn't process it (timeout after 35s). Try: brewprune watch --daemon"
 - **Repro:** `docker exec bp-audit4 brewprune doctor` (with daemon stopped)
 
@@ -279,7 +279,7 @@ docker exec bp-audit4 brewprune status
 
 ### [EDGE] Nonexistent database path gives misleading message
 - **Severity:** UX-critical
-- **What happens:** `brewprune --db /nonexistent/path.db status` shows "brewprune is not set up — run 'brewprune scan' to get started." This is misleading because the issue is the wrong path, not lack of setup.
+- **What happens:** `brewprune --db /nonexistent/path.db status` shows "brewprune is not set up  -  run 'brewprune scan' to get started." This is misleading because the issue is the wrong path, not lack of setup.
 - **Expected:** "Error: database not found at /nonexistent/path.db. Check --db path or run quickstart."
 - **Repro:** `docker exec bp-audit4 brewprune --db /nonexistent/path.db status`
 
@@ -331,7 +331,7 @@ docker exec bp-audit4 brewprune status
 
 ## Priority Recommendations
 
-### P0 — Must Fix (UX-Critical)
+### P0  -  Must Fix (UX-Critical)
 
 1. **Add --version flag** - Standard CLI feature
 2. **Fix error message 4x duplication** - Remove duplicate handlers in Execute() or main()
@@ -341,7 +341,7 @@ docker exec bp-audit4 brewprune status
 6. **Fix misleading "not set up" for wrong DB path** - Distinguish path error from setup error
 7. **Fix help display exit code** - Should exit 0, not 1
 
-### P1 — Should Fix (UX-Improvement)
+### P1  -  Should Fix (UX-Improvement)
 
 8. Resolve PATH status message contradictions (configured vs active)
 9. Make doctor exit 0 for warnings, 1 for failures only
@@ -354,7 +354,7 @@ docker exec bp-audit4 brewprune status
 16. Add progress indicators with time estimates for long operations
 17. Distinguish self-test events from real usage events
 
-### P2 — Nice to Have (UX-Polish)
+### P2  -  Nice to Have (UX-Polish)
 
 18. Consistent size formatting (KB vs MB threshold at 1024)
 19. Sort stats --all output meaningfully

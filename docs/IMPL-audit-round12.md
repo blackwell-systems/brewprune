@@ -10,14 +10,14 @@
 
 **Verdict: SUITABLE**
 
-All 17 findings decompose into disjoint file ownership across five parallel agents. One finding (#2, daemon offset) required careful root-cause investigation during scouting (see below). No cross-agent interfaces are required beyond the pre-existing `ProcessUsageLog` / `store.Store` signatures — all changes are self-contained.
+All 17 findings decompose into disjoint file ownership across five parallel agents. One finding (#2, daemon offset) required careful root-cause investigation during scouting (see below). No cross-agent interfaces are required beyond the pre-existing `ProcessUsageLog` / `store.Store` signatures  -  all changes are self-contained.
 
 ### Pre-implementation scan results
 
 | # | Finding | Severity | Status | Notes |
 |---|---------|----------|--------|-------|
 | 1 | `-v` fails instead of printing version | UX-critical | To-do | root.go: register `-v` as shorthand for `--version` |
-| 2 | Daemon skips events written before first cycle | UX-critical | To-do | root cause identified — see below |
+| 2 | Daemon skips events written before first cycle | UX-critical | To-do | root cause identified  -  see below |
 | 3 | `remove` exits 0 when all packages locked/skipped | UX-critical | To-do | remove.go: return error instead of nil |
 | 4 | Score inconsistency: `unused --verbose` vs `explain` | UX-improvement | To-do | Both call ComputeScore; inconsistency is display framing |
 | 5 | `explain` doesn't list dependent package names | UX-improvement | To-do | explain.go: call store.GetDependents, list names |
@@ -42,19 +42,19 @@ All 17 findings decompose into disjoint file ownership across five parallel agen
 - **Finding #12 (skipped warning placement):** `remove.go` lines 213-220 (tier path) print `lockedPackages` summary AFTER `displayConfidenceScores()`. Status: ALREADY FIXED.
 - **Finding #14 (alias tip):** `doctor.go` line 226 guards the aliases tip with `criticalIssues == 0 && (!daemonRunning || totalUsageEvents < 10)`. Status: ALREADY FIXED.
 
-**Root cause — Finding #2 (daemon offset):**
+**Root cause  -  Finding #2 (daemon offset):**
 
 The audit reports `usage.offset = 267`, `usage.log size = 267`. This means the offset file was written to EOF, so `ProcessUsageLog` finds offset == file size and reads 0 new lines.
 
 Looking at `shim_processor.go` lines 181-187: when all lines are read but none resolved (i.e., `len(events) == 0`), the code still advances `newOffset` to the scanned position and writes it to the offset file. This occurs at startup when:
 
 1. Daemon starts, `Watcher.Start()` calls `ProcessUsageLog()` immediately (fsevents.go line 45).
-2. The binary maps (`binaryMap`, `optPathMap`) are built from the store — but if the store's package index is stale or the packages weren't committed to WAL yet, the maps may be empty.
+2. The binary maps (`binaryMap`, `optPathMap`) are built from the store  -  but if the store's package index is stale or the packages weren't committed to WAL yet, the maps may be empty.
 3. With empty maps, all log lines are skipped (`stats.Skipped++`, not `stats.Resolved++`), `events` stays empty.
 4. But `newOffset` has advanced to the end of the file (all lines were consumed by the reader).
-5. Lines 181-184: `len(events) == 0` branch writes `newOffset` to the offset file — permanently skipping those entries.
+5. Lines 181-184: `len(events) == 0` branch writes `newOffset` to the offset file  -  permanently skipping those entries.
 
-**Fix:** In the `len(events) == 0` branch, only advance the offset if at least one package was indexed (i.e., `len(binaryMap) > 0 || len(optPathMap) > 0`). If no packages are indexed at all, do NOT advance the offset — the entries should be retried on the next tick when scan may have completed. Add a `ProcessingStats.SkippedNoIndex` field to distinguish "binary not found" skips from "no packages indexed" state.
+**Fix:** In the `len(events) == 0` branch, only advance the offset if at least one package was indexed (i.e., `len(binaryMap) > 0 || len(optPathMap) > 0`). If no packages are indexed at all, do NOT advance the offset  -  the entries should be retried on the next tick when scan may have completed. Add a `ProcessingStats.SkippedNoIndex` field to distinguish "binary not found" skips from "no packages indexed" state.
 
 **To-do count:** 12 findings
 **Already fixed:** 5 findings (6, 7, 8, 12, 14)
@@ -70,7 +70,7 @@ None that affect the wave structure. The score inconsistency (finding #4) is a f
 ## Dependency Graph
 
 ```
-Wave 1 (all parallel — no cross-agent dependencies):
+Wave 1 (all parallel  -  no cross-agent dependencies):
   Agent A: root.go               (findings #1, #10, #15)
   Agent B: internal/watcher/     (finding #2)
   Agent C: internal/app/remove.go (findings #3, #13, #17)
@@ -78,7 +78,7 @@ Wave 1 (all parallel — no cross-agent dependencies):
   Agent E: internal/app/stats.go + internal/app/unused.go + internal/app/scan.go
            (findings #9, #11)
 
-No Wave 2 required — all findings are independent.
+No Wave 2 required  -  all findings are independent.
 ```
 
 ---
@@ -123,7 +123,7 @@ if len(packagesToRemove) == 0 {
 }
 ```
 
-The error causes `cobra` to print it and exit 1 via `main.go`'s error handling. Do NOT call `os.Exit(1)` directly — let cobra handle it so the error message is consistent.
+The error causes `cobra` to print it and exit 1 via `main.go`'s error handling. Do NOT call `os.Exit(1)` directly  -  let cobra handle it so the error message is consistent.
 
 ### Agent D: explain.go dependent list format
 
@@ -134,7 +134,7 @@ New output block after the Dependencies line in `renderExplanation`:
   Depended on by: curl, libssh2, krb5, ... (up to 8 names, then "and N more")
 ```
 
-Uses `store.GetDependents(packageName)` which already exists in `queries.go`. The `explain.go` function already calls `a.ComputeScore(packageName)` which internally calls `store.GetDependents` — but the result is not surfaced to the display layer. Agent D must call `st.GetDependents(packageName)` directly in `runExplain` and pass the slice to `renderExplanation`.
+Uses `store.GetDependents(packageName)` which already exists in `queries.go`. The `explain.go` function already calls `a.ComputeScore(packageName)` which internally calls `store.GetDependents`  -  but the result is not surfaced to the display layer. Agent D must call `st.GetDependents(packageName)` directly in `runExplain` and pass the slice to `renderExplanation`.
 
 `renderExplanation` signature change:
 ```go
@@ -163,7 +163,7 @@ Only `runExplain` calls `renderExplanation`. No cross-agent impact.
 | `internal/output/table.go` | D | #16 (verbose Breakdown header) |
 | `internal/app/stats.go` | E | #9, #11 (stats prereq) |
 | `internal/app/unused.go` | E | #11 (unused prereq) |
-| `internal/app/scan.go` | E | #11 (scan prereq note — not needed, scan is the prereq) |
+| `internal/app/scan.go` | E | #11 (scan prereq note  -  not needed, scan is the prereq) |
 | `internal/app/stats_test.go` | E | tests for #9 |
 | `internal/app/unused_test.go` | E | tests for #11 |
 
@@ -173,7 +173,7 @@ Only `runExplain` calls `renderExplanation`. No cross-agent impact.
 
 ## Wave Structure
 
-### Wave 1 — Single wave, all agents parallel
+### Wave 1  -  Single wave, all agents parallel
 
 All five agents may start simultaneously. There are no shared files and no interface dependencies between agents.
 
@@ -196,7 +196,7 @@ Wave 1:
 
 ---
 
-### Agent A — Root Command: `-v` shorthand, help flag listing, unknown-flag `--help` suggestion
+### Agent A  -  Root Command: `-v` shorthand, help flag listing, unknown-flag `--help` suggestion
 
 **1. Role**
 
@@ -204,7 +204,7 @@ Fix three root-command UX issues: register `-v` as the shorthand for `--version`
 
 **2. Context**
 
-Finding #1: `brewprune -v` errors with "unknown shorthand flag: 'v' in -v". The comment in `root.go` line 112 says `-v` is "reserved for --verbose in subcommands" — but cobra shorthand flags are scoped per command, so `-v` on root and `-v` on `unused` (a subcommand) do NOT conflict. The unused subcommand registers its own `-v` shorthand at the subcommand level (unused.go line 83: `BoolVarP(&unusedVerbose, "verbose", "v", false, ...)`), which is independent of the root command's flags.
+Finding #1: `brewprune -v` errors with "unknown shorthand flag: 'v' in -v". The comment in `root.go` line 112 says `-v` is "reserved for --verbose in subcommands"  -  but cobra shorthand flags are scoped per command, so `-v` on root and `-v` on `unused` (a subcommand) do NOT conflict. The unused subcommand registers its own `-v` shorthand at the subcommand level (unused.go line 83: `BoolVarP(&unusedVerbose, "verbose", "v", false, ...)`), which is independent of the root command's flags.
 
 Finding #10: Once `-v` is registered, `brewprune --help` will show `-v, --version` in the Flags section automatically (cobra behavior). No separate fix needed.
 
@@ -259,12 +259,12 @@ In `root_test.go`:
   }
   ```
 
-- `TestRootVersionFlagShorthand_PrintsVersion` — new test that calls `RootCmd.RunE` with `versionFlag = true` and verifies the version string is printed (mirrors `TestRootCmd_BareInvocationShowsHelp` pattern):
+- `TestRootVersionFlagShorthand_PrintsVersion`  -  new test that calls `RootCmd.RunE` with `versionFlag = true` and verifies the version string is printed (mirrors `TestRootCmd_BareInvocationShowsHelp` pattern):
   ```go
   func TestRootVersionFlagShorthand_PrintsVersion(t *testing.T) { ... }
   ```
 
-- `TestUnknownFlagSuggestsHelp` — new test that calls a subcommand's `FlagErrorFunc` with a synthetic error and verifies the "Run 'brewprune <cmd> --help'" suffix appears.
+- `TestUnknownFlagSuggestsHelp`  -  new test that calls a subcommand's `FlagErrorFunc` with a synthetic error and verifies the "Run 'brewprune <cmd> --help'" suffix appears.
 
 **7. Verification gate**
 
@@ -278,7 +278,7 @@ go test ./internal/app -run TestUnknownFlag -v
 
 **8. Out-of-scope**
 
-- Do NOT modify `unused.go` or its `-v` shorthand — that is Agent E's file and the subcommand flag does not conflict.
+- Do NOT modify `unused.go` or its `-v` shorthand  -  that is Agent E's file and the subcommand flag does not conflict.
 - Do NOT modify any other subcommand's flag definitions.
 - Do NOT change the `validCommandsList` string.
 
@@ -306,7 +306,7 @@ notes: ""
 
 ---
 
-### Agent B — Watcher: Daemon Offset Initialization Bug
+### Agent B  -  Watcher: Daemon Offset Initialization Bug
 
 **1. Role**
 
@@ -322,10 +322,10 @@ Finding #2: After `scan` + `watch --daemon` + 5 shim commands + `sleep 35`, stat
 3. All log lines are read from offset. For each line, the binary name is looked up in the maps.
 4. **If the maps are empty** (no packages indexed, or store not yet populated), every line fails lookup → `stats.Skipped++` → line is not added to `events`.
 5. After the read loop, `newOffset` has advanced past all read lines.
-6. In the `len(events) == 0` branch (lines 181-187), **`newOffset != offset`** so `writeShimOffsetAtomic` is called — permanently advancing the offset to EOF.
+6. In the `len(events) == 0` branch (lines 181-187), **`newOffset != offset`** so `writeShimOffsetAtomic` is called  -  permanently advancing the offset to EOF.
 7. On the next tick, `readShimOffset` returns the EOF offset → no lines are read → events stay at 0 forever.
 
-The fix: in the `len(events) == 0` branch, only write the new offset when the package maps are non-empty. If both maps are empty, the skip was due to "no packages indexed", not "binary not found" — retain the old offset so entries are retried.
+The fix: in the `len(events) == 0` branch, only write the new offset when the package maps are non-empty. If both maps are empty, the skip was due to "no packages indexed", not "binary not found"  -  retain the old offset so entries are retried.
 
 **3. Files owned**
 
@@ -334,7 +334,7 @@ The fix: in the `len(events) == 0` branch, only write the new offset when the pa
 
 **4. Interface contracts**
 
-Add `SkippedNoIndex int` field to `ProcessingStats` (new, additive — callers that ignore it are unaffected):
+Add `SkippedNoIndex int` field to `ProcessingStats` (new, additive  -  callers that ignore it are unaffected):
 
 ```go
 type ProcessingStats struct {
@@ -359,11 +359,11 @@ type ProcessingStats struct {
    ```go
    if len(events) == 0 {
        if noPackagesIndexed {
-           // No packages are indexed — do NOT advance offset.
+           // No packages are indexed  -  do NOT advance offset.
            // Retain current offset so these entries are retried on next tick
            // after 'brewprune scan' has populated the database.
            stats.SkippedNoIndex = stats.LinesRead // all read lines were retained
-           log.Printf("shim_processor: offset not advanced (no packages indexed yet — run 'brewprune scan')")
+           log.Printf("shim_processor: offset not advanced (no packages indexed yet  -  run 'brewprune scan')")
            return stats, nil
        }
        // Advance offset even if no events matched (skip unknown binaries).
@@ -374,15 +374,15 @@ type ProcessingStats struct {
    }
    ```
 
-4. **Update `logProcessingStats`** in `fsevents.go` to log `SkippedNoIndex` if non-zero — but `fsevents.go` is NOT in Agent B's file list. Instead, add a `log.Printf` inside `ProcessUsageLog` itself (already done in step 3 above).
+4. **Update `logProcessingStats`** in `fsevents.go` to log `SkippedNoIndex` if non-zero  -  but `fsevents.go` is NOT in Agent B's file list. Instead, add a `log.Printf` inside `ProcessUsageLog` itself (already done in step 3 above).
 
-   Actually: `fsevents.go` is also in `internal/watcher/` — Agent B owns all of `internal/watcher/`. Agent B **may** update `fsevents.go`'s `logProcessingStats` to print `SkippedNoIndex`, but this is optional and low-priority.
+   Actually: `fsevents.go` is also in `internal/watcher/`  -  Agent B owns all of `internal/watcher/`. Agent B **may** update `fsevents.go`'s `logProcessingStats` to print `SkippedNoIndex`, but this is optional and low-priority.
 
 **6. Tests to write/update**
 
 In `shim_processor_test.go`, add:
 
-- `TestProcessUsageLog_EmptyMapsDoNotAdvanceOffset` — creates a temp `usage.log` with valid entries, creates an in-memory store WITHOUT any packages (so maps are empty), calls `ProcessUsageLog`, then reads `usage.offset` and asserts it is still 0 (not advanced):
+- `TestProcessUsageLog_EmptyMapsDoNotAdvanceOffset`  -  creates a temp `usage.log` with valid entries, creates an in-memory store WITHOUT any packages (so maps are empty), calls `ProcessUsageLog`, then reads `usage.offset` and asserts it is still 0 (not advanced):
   ```go
   func TestProcessUsageLog_EmptyMapsDoNotAdvanceOffset(t *testing.T) {
       // arrange: temp home, usage.log with 3 valid lines, empty store (no packages)
@@ -392,9 +392,9 @@ In `shim_processor_test.go`, add:
   }
   ```
 
-- `TestProcessUsageLog_WithPackagesAdvancesOffset` — control test: same log + store WITH packages → offset IS advanced and events inserted.
+- `TestProcessUsageLog_WithPackagesAdvancesOffset`  -  control test: same log + store WITH packages → offset IS advanced and events inserted.
 
-- `TestProcessUsageLog_PartialMapsAdvanceOffset` — store has one package (maps non-empty), log has entries for that package AND unknown binaries → offset advances (the one known event is resolved, unknown entries become `stats.Skipped`).
+- `TestProcessUsageLog_PartialMapsAdvanceOffset`  -  store has one package (maps non-empty), log has entries for that package AND unknown binaries → offset advances (the one known event is resolved, unknown entries become `stats.Skipped`).
 
 **7. Verification gate**
 
@@ -408,7 +408,7 @@ go test ./internal/watcher -v
 
 **8. Out-of-scope**
 
-- Do NOT modify `fsevents.go`'s Watcher start sequence — the fix is entirely in `ProcessUsageLog`.
+- Do NOT modify `fsevents.go`'s Watcher start sequence  -  the fix is entirely in `ProcessUsageLog`.
 - Do NOT change the 30-second ticker interval.
 - Do NOT modify any `internal/app/` files.
 
@@ -432,7 +432,7 @@ notes: ""
 
 ---
 
-### Agent C — Remove Command: Exit Code, Dry-Run Banner, `--no-snapshot` Warning
+### Agent C  -  Remove Command: Exit Code, Dry-Run Banner, `--no-snapshot` Warning
 
 **1. Role**
 
@@ -442,7 +442,7 @@ Fix three `remove` command UX issues: exit 1 when nothing is removed due to all 
 
 Finding #3: `brewprune remove openssl@3` prints "No packages to remove." and exits 0. Scripting users cannot detect the "nothing removed" case. The fix is to return an error (not nil) when `packagesToRemove` is empty after dep-lock filtering.
 
-Finding #17: `remove --dry-run` shows "Dry-run mode: no packages will be removed." only at the very bottom after the full summary. A user who pipes the output or whose terminal scrolls may miss this. Fix: print a "DRY RUN — NO CHANGES WILL BE MADE" banner immediately after the table header line, before the package table.
+Finding #17: `remove --dry-run` shows "Dry-run mode: no packages will be removed." only at the very bottom after the full summary. A user who pipes the output or whose terminal scrolls may miss this. Fix: print a "DRY RUN  -  NO CHANGES WILL BE MADE" banner immediately after the table header line, before the package table.
 
 Finding #13: `--no-snapshot` flag description "(dangerous)" in the Examples section is too subtle. The flag's `Usage` string in `init()` currently reads "Skip automatic snapshot creation (dangerous)". Fix: change it to "Skip automatic snapshot creation [WARNING: removal cannot be undone]".
 
@@ -458,13 +458,13 @@ The exit-code fix must use `return fmt.Errorf(...)` (not `os.Exit`) so cobra han
 ```go
 if len(packagesToRemove) == 0 {
     fmt.Println("No packages to remove.")
-    return fmt.Errorf("all candidates were skipped (locked by dependents) — run with --verbose for details")
+    return fmt.Errorf("all candidates were skipped (locked by dependents)  -  run with --verbose for details")
 }
 ```
 
 **5. Implementation tasks**
 
-1. **Finding #3 — exit 1 on no-op removal** (remove.go lines 223-226):
+1. **Finding #3  -  exit 1 on no-op removal** (remove.go lines 223-226):
    ```go
    // Before:
    if len(packagesToRemove) == 0 {
@@ -474,12 +474,12 @@ if len(packagesToRemove) == 0 {
    // After:
    if len(packagesToRemove) == 0 {
        fmt.Println("No packages to remove.")
-       return fmt.Errorf("all candidates were skipped (locked by dependents) — run with --verbose for details")
+       return fmt.Errorf("all candidates were skipped (locked by dependents)  -  run with --verbose for details")
    }
    ```
    This applies to BOTH the explicit-package path and the tier-based path. In the explicit path the empty-list case means all specified packages were dep-locked. In the tier-based path it means all tier packages were dep-locked. Both should exit 1.
 
-2. **Finding #17 — DRY RUN banner at top** (remove.go). The dry-run banner must appear BEFORE the package table, immediately after the "Packages to remove (X tier):" label line. Currently the flow is:
+2. **Finding #17  -  DRY RUN banner at top** (remove.go). The dry-run banner must appear BEFORE the package table, immediately after the "Packages to remove (X tier):" label line. Currently the flow is:
    ```
    fmt.Printf("\nPackages to remove (%s tier):\n\n", tier)
    displayConfidenceScores(st, scores)
@@ -490,14 +490,14 @@ if len(packagesToRemove) == 0 {
    fmt.Printf("\nPackages to remove (%s tier):\n", tier)
    if removeFlagDryRun {
        fmt.Println()
-       fmt.Println("  *** DRY RUN — NO CHANGES WILL BE MADE ***")
+       fmt.Println("  *** DRY RUN  -  NO CHANGES WILL BE MADE ***")
    }
    fmt.Println()
    displayConfidenceScores(st, scores)
    ```
    Apply the same pattern in the explicit-package path (the `fmt.Printf("\nPackages to remove (explicit):\n\n"` block).
 
-3. **Finding #13 — `--no-snapshot` flag warning** (remove.go `init()` line 74):
+3. **Finding #13  -  `--no-snapshot` flag warning** (remove.go `init()` line 74):
    ```go
    // Before:
    removeCmd.Flags().BoolVar(&removeFlagNoSnapshot, "no-snapshot", false, "Skip automatic snapshot creation (dangerous)")
@@ -509,7 +509,7 @@ if len(packagesToRemove) == 0 {
 
 In `remove_test.go`:
 
-- `TestRemoveAllLockedExitsNonZero` — new test that simulates `packagesToRemove` being empty after filtering and verifies the returned error is non-nil:
+- `TestRemoveAllLockedExitsNonZero`  -  new test that simulates `packagesToRemove` being empty after filtering and verifies the returned error is non-nil:
   ```go
   func TestRemoveAllLockedExitsNonZero(t *testing.T) {
       // Test the empty packagesToRemove branch logic
@@ -518,14 +518,14 @@ In `remove_test.go`:
   }
   ```
 
-- `TestDryRunBannerAppearsAtTop` — new test that verifies the DRY RUN banner string appears in output before the table header. Can be done by capturing stdout and checking string positions:
+- `TestDryRunBannerAppearsAtTop`  -  new test that verifies the DRY RUN banner string appears in output before the table header. Can be done by capturing stdout and checking string positions:
   ```go
   func TestDryRunBannerAppearsAtTop(t *testing.T) {
       // Verify "DRY RUN" appears before any package name in the output
   }
   ```
 
-- `TestNoSnapshotFlagDescription` — new test that checks the `--no-snapshot` flag usage string contains "WARNING":
+- `TestNoSnapshotFlagDescription`  -  new test that checks the `--no-snapshot` flag usage string contains "WARNING":
   ```go
   func TestNoSnapshotFlagDescription(t *testing.T) {
       flag := removeCmd.Flags().Lookup("no-snapshot")
@@ -552,7 +552,7 @@ go test ./internal/app -run TestNoSnapshot -v
 - Do NOT modify `output/table.go` or `explain.go`.
 - Do NOT change the `displayConfidenceScores` function signature.
 - Do NOT change confirmation logic for non-dry-run removals.
-- The existing "Dry-run mode: no packages will be removed." line at the bottom should remain — the fix adds a banner at the TOP, it does not remove the bottom notice.
+- The existing "Dry-run mode: no packages will be removed." line at the bottom should remain  -  the fix adds a banner at the TOP, it does not remove the bottom notice.
 
 **9. Completion report format**
 
@@ -574,7 +574,7 @@ notes: ""
 
 ---
 
-### Agent D — Explain Command: Dependent Names List + Score Framing Consistency
+### Agent D  -  Explain Command: Dependent Names List + Score Framing Consistency
 
 **1. Role**
 
@@ -631,7 +631,7 @@ if err != nil {
 
 **5. Implementation tasks**
 
-1. **Finding #5 — list dependent names** (explain.go):
+1. **Finding #5  -  list dependent names** (explain.go):
 
    In `runExplain` (after `a.ComputeScore`), retrieve dependents:
    ```go
@@ -658,7 +658,7 @@ if err != nil {
    }
    ```
 
-2. **Finding #16 — score framing consistency** (output/table.go `RenderConfidenceTableVerbose`):
+2. **Finding #16  -  score framing consistency** (output/table.go `RenderConfidenceTableVerbose`):
 
    After line 236 (`sb.WriteString("\nBreakdown:\n")`), add:
    ```go
@@ -679,16 +679,16 @@ if err != nil {
 
 In `explain_test.go`:
 
-- `TestRenderExplanation_ListsDependentNames` — creates a `ConfidenceScore` with `DepsScore=0`, calls `renderExplanation` with `dependents=[]string{"curl","libssh2","krb5"}`, captures stdout, asserts "Depended on by:" and the package names appear:
+- `TestRenderExplanation_ListsDependentNames`  -  creates a `ConfidenceScore` with `DepsScore=0`, calls `renderExplanation` with `dependents=[]string{"curl","libssh2","krb5"}`, captures stdout, asserts "Depended on by:" and the package names appear:
   ```go
   func TestRenderExplanation_ListsDependentNames(t *testing.T) { ... }
   ```
 
-- `TestRenderExplanation_TruncatesLongDependentList` — 10 dependents → asserts "and 2 more" appears.
+- `TestRenderExplanation_TruncatesLongDependentList`  -  10 dependents → asserts "and 2 more" appears.
 
-- `TestRenderExplanation_NoDependents` — `dependents=nil` → asserts "Depended on by" does NOT appear.
+- `TestRenderExplanation_NoDependents`  -  `dependents=nil` → asserts "Depended on by" does NOT appear.
 
-- `TestRenderExplanation_BreakdownFramingConsistent` — asserts the output contains "score measures removal confidence" (not the old "0 = keep, 100 = safe to remove" phrasing).
+- `TestRenderExplanation_BreakdownFramingConsistent`  -  asserts the output contains "score measures removal confidence" (not the old "0 = keep, 100 = safe to remove" phrasing).
 
 In `table.go` tests (if a test file exists at `internal/output/`):
 
@@ -708,9 +708,9 @@ go test ./internal/output -v
 **8. Out-of-scope**
 
 - Do NOT modify `unused.go` or `stats.go`.
-- Do NOT modify `analyzer/confidence.go` — the score computation is correct.
-- Do NOT add new store methods — `GetDependents` already exists.
-- Do NOT change `showConfidenceAssessment` in `unused.go` — Agent E owns that file.
+- Do NOT modify `analyzer/confidence.go`  -  the score computation is correct.
+- Do NOT add new store methods  -  `GetDependents` already exists.
+- Do NOT change `showConfidenceAssessment` in `unused.go`  -  Agent E owns that file.
 
 **9. Completion report format**
 
@@ -734,7 +734,7 @@ notes: ""
 
 ---
 
-### Agent E — Stats Count Fix + Prereq Notes in Subcommand Help
+### Agent E  -  Stats Count Fix + Prereq Notes in Subcommand Help
 
 **1. Role**
 
@@ -770,7 +770,7 @@ None. Stats and unused changes are self-contained output text.
 
 **5. Implementation tasks**
 
-1. **Finding #9 — fix `stats` package count** (stats.go `showUsageTrends` function):
+1. **Finding #9  -  fix `stats` package count** (stats.go `showUsageTrends` function):
 
    The current no-usage path (lines 238-244):
    ```go
@@ -799,9 +799,9 @@ None. Stats and unused changes are self-contained output text.
    }
    ```
 
-   This ensures the count matches `scan` output. If `len(trends)` still does not match (possible if the analyzer filters some packages), an alternative is to call `st.ListPackages()` directly at the top of `showUsageTrends` and use `len(packages)`. Choose whichever produces the consistent count — prefer `len(trends)` first.
+   This ensures the count matches `scan` output. If `len(trends)` still does not match (possible if the analyzer filters some packages), an alternative is to call `st.ListPackages()` directly at the top of `showUsageTrends` and use `len(packages)`. Choose whichever produces the consistent count  -  prefer `len(trends)` first.
 
-2. **Finding #11 — prereq notes in `stats` and `unused`** (stats.go, unused.go):
+2. **Finding #11  -  prereq notes in `stats` and `unused`** (stats.go, unused.go):
 
    For `statsCmd.Long` (stats.go), prepend or append:
    ```
@@ -824,14 +824,14 @@ None. Stats and unused changes are self-contained output text.
 
 In `stats_test.go`:
 
-- `TestStatsNoUsageMessageIncludesTotalCount` — creates a store with 5 packages but no usage events, calls `showUsageTrends` (or the relevant logic), captures stdout, asserts the printed count equals `len(packages)`:
+- `TestStatsNoUsageMessageIncludesTotalCount`  -  creates a store with 5 packages but no usage events, calls `showUsageTrends` (or the relevant logic), captures stdout, asserts the printed count equals `len(packages)`:
   ```go
   func TestStatsNoUsageMessageIncludesTotalCount(t *testing.T) { ... }
   ```
 
 In `unused_test.go`:
 
-- `TestUnusedLongHasPrereqNote` — asserts `unusedCmd.Long` contains "brewprune scan":
+- `TestUnusedLongHasPrereqNote`  -  asserts `unusedCmd.Long` contains "brewprune scan":
   ```go
   func TestUnusedLongHasPrereqNote(t *testing.T) {
       if !strings.Contains(unusedCmd.Long, "brewprune scan") {
@@ -842,7 +842,7 @@ In `unused_test.go`:
 
 In `stats_test.go`:
 
-- `TestStatsLongHasPrereqNote` — same pattern for `statsCmd.Long`.
+- `TestStatsLongHasPrereqNote`  -  same pattern for `statsCmd.Long`.
 
 **7. Verification gate**
 
@@ -856,8 +856,8 @@ go test ./internal/app -run TestUnused -v
 
 **8. Out-of-scope**
 
-- Do NOT modify `explain.go` or `remove.go` for the prereq notes — those belong to Agents D and C.
-- Do NOT change the `--verbose` paging hint logic — already fixed.
+- Do NOT modify `explain.go` or `remove.go` for the prereq notes  -  those belong to Agents D and C.
+- Do NOT change the `--verbose` paging hint logic  -  already fixed.
 - Do NOT modify the analyzer or store packages.
 
 **9. Completion report format**
@@ -925,11 +925,11 @@ Then verifies each regression item:
 ## Status Checklist
 
 ```
-[ ] Agent A — root.go: -v shorthand, --help suggestion (findings #1, #10, #15)
-[ ] Agent B — shim_processor.go: offset bug (finding #2)
-[ ] Agent C — remove.go: exit code, dry-run banner, --no-snapshot warning (findings #3, #13, #17)
-[ ] Agent D — explain.go + table.go: dependent names, framing (findings #5, #16)
-[ ] Agent E — stats.go + unused.go: count fix, prereq notes (findings #9, #11)
+[ ] Agent A  -  root.go: -v shorthand, --help suggestion (findings #1, #10, #15)
+[ ] Agent B  -  shim_processor.go: offset bug (finding #2)
+[ ] Agent C  -  remove.go: exit code, dry-run banner, --no-snapshot warning (findings #3, #13, #17)
+[ ] Agent D  -  explain.go + table.go: dependent names, framing (findings #5, #16)
+[ ] Agent E  -  stats.go + unused.go: count fix, prereq notes (findings #9, #11)
 [ ] Post-merge full suite: go build ./... && go vet ./... && go test ./...
 [ ] Orchestrator regression checklist passed
 ```
@@ -948,7 +948,7 @@ Then verifies each regression item:
 
 ---
 
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 
 agent: B
 status: complete
@@ -964,7 +964,7 @@ build_ok: true
 vet_ok: true
 notes: ""
 
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 
 agent: A
 status: complete
@@ -981,7 +981,7 @@ build_ok: true
 vet_ok: true
 notes: "FlagErrorFunc setup extracted into setupFlagErrorFuncs() called from Execute(); TestMain in root_test.go calls setupFlagErrorFuncs() before tests so TestUnknownFlagSuggestsHelp can inspect the func without calling Execute(). This is needed because subcommands (unused, etc.) are registered by other files' init() functions that run after root.go's init(), making a simple post-AddCommand loop in init() incomplete."
 
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 
 agent: C
 status: complete
@@ -997,7 +997,7 @@ build_ok: true
 vet_ok: true
 notes: ""
 
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 
 agent: E
 status: complete
@@ -1017,7 +1017,7 @@ notes: "Agents C and D handle prereq notes for remove.go and explain.go respecti
 
 *End of IMPL-audit-round12.md*
 
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 
 agent: D
 status: complete

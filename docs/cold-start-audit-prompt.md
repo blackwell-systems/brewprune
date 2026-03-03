@@ -110,7 +110,7 @@ docker exec brewprune-r11 brewprune doctor
 
 ---
 
-### Area 3: Core Feature — Unused Package Discovery
+### Area 3: Core Feature  -  Unused Package Discovery
 
 Test the primary value proposition. Run with no usage data (fresh state after quickstart or scan) first, then with usage data after the daemon has run.
 
@@ -147,7 +147,7 @@ docker exec brewprune-r11 brewprune unused --verbose
 docker exec brewprune-r11 brewprune unused --tier safe --verbose
 ```
 
-**Commands (Potentially conflicting flag combinations — note: per --help, --tier always shows the specified tier regardless of --all):**
+**Commands (Potentially conflicting flag combinations  -  note: per --help, --tier always shows the specified tier regardless of --all):**
 
 ```
 docker exec brewprune-r11 brewprune unused --tier safe --all
@@ -161,7 +161,7 @@ docker exec brewprune-r11 brewprune unused --all --tier medium
 - Does the warning banner about missing usage data appear when expected?
 - Are tier labels (safe/medium/risky) visually distinct (e.g., color-coded)?
 - Does `--verbose` add meaningful clarity or overwhelm?
-- Is the default view (no flags) appropriate for new users — does it include safe + medium but hide risky?
+- Is the default view (no flags) appropriate for new users  -  does it include safe + medium but hide risky?
 - When `--tier safe --all` is used, does one flag clearly win? Is the behavior explained?
 - Is the `--sort size` option functional (does size data exist in container)?
 - Does `--casks` produce different output in a Linux/Linuxbrew environment with no casks?
@@ -221,7 +221,7 @@ docker exec brewprune-r11 ls -la /root/.brewprune/
 - Does `watch --stop` provide confirmation feedback?
 - After stopping daemon, does `status` clearly indicate it is stopped?
 - Does `stats --all` include packages with no usage? Is the output useful?
-- Note: shims are in ~/.brewprune/bin — running `git` directly may not use the shim if ~/.brewprune/bin is not in PATH inside docker exec context.
+- Note: shims are in ~/.brewprune/bin  -  running `git` directly may not use the shim if ~/.brewprune/bin is not in PATH inside docker exec context.
 
 ---
 
@@ -264,20 +264,20 @@ docker exec brewprune-r11 brewprune explain --help
 
 Test the health check and diagnostic system under different system states.
 
-**Commands (After quickstart — healthy state):**
+**Commands (After quickstart  -  healthy state):**
 
 ```
 docker exec brewprune-r11 brewprune doctor
 ```
 
-**Commands (With stopped daemon — degraded state):**
+**Commands (With stopped daemon  -  degraded state):**
 
 ```
 docker exec brewprune-r11 brewprune watch --stop
 docker exec brewprune-r11 brewprune doctor
 ```
 
-**Commands (Before any setup — blank state):**
+**Commands (Before any setup  -  blank state):**
 
 ```
 docker exec brewprune-r11 rm -rf /root/.brewprune
@@ -299,7 +299,7 @@ docker exec brewprune-r11 brewprune doctor
 
 Test package removal and rollback features with safety mechanisms. Always run dry-run first.
 
-**Commands (Dry-run previews — safe to run anytime):**
+**Commands (Dry-run previews  -  safe to run anytime):**
 
 ```
 docker exec brewprune-r11 brewprune remove --safe --dry-run
@@ -315,7 +315,7 @@ docker exec brewprune-r11 brewprune remove bat fd --dry-run
 docker exec brewprune-r11 brewprune undo --list
 ```
 
-**Commands (Actual removal — safe tier only with --yes):**
+**Commands (Actual removal  -  safe tier only with --yes):**
 
 ```
 docker exec brewprune-r11 brewprune remove --safe --yes
@@ -396,7 +396,7 @@ docker exec brewprune-r11 brewprune unused --tier safe --all
 docker exec brewprune-r11 brewprune watch --daemon --stop
 ```
 
-**Commands (Missing prerequisites — after rm -rf):**
+**Commands (Missing prerequisites  -  after rm -rf):**
 
 ```
 docker exec brewprune-r11 rm -rf /root/.brewprune
@@ -462,7 +462,7 @@ Run **ALL** commands in sequence. Do not skip areas.
 
 For each command, note:
 1. **Exact output** (copy full text, including any headers, footers, banners)
-2. **Exit code** (0 for success, non-zero for error — capture with `; echo "Exit: $?"`)
+2. **Exit code** (0 for success, non-zero for error  -  capture with `; echo "Exit: $?"`)
 3. **Color usage** (describe precisely: "package names in bold white", "tier label 'safe' in green", "warning in yellow")
 4. **Timing** (note if any command is slow, shows no progress, or has an unexpected delay)
 5. **Behavior** (e.g., "prompts for confirmation", "writes to ~/.brewprune/usage.log", "daemon starts silently")
@@ -470,7 +470,7 @@ For each command, note:
 Describe visual formatting precisely:
 - "Table with 4 columns: Package | Score | Tier | Last Used"
 - "Tier column shows 'safe' in green, 'medium' in yellow, 'risky' in red"
-- "Warning banner with yellow background: 'No usage data — showing heuristic scores only'"
+- "Warning banner with yellow background: 'No usage data  -  showing heuristic scores only'"
 - "Error messages prefixed with 'Error:' in red"
 
 ---
@@ -511,7 +511,7 @@ Your final report must include:
 2. **Findings by Area** (one section per audit area, use the area names exactly):
    - Area 1: Discovery & Help System
    - Area 2: Setup & Onboarding
-   - Area 3: Core Feature — Unused Package Discovery
+   - Area 3: Core Feature  -  Unused Package Discovery
    - Area 4: Data Collection & Tracking
    - Area 5: Package Explanation & Detail View
    - Area 6: Diagnostics
@@ -549,10 +549,10 @@ After completing the 9 audit areas above, explicitly verify the following fixed 
 | **watch.log per-cycle logging** | After daemon processes usage.log, watch.log contains a timestamped `brewprune-watch: processed N lines, resolved N packages, skipped 0` entry. |
 | **`remove` exits 1 when all removals fail** | `remove nonexistent-package` exits non-zero. `remove --safe` with all-locked packages exits 1 (not 0). |
 | **`remove` not-found undo hint** | `remove nonexistent-package` error includes "If you recently ran 'brewprune undo', run 'brewprune scan'" (multi-line format). |
-| **Stale dep graph after undo + scan** | `undo latest --yes` followed by `scan` does not leave stale dependency rows (check via `explain <pkg>` — deps should reflect current state). |
+| **Stale dep graph after undo + scan** | `undo latest --yes` followed by `scan` does not leave stale dependency rows (check via `explain <pkg>`  -  deps should reflect current state). |
 | **`doctor` exits 1 cleanly on critical issues** | `doctor` with critical issues exits 1 and does NOT print a bare `Error: diagnostics failed` line after its summary. |
 | **`stats --package <pkg>` undo hint** | After `undo latest --yes` (before `scan`), `stats --package git` shows the undo hint in the not-found error. |
-| **`status` grace period** | `watch --daemon` followed immediately by `status` shows "(no events yet — daemon started just now, this is normal)" instead of the alarming shim warning. |
+| **`status` grace period** | `watch --daemon` followed immediately by `status` shows "(no events yet  -  daemon started just now, this is normal)" instead of the alarming shim warning. |
 | **`-v` shows version, not conflict** | `brewprune -v` prints version string (not an error about `-v` reserved for `--verbose`). |
 | **`stats --all` sort annotation after table** | "Sorted by: most used first" appears AFTER the table, not before it. |
 
@@ -560,8 +560,8 @@ After completing the 9 audit areas above, explicitly verify the following fixed 
 
 ## IMPORTANT
 
-- Run ALL commands via `docker exec brewprune-r11 <command>` — never run brewprune directly on the host
+- Run ALL commands via `docker exec brewprune-r11 <command>`  -  never run brewprune directly on the host
 - Capture exact error messages and exit codes for every command
 - Note timing (e.g., "took 3 seconds", "no progress indicator for 45 seconds")
-- Note the shim path: shims are in `/root/.brewprune/bin/` inside the container — when testing usage tracking (Area 4), invoke via the full shim path since ~/.brewprune/bin may not be in the docker exec PATH
-- Be thorough — this audit drives the next round of fixes
+- Note the shim path: shims are in `/root/.brewprune/bin/` inside the container  -  when testing usage tracking (Area 4), invoke via the full shim path since ~/.brewprune/bin may not be in the docker exec PATH
+- Be thorough  -  this audit drives the next round of fixes

@@ -10,7 +10,7 @@
 
 15 findings span 9 distinct file ownership groups with fully disjoint assignments. The one
 caveat: finding 3 (`explain curl` exit 139 crash) is intermittent and the root cause is
-unknown — it receives a solo Wave 0 investigation before the 8-agent Wave 1 parallel pass.
+unknown  -  it receives a solo Wave 0 investigation before the 8-agent Wave 1 parallel pass.
 Findings 1–2 both touch `remove.go` and one requires adding `brew.Uses()` to `brew/installer.go`;
 these are bundled into a single Agent A. All other findings decompose cleanly.
 
@@ -34,17 +34,17 @@ Recommendation: Clear speedup. Proceed with Wave 0 → Wave 1.
 
 All 15 findings confirmed TO-DO by reading source:
 
-- `remove.go:273` — freed-space uses `totalSize` (pre-loop), not `freedSize` (per-success)
-- `remove.go:97-105` — staleness check still present; also `remove --medium` has no dep pre-validation
-- `watch.go:88-89` — still prints warning + continues; not yet returning an error
-- `unused.go:98` — `fmt.Errorf("Error: ...")` produces double `Error: Error:` prefix via cobra
-- `snapshots/restore.go:45` — hardcoded `Restored %s@%s` regardless of empty version
-- `stats.go` — uses `IntVar` so cobra raw-parses `--days abc` before `RunE` can guard it
-- `output/table.go` — no "Installed" column; RenderReclaimableFooter logic should be verified
-- `explain.go` — crash root cause unknown (investigation item)
-- `quickstart.go` — PATH-not-active warning exists but undersized
-- `doctor.go` — alias tip references `brewprune help`; also fires when criticalIssues > 0
-- `status.go:formatDuration` — `%d seconds ago` for sub-minute duration (shows "0 seconds ago")
+- `remove.go:273`  -  freed-space uses `totalSize` (pre-loop), not `freedSize` (per-success)
+- `remove.go:97-105`  -  staleness check still present; also `remove --medium` has no dep pre-validation
+- `watch.go:88-89`  -  still prints warning + continues; not yet returning an error
+- `unused.go:98`  -  `fmt.Errorf("Error: ...")` produces double `Error: Error:` prefix via cobra
+- `snapshots/restore.go:45`  -  hardcoded `Restored %s@%s` regardless of empty version
+- `stats.go`  -  uses `IntVar` so cobra raw-parses `--days abc` before `RunE` can guard it
+- `output/table.go`  -  no "Installed" column; RenderReclaimableFooter logic should be verified
+- `explain.go`  -  crash root cause unknown (investigation item)
+- `quickstart.go`  -  PATH-not-active warning exists but undersized
+- `doctor.go`  -  alias tip references `brewprune help`; also fires when criticalIssues > 0
+- `status.go:formatDuration`  -  `%d seconds ago` for sub-minute duration (shows "0 seconds ago")
 
 ---
 
@@ -60,7 +60,7 @@ All 15 findings confirmed TO-DO by reading source:
 ### Dependency Graph
 
 ```
-                        [Leaf nodes — no agent cross-deps]
+                        [Leaf nodes  -  no agent cross-deps]
 remove.go ──── brew/installer.go  (Agent A: adds brew.Uses())
 snapshots/restore.go              (Agent B)
 watch.go                          (Agent C)
@@ -83,14 +83,14 @@ No cross-agent interfaces needed. Each agent owns its files completely.
 
 ### Interface Contracts
 
-**Agent A — new function in `brew/installer.go`:**
+**Agent A  -  new function in `brew/installer.go`:**
 ```go
 // Uses returns the list of currently-installed packages that depend on pkgName.
 // Returns nil, nil when no dependents are installed.
 func Uses(pkgName string) ([]string, error)
 ```
 
-**Agent E — new field in `output/table.go` ConfidenceScore:**
+**Agent E  -  new field in `output/table.go` ConfidenceScore:**
 ```go
 type ConfidenceScore struct {
     // ... existing fields unchanged ...
@@ -192,12 +192,12 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/explain.go` — modify (add defensive nil guards)
-- `internal/app/explain_test.go` — modify (update tests if needed)
+- `internal/app/explain.go`  -  modify (add defensive nil guards)
+- `internal/app/explain_test.go`  -  modify (update tests if needed)
 
 **Read-only references:**
-- `internal/analyzer/confidence.go` — read to understand ComputeScore nil paths
-- `internal/store/queries.go` — read to understand GetPackage return value contracts
+- `internal/analyzer/confidence.go`  -  read to understand ComputeScore nil paths
+- `internal/store/queries.go`  -  read to understand GetPackage return value contracts
 
 ## 2. Interfaces You Must Implement
 
@@ -221,16 +221,16 @@ QEMU x86_64 emulation specific.
 
 **Investigation steps:**
 1. Read `internal/app/explain.go` (`runExplain` + `renderExplanation`)
-2. Read `internal/analyzer/confidence.go` (`ComputeScore`) — look for nil pointer paths
+2. Read `internal/analyzer/confidence.go` (`ComputeScore`)  -  look for nil pointer paths
    in the dependency graph traversal, especially for packages with used dependents (curl)
-3. Read `internal/store/queries.go` — confirm `GetPackage` and `GetReverseDependencies`
+3. Read `internal/store/queries.go`  -  confirm `GetPackage` and `GetReverseDependencies`
    return contracts (can they return nil pointer with nil error?)
 
 **Specific suspects:**
-- `runExplain` calls `st.GetPackage(packageName)` twice — first for existence check,
+- `runExplain` calls `st.GetPackage(packageName)` twice  -  first for existence check,
   second to get `InstalledAt`. If the second call returns nil pkg with nil error, the
   following `pkg.InstalledAt.Format(...)` crashes.
-- `a.ComputeScore(packageName)` — if `pkgInfo` or any dependency record is nil, traversal
+- `a.ComputeScore(packageName)`  -  if `pkgInfo` or any dependency record is nil, traversal
   may dereference nil.
 
 **Fix approach:**
@@ -254,7 +254,7 @@ environment-specific.
 
 ## 5. Tests to Write
 
-1. `TestRunExplain_NilPackageGraceful` — if `GetPackage` returns `(nil, nil)` on second
+1. `TestRunExplain_NilPackageGraceful`  -  if `GetPackage` returns `(nil, nil)` on second
    call, `runExplain` does not panic
 
 ## 6. Verification Gate
@@ -280,7 +280,7 @@ GOWORK=off go test ./internal/app -run TestRunExplain -timeout 60s
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent 0 — Completion Report
+### Agent 0  -  Completion Report
 status: complete
 worktree: main (solo agent, no worktree)
 commit: no changes (crash is QEMU emulation artifact, not a nil-dereference; all guards already in place)
@@ -290,7 +290,7 @@ interface_deviations: []
 out_of_scope_deps: []
 tests_added: []
 notes: TestRunExplain_NilPackageGraceful already existed. Exit-139 crash reproducible only in QEMU x86_64 containers on first SQLite page fault; subsequent invocations succeed due to DB cache warmup. No Go source change needed.
-verification: PASS (go test ./internal/app -run 'TestExplain' — all pass)
+verification: PASS (go test ./internal/app -run 'TestExplain'  -  all pass)
 ```
 
 ---
@@ -318,10 +318,10 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/remove.go` — modify
-- `internal/app/remove_test.go` — modify
-- `internal/brew/installer.go` — modify (add `Uses()`)
-- `internal/brew/installer_test.go` — modify
+- `internal/app/remove.go`  -  modify
+- `internal/app/remove_test.go`  -  modify
+- `internal/brew/installer.go`  -  modify (add `Uses()`)
+- `internal/brew/installer_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -345,7 +345,7 @@ func (s *Store) DeletePackage(name string) error
 
 ## 4. What to Implement
 
-**Finding 1 — Freed-space calculation (remove.go:273):**
+**Finding 1  -  Freed-space calculation (remove.go:273):**
 
 Current: `fmt.Printf("\n✓ Removed %d packages, freed %s\n", successCount, formatSize(totalSize))`
 `totalSize` is accumulated BEFORE the removal loop (lines 177-180). When `brew.Uninstall` fails
@@ -372,7 +372,7 @@ fmt.Printf("\n✓ Removed %d packages, freed %s\n", successCount, formatSize(fre
 
 Keep `totalSize` for the summary "Disk space to free" line (displayed before the removal loop).
 
-**Finding 2 — Dep-locked package pre-validation:**
+**Finding 2  -  Dep-locked package pre-validation:**
 
 After `getPackagesByTier` returns `scores` (or after explicit packages are validated), call
 `brew.Uses(pkg)` for each candidate. Packages with installed dependents are excluded from
@@ -402,7 +402,7 @@ scores = filteredScores
 
 Apply the same pattern for explicit packages (the `len(args) > 0` branch).
 
-**Finding 8 — Remove staleness check:**
+**Finding 8  -  Remove staleness check:**
 
 Delete lines 97-105 in the current `runRemove`:
 ```go
@@ -445,13 +445,13 @@ func Uses(pkgName string) ([]string, error) {
 
 ## 5. Tests to Write
 
-1. `TestFreedSpaceReflectsActualRemovals` — mock brew.Uninstall to fail for some packages;
+1. `TestFreedSpaceReflectsActualRemovals`  -  mock brew.Uninstall to fail for some packages;
    verify freed-space matches only the successful removals (not all candidates)
-2. `TestRemoveFiltersDepLockedPackages` — packages with brew-level dependents are excluded
+2. `TestRemoveFiltersDepLockedPackages`  -  packages with brew-level dependents are excluded
    from candidates and printed as a warning
-3. `TestBrewUses_NoOutput` — Uses() returns nil, nil for packages with no dependents
-4. `TestBrewUses_WithDependents` — mock output with dependent packages, verify returned list
-5. `TestRemoveStalenessCheckRemoved` — `runRemove` does not print "new formulae since last scan"
+3. `TestBrewUses_NoOutput`  -  Uses() returns nil, nil for packages with no dependents
+4. `TestBrewUses_WithDependents`  -  mock output with dependent packages, verify returned list
+5. `TestRemoveStalenessCheckRemoved`  -  `runRemove` does not print "new formulae since last scan"
 
 ## 6. Verification Gate
 
@@ -479,7 +479,7 @@ GOWORK=off go test ./internal/brew -run 'TestBrewUses' -timeout 60s
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-a
 commit: 5f164894035dd9ef6ff1fbc9b0a70bb984adf461
@@ -497,7 +497,7 @@ tests_added:
   - TestBrewUses_NoOutput
   - TestBrewUses_WithDependents
   - TestRemoveStalenessCheckRemoved
-verification: PASS (go test ./internal/app -run 'TestRemove|TestFreed|TestStale' — 10/10 tests, go test ./internal/brew -run 'TestBrewUses' — 3/3 tests)
+verification: PASS (go test ./internal/app -run 'TestRemove|TestFreed|TestStale'  -  10/10 tests, go test ./internal/brew -run 'TestBrewUses'  -  3/3 tests)
 ```
 
 ---
@@ -522,8 +522,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/snapshots/restore.go` — modify
-- `internal/snapshots/restore_test.go` — modify
+- `internal/snapshots/restore.go`  -  modify
+- `internal/snapshots/restore_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -539,7 +539,7 @@ No new interfaces. Internal change only.
 
 ## 4. What to Implement
 
-**Finding 5 — "Restored bat@" bare version suffix:**
+**Finding 5  -  "Restored bat@" bare version suffix:**
 
 `restore.go:45` has: `fmt.Printf("Restored %s@%s\n", pkg.Name, pkg.Version)`
 
@@ -562,9 +562,9 @@ Also audit `restore.go` for any other locations that format package name + versi
 
 ## 5. Tests to Write
 
-1. `TestRestoreOutput_EmptyVersion` — when PackageSnapshot.Version is "", output is
+1. `TestRestoreOutput_EmptyVersion`  -  when PackageSnapshot.Version is "", output is
    "Restored bat" (no "@" suffix)
-2. `TestRestoreOutput_WithVersion` — when Version is "0.26.1", output is "Restored bat@0.26.1"
+2. `TestRestoreOutput_WithVersion`  -  when Version is "0.26.1", output is "Restored bat@0.26.1"
 
 These tests can capture stdout using `os.Pipe()` or by extracting the formatting logic
 into a testable helper.
@@ -589,7 +589,7 @@ GOWORK=off go test ./internal/snapshots -run 'TestRestore' -timeout 60s
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-b
 commit: c13a4c542dfcf7fc3c84889a961bfee3957bdb88
@@ -602,7 +602,7 @@ out_of_scope_deps: []
 tests_added:
   - TestRestoreOutput_EmptyVersion
   - TestRestoreOutput_WithVersion
-verification: PASS (go test ./internal/snapshots -run 'TestRestore' — 4/4 tests)
+verification: PASS (go test ./internal/snapshots -run 'TestRestore'  -  4/4 tests)
 ```
 
 ---
@@ -628,8 +628,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/watch.go` — modify
-- `internal/app/watch_test.go` — modify
+- `internal/app/watch.go`  -  modify
+- `internal/app/watch_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -643,7 +643,7 @@ func (w *watcher.Watcher) RunDaemon(pidFile string) error
 
 ## 4. What to Implement
 
-**Finding 6 — `--daemon --stop` conflict:**
+**Finding 6  -  `--daemon --stop` conflict:**
 
 Current `watch.go:88-89`:
 ```go
@@ -661,7 +661,7 @@ if watchDaemon && watchStop {
 
 This change moves before the `if watchStop` block (line 93) so the function returns early.
 
-**Finding 15 — watch.log always empty:**
+**Finding 15  -  watch.log always empty:**
 
 `runWatchDaemonChild` currently does nothing but call `w.RunDaemon(watchPIDFile)`. The
 daemon child process has `watchLogFile` available as a package-level var. Write a startup
@@ -698,9 +698,9 @@ if watchLogFile != "" {
 
 ## 5. Tests to Write
 
-1. `TestWatchDaemonStopConflict` — running with both `--daemon` and `--stop` returns an error
+1. `TestWatchDaemonStopConflict`  -  running with both `--daemon` and `--stop` returns an error
    containing "mutually exclusive"; exit code is non-zero
-2. `TestWatchLogStartup` — `runWatchDaemonChild` writes a startup line to the log file when
+2. `TestWatchLogStartup`  -  `runWatchDaemonChild` writes a startup line to the log file when
    `watchLogFile` is set to a temp path
 
 ## 6. Verification Gate
@@ -730,7 +730,7 @@ Update any such tests to expect the new error behavior.
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-c
 commit: cbed9169ee855cb57ee517fd7d11a4d650fb2387
@@ -743,7 +743,7 @@ out_of_scope_deps: []
 tests_added:
   - TestWatchDaemonStopConflict
   - TestWatchLogStartup
-verification: PASS (go test ./internal/app -run 'TestWatch' -timeout 60s — 13/13 tests)
+verification: PASS (go test ./internal/app -run 'TestWatch' -timeout 60s  -  13/13 tests)
 ```
 
 ---
@@ -768,8 +768,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/stats.go` — modify
-- `internal/app/stats_test.go` — modify
+- `internal/app/stats.go`  -  modify
+- `internal/app/stats_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -781,7 +781,7 @@ No cross-agent dependencies.
 
 ## 4. What to Implement
 
-**Finding 7 — `--days abc` raw Go error:**
+**Finding 7  -  `--days abc` raw Go error:**
 
 Currently `statsDays` is an `int` registered with `statsCmd.Flags().IntVar(...)`. Cobra
 parses flag values before `RunE` is called, so non-integer inputs produce cobra's raw error:
@@ -816,16 +816,16 @@ parses flag values before `RunE` is called, so non-integer inputs produce cobra'
 4. Keep the rest of `runStats` unchanged (it uses `statsDays`).
 
 **Test compatibility:** Read `stats_test.go` first. Tests that check `daysFlag.DefValue` expect
-"30" — this still works with `StringVar("30")`. Tests that directly set `statsDays = N` and
+"30"  -  this still works with `StringVar("30")`. Tests that directly set `statsDays = N` and
 call `runStats` bypass the new parsing; for those, set `statsDaysStr = strconv.Itoa(N)` before
 calling `runStats` in the test setup, OR just set both `statsDaysStr` and `statsDays`.
 
 ## 5. Tests to Write
 
-1. `TestStatsDaysNonInteger_UserFriendlyError` — `--days abc` returns "must be a positive integer"
+1. `TestStatsDaysNonInteger_UserFriendlyError`  -  `--days abc` returns "must be a positive integer"
    (no "strconv.ParseInt" in the error message)
-2. `TestStatsDaysZero_Error` — `--days 0` returns the same user-friendly error
-3. `TestStatsDaysNegative_Error` — `--days -1` still returns the same error (existing behavior)
+2. `TestStatsDaysZero_Error`  -  `--days 0` returns the same user-friendly error
+3. `TestStatsDaysNegative_Error`  -  `--days -1` still returns the same error (existing behavior)
 
 ## 6. Verification Gate
 
@@ -840,14 +840,14 @@ GOWORK=off go test ./internal/app -run 'TestStats' -timeout 60s
 
 - Keep `statsDays int` as the internal value; `statsDaysStr string` is only the flag receiver.
 - Default value remains `"30"` (string, not int).
-- `TestStatsCommand_FlagDefaults` checks `daysFlag.DefValue != "30"` — this continues to pass.
+- `TestStatsCommand_FlagDefaults` checks `daysFlag.DefValue != "30"`  -  this continues to pass.
 
 ## 8. Report
 
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-d
 commit: c64e727
@@ -861,7 +861,7 @@ tests_added:
   - TestStatsDaysNonInteger_UserFriendlyError
   - TestStatsDaysZero_Error
   - TestStatsDaysNegative_Error
-verification: PASS (go test ./internal/app -run 'TestStats' — 13/13 tests)
+verification: PASS (go test ./internal/app -run 'TestStats'  -  13/13 tests)
 ```
 
 ---
@@ -888,15 +888,15 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/unused.go` — modify
-- `internal/app/unused_test.go` — modify
-- `internal/output/table.go` — modify
-- `internal/output/table_test.go` — modify
+- `internal/app/unused.go`  -  modify
+- `internal/app/unused_test.go`  -  modify
+- `internal/output/table.go`  -  modify
+- `internal/output/table_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
 ```go
-// In output/table.go — add field to existing ConfidenceScore struct:
+// In output/table.go  -  add field to existing ConfidenceScore struct:
 type ConfidenceScore struct {
     // ... all existing fields unchanged ...
     InstalledAt time.Time // Non-zero signals "show Installed column"; set when sort=age
@@ -905,7 +905,7 @@ type ConfidenceScore struct {
 
 `RenderConfidenceTable` renders an "Installed" column when ANY score in the slice has
 non-zero `InstalledAt`. When rendered, the column replaces the "Last Used" column or
-is added as an extra column — choose whichever fits cleanly in the 88-char line width.
+is added as an extra column  -  choose whichever fits cleanly in the 88-char line width.
 Recommendation: replace "Last Used" with "Installed" when all InstalledAt are non-zero.
 
 ## 3. Interfaces You May Call
@@ -919,7 +919,7 @@ func RenderTierSummary(safe, medium, risky TierStats, showAll bool, caskCount in
 
 ## 4. What to Implement
 
-**Finding 14 — Double "Error: Error:" prefix:**
+**Finding 14  -  Double "Error: Error:" prefix:**
 
 `unused.go:98`:
 ```go
@@ -931,19 +931,19 @@ Cobra prepends "Error: " automatically. Remove the inline "Error: " prefix:
 return fmt.Errorf("--all and --tier cannot be used together; --tier already filters to a specific tier")
 ```
 
-**Finding 13 — Reclaimable footer "(risky, hidden)" when --all:**
+**Finding 13  -  Reclaimable footer "(risky, hidden)" when --all:**
 
 Audit finding says `unused --all` shows "(risky, hidden)". Read `unused.go:385`:
 ```go
 footer := output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "")
 ```
 
-And `RenderReclaimableFooter` in table.go:532-545 — when `showAll = true`, `, hidden` is NOT
+And `RenderReclaimableFooter` in table.go:532-545  -  when `showAll = true`, `, hidden` is NOT
 added. **Investigate whether the bug actually exists in the current code.** If the logic is
 already correct, add a test to confirm the expected behavior and note "DONE" in the report.
 If there IS a bug (e.g., `unusedAll` not being set correctly before this line), fix it.
 
-**Finding 10 — Verbose tip before output:**
+**Finding 10  -  Verbose tip before output:**
 
 Current `unused.go` shows the "pipe to less" tip AFTER all verbose package blocks.
 Move the tip BEFORE the verbose output when `len(scores) > 10` AND stdout is a TTY:
@@ -962,7 +962,7 @@ if unusedVerbose && len(scores) > 10 {
 
 Remove the duplicate tip that appears after the table.
 
-**Finding 9 — `--sort age` no Installed column:**
+**Finding 9  -  `--sort age` no Installed column:**
 
 When `unusedSort == "age"`, populate `InstalledAt` on each `output.ConfidenceScore`:
 
@@ -985,16 +985,16 @@ In `output/table.go`, modify `RenderConfidenceTable` to detect non-zero `Install
 - If no: render as before
 
 Also: when `--sort age` is used and all packages have identical `InstalledAt`, the existing
-note "All packages installed at the same time — age sort has no effect. Sorted by tier, then
+note "All packages installed at the same time  -  age sort has no effect. Sorted by tier, then
 alphabetically." should appear BEFORE the table, not after. Check current placement and move.
 
 ## 5. Tests to Write
 
-1. `TestDoubleErrorPrefix_Fixed` — `--tier safe --all` conflict message contains single "Error:"
-2. `TestReclaimableFooter_AllFlag` — `RenderReclaimableFooter(..., true)` does NOT contain "hidden"
-3. `TestVerboseTipAppearsBeforeOutput` — when scores > 10, tip line appears before first "Package:"
-4. `TestSortAge_InstalledColumn` — when sort=age, output table header contains "Installed" column
-5. `TestReclaimableFooter_NoAllFlag` — `RenderReclaimableFooter(..., false)` contains "hidden"
+1. `TestDoubleErrorPrefix_Fixed`  -  `--tier safe --all` conflict message contains single "Error:"
+2. `TestReclaimableFooter_AllFlag`  -  `RenderReclaimableFooter(..., true)` does NOT contain "hidden"
+3. `TestVerboseTipAppearsBeforeOutput`  -  when scores > 10, tip line appears before first "Package:"
+4. `TestSortAge_InstalledColumn`  -  when sort=age, output table header contains "Installed" column
+5. `TestReclaimableFooter_NoAllFlag`  -  `RenderReclaimableFooter(..., false)` contains "hidden"
 
 ## 6. Verification Gate
 
@@ -1019,7 +1019,7 @@ GOWORK=off go test ./internal/output -run 'TestReclaimable|TestSort|TestTable' -
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-e
 commit: 933e878
@@ -1037,7 +1037,7 @@ tests_added:
   - TestVerboseTipAppearsBeforeOutput
   - TestSortAge_InstalledColumn
   - TestReclaimableFooter_NoAllFlag
-verification: PASS (go test ./internal/app ./internal/output — all pass)
+verification: PASS (go test ./internal/app ./internal/output  -  all pass)
 ```
 
 ---
@@ -1063,8 +1063,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/quickstart.go` — modify
-- `internal/app/quickstart_test.go` — modify
+- `internal/app/quickstart.go`  -  modify
+- `internal/app/quickstart_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -1079,10 +1079,10 @@ func isConfiguredInShellProfile(dir string) bool  // in status.go (same package)
 
 ## 4. What to Implement
 
-**Finding 4 — Shim tracking gap:**
+**Finding 4  -  Shim tracking gap:**
 
 After quickstart, users run commands (`jq`, `bat`, etc.) expecting them to be tracked.
-They're not — because `~/.brewprune/bin` is not yet on the active PATH. The current warning
+They're not  -  because `~/.brewprune/bin` is not yet on the active PATH. The current warning
 is buried in the Note at the bottom of the summary and is too mild.
 
 **What to change:** After the summary "Setup complete!" block, when the shim dir is configured
@@ -1101,7 +1101,7 @@ in a shell profile but NOT yet on the active PATH, print a prominent boxed warni
 ```
 
 The `shimDir` variable is available in the summary section (from the Step 2 block). Check
-`isOnPATH(shimDir)` — if false, show the prominent warning.
+`isOnPATH(shimDir)`  -  if false, show the prominent warning.
 
 Look at the existing Note (lines 238-241) and replace/expand it:
 ```go
@@ -1125,9 +1125,9 @@ Note: `detectShellConfig()` is defined in `doctor.go` (same package). It's acces
 
 ## 5. Tests to Write
 
-1. `TestQuickstartPATHWarning_ShownWhenNotActive` — when shim dir is NOT on PATH, output
+1. `TestQuickstartPATHWarning_ShownWhenNotActive`  -  when shim dir is NOT on PATH, output
    contains "TRACKING IS NOT ACTIVE YET"
-2. `TestQuickstartPATHWarning_NotShownWhenActive` — when shim dir IS on PATH, output does
+2. `TestQuickstartPATHWarning_NotShownWhenActive`  -  when shim dir IS on PATH, output does
    NOT contain "TRACKING IS NOT ACTIVE YET"
 
 ## 6. Verification Gate
@@ -1143,14 +1143,14 @@ GOWORK=off go test ./internal/app -run 'TestQuickstart' -timeout 60s
 
 - Only modify `quickstart.go` and `quickstart_test.go`.
 - The warning must appear when `isOnPATH(shimDir)` is false AND `shimDirErr` is nil.
-- Do NOT modify `doctor.go` or `status.go` — call the existing functions from the same package.
+- Do NOT modify `doctor.go` or `status.go`  -  call the existing functions from the same package.
 
 ## 8. Report
 
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-f
 commit: a4efd9c
@@ -1163,7 +1163,7 @@ out_of_scope_deps: []
 tests_added:
   - TestQuickstartPATHWarning_ShownWhenNotActive
   - TestQuickstartPATHWarning_NotShownWhenActive
-verification: PASS (go test ./internal/app -run 'TestQuickstart' — 17/17 tests)
+verification: PASS (go test ./internal/app -run 'TestQuickstart'  -  17/17 tests)
 ```
 
 ---
@@ -1171,7 +1171,7 @@ verification: PASS (go test ./internal/app -run 'TestQuickstart' — 17/17 tests
 #### Wave 1 Agent G: Doctor alias tip fixes
 
 You are Wave 1 Agent G. Fix two issues in `internal/app/doctor.go`: (1) the alias tip
-references `brewprune help` which has no alias documentation — include the format inline
+references `brewprune help` which has no alias documentation  -  include the format inline
 or remove the reference, (2) the alias tip currently shows when `criticalIssues > 0`
 (the broken-state case).
 
@@ -1190,8 +1190,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/doctor.go` — modify
-- `internal/app/doctor_test.go` — modify
+- `internal/app/doctor.go`  -  modify
+- `internal/app/doctor_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -1203,7 +1203,7 @@ No cross-agent dependencies.
 
 ## 4. What to Implement
 
-**Finding 11 — Alias tip references `brewprune help` (no docs):**
+**Finding 11  -  Alias tip references `brewprune help` (no docs):**
 
 Current `doctor.go:222-226`:
 ```go
@@ -1222,7 +1222,7 @@ fmt.Println("     Aliases help brewprune associate your custom commands with the
 
 Remove the "See 'brewprune help' for details." line.
 
-**Finding 11b — Alias tip fires in fully-broken state:**
+**Finding 11b  -  Alias tip fires in fully-broken state:**
 
 Current condition for showing the alias tip:
 ```go
@@ -1232,7 +1232,7 @@ if !daemonRunning || totalUsageEvents < 10 {
 ```
 
 This fires when `criticalIssues > 0` (e.g., database not found, shim not found). A user
-seeing critical issues does not need an alias tip — they need to fix the basics first.
+seeing critical issues does not need an alias tip  -  they need to fix the basics first.
 
 Add `criticalIssues == 0` to the condition:
 ```go
@@ -1243,10 +1243,10 @@ if criticalIssues == 0 && (!daemonRunning || totalUsageEvents < 10) {
 
 ## 5. Tests to Write
 
-1. `TestDoctorAliasTip_NoCriticalIssues` — when no critical issues, alias tip appears in output
-2. `TestDoctorAliasTip_HiddenWhenCritical` — when criticalIssues > 0 (mock DB not found),
+1. `TestDoctorAliasTip_NoCriticalIssues`  -  when no critical issues, alias tip appears in output
+2. `TestDoctorAliasTip_HiddenWhenCritical`  -  when criticalIssues > 0 (mock DB not found),
    alias tip does NOT appear in output
-3. `TestDoctorAliasTip_NoBrewpruhelpReference` — alias tip output does NOT contain "brewprune help"
+3. `TestDoctorAliasTip_NoBrewpruhelpReference`  -  alias tip output does NOT contain "brewprune help"
 
 ## 6. Verification Gate
 
@@ -1267,7 +1267,7 @@ GOWORK=off go test ./internal/app -run 'TestDoctor' -skip 'TestDoctorHelpInclude
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-g
 commit: 4331180
@@ -1281,7 +1281,7 @@ tests_added:
   - TestDoctorAliasTip_NoCriticalIssues
   - TestDoctorAliasTip_HiddenWhenCritical
   - TestDoctorAliasTip_NoBrewpruhelpReference
-verification: PASS (go test ./internal/app -run 'TestDoctor' — 11/11 tests, skipping TestDoctorHelpIncludesFixNote)
+verification: PASS (go test ./internal/app -run 'TestDoctor'  -  11/11 tests, skipping TestDoctorHelpIncludesFixNote)
 ```
 
 ---
@@ -1307,8 +1307,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/status.go` — modify
-- `internal/app/status_test.go` — modify
+- `internal/app/status.go`  -  modify
+- `internal/app/status_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -1320,7 +1320,7 @@ No cross-agent dependencies.
 
 ## 4. What to Implement
 
-**Finding 12 — "since 0 seconds ago":**
+**Finding 12  -  "since 0 seconds ago":**
 
 `status.go:formatDuration` (lines 337-364):
 ```go
@@ -1353,10 +1353,10 @@ Also fix "1 seconds ago" → "1 second ago" while editing this function.
 
 ## 5. Tests to Write
 
-1. `TestFormatDuration_JustNow` — durations < 5s return "just now"
-2. `TestFormatDuration_Seconds` — 10s returns "10 seconds ago"
-3. `TestFormatDuration_OneSecond` — 1s returns "just now" (sub-5s threshold)
-4. `TestFormatDuration_SingularSecond` — 6s returns "6 seconds ago" (not "6 second ago")
+1. `TestFormatDuration_JustNow`  -  durations < 5s return "just now"
+2. `TestFormatDuration_Seconds`  -  10s returns "10 seconds ago"
+3. `TestFormatDuration_OneSecond`  -  1s returns "just now" (sub-5s threshold)
+4. `TestFormatDuration_SingularSecond`  -  6s returns "6 seconds ago" (not "6 second ago")
 
 ## 6. Verification Gate
 
@@ -1384,7 +1384,7 @@ Update any such tests to expect the new "just now" behavior for sub-5s durations
 Commit then append to `docs/IMPL-audit-round7.md`:
 
 ```yaml
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-h
 commit: c90b4de
@@ -1399,7 +1399,7 @@ tests_added:
   - TestFormatDuration_Seconds
   - TestFormatDuration_OneSecond
   - TestFormatDuration_SingularSecond
-verification: PASS (go test ./internal/app -run 'TestStatus|TestFormat' — 16/16 tests)
+verification: PASS (go test ./internal/app -run 'TestStatus|TestFormat'  -  16/16 tests)
 ```
 
 ---
@@ -1426,21 +1426,21 @@ After each wave:
 
 ### Status
 
-- [x] Wave 0 Agent 0 — investigate explain curl crash
-- [x] Wave 1 Agent A — remove freed-space, dep-locked pre-validation, staleness check removal
-- [x] Wave 1 Agent B — snapshots "Restored bat@" version fix
-- [x] Wave 1 Agent C — watch --daemon --stop error; watch.log startup event
-- [x] Wave 1 Agent D — stats --days abc user-friendly error
-- [x] Wave 1 Agent E — unused footer, double Error:, verbose tip placement, sort-age column
-- [x] Wave 1 Agent F — quickstart PATH-not-active warning
-- [x] Wave 1 Agent G — doctor alias tip wording + critical-issue suppression
-- [x] Wave 1 Agent H — status "0 seconds ago" → "just now"
+- [x] Wave 0 Agent 0  -  investigate explain curl crash
+- [x] Wave 1 Agent A  -  remove freed-space, dep-locked pre-validation, staleness check removal
+- [x] Wave 1 Agent B  -  snapshots "Restored bat@" version fix
+- [x] Wave 1 Agent C  -  watch --daemon --stop error; watch.log startup event
+- [x] Wave 1 Agent D  -  stats --days abc user-friendly error
+- [x] Wave 1 Agent E  -  unused footer, double Error:, verbose tip placement, sort-age column
+- [x] Wave 1 Agent F  -  quickstart PATH-not-active warning
+- [x] Wave 1 Agent G  -  doctor alias tip wording + critical-issue suppression
+- [x] Wave 1 Agent H  -  status "0 seconds ago" → "just now"
 
-**Post-merge verification:** PASS — `GOWORK=off go test ./... -timeout 300s -skip 'TestDoctorHelpIncludesFixNote'` — 11/11 packages (2026-02-28)
+**Post-merge verification:** PASS  -  `GOWORK=off go test ./... -timeout 300s -skip 'TestDoctorHelpIncludesFixNote'`  -  11/11 packages (2026-02-28)
 
 ---
 
-### Agent 0 — Completion Report
+### Agent 0  -  Completion Report
 status: complete
 commit: edb061e9ae322f0541b147f8eea221fc18b953da
 files_changed:
@@ -1452,7 +1452,7 @@ out_of_scope_deps:
   - "file: internal/analyzer/confidence.go, change: none required, reason: ComputeScore dereferences pkgInfo immediately after GetPackage returns with a nil-error check; since GetPackage never produces (nil, nil), no nil-dereference is possible in the analyzer traversal path."
 tests_added:
   - TestRunExplain_NilPackageGraceful
-verification: PASS (go test ./internal/app -run "TestExplain|TestRunExplain" — 6/6 tests)
+verification: PASS (go test ./internal/app -run "TestExplain|TestRunExplain"  -  6/6 tests)
 notes: |
   All defensive nil guards were already present before this wave ran.
   explain.go lines 75-79 already guard the second GetPackage call with
@@ -1464,4 +1464,4 @@ notes: |
   likely cause is a QEMU x86_64 emulation artifact (stack alignment or JIT
   issue) triggered on first invocation before the SQLite page cache is warm;
   subsequent calls succeed because the DB is cached. No code changes were made
-  in this wave — the existing guards are sufficient and all tests pass.
+  in this wave  -  the existing guards are sufficient and all tests pass.

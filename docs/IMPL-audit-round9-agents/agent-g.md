@@ -2,7 +2,7 @@
 
 You are Wave 1 Agent G. Your task is to fix the misleading "0 commands" shim count in
 `brewprune status`. The count shows 0 shim symlinks even when usage events have been recorded,
-because "commands" refers to symlinks in the shim directory — not to events recorded. The label
+because "commands" refers to symlinks in the shim directory  -  not to events recorded. The label
 needs to clarify what is being counted.
 
 ## 0. CRITICAL: Isolation Verification (RUN FIRST)
@@ -27,8 +27,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/status.go` — modify
-- `internal/app/status_test.go` — modify
+- `internal/app/status.go`  -  modify
+- `internal/app/status_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -77,7 +77,7 @@ Shims:        inactive · 0 intercepted · PATH configured (restart shell to act
 ```
 Shims:        not yet active · PATH configured (restart shell to activate)
 ```
-(omit the count when 0 — it adds no information)
+(omit the count when 0  -  it adds no information)
 
 **Recommended:** Option C for `shimCount == 0` + Option A ("N shims") for `shimCount > 0`:
 ```go
@@ -127,14 +127,14 @@ nothing to configure.
 
 ## 5. Tests to Write
 
-1. `TestStatus_ShimsLabelWhenZeroShimsPathConfigured` — verify that when shimCount == 0 and
+1. `TestStatus_ShimsLabelWhenZeroShimsPathConfigured`  -  verify that when shimCount == 0 and
    PATH is configured but not active, the output says "not yet active" and omits the "0 shims"
    count.
 
-2. `TestStatus_ShimsLabelWhenShimsPresent` — verify that when shimCount > 0 and active, the
+2. `TestStatus_ShimsLabelWhenShimsPresent`  -  verify that when shimCount > 0 and active, the
    output says "N shims" (not "N commands").
 
-3. `TestStatus_ShimDirMissingShowsNotInstalled` — verify that when the shim directory doesn't
+3. `TestStatus_ShimDirMissingShowsNotInstalled`  -  verify that when the shim directory doesn't
    exist, the Shims line shows "not installed" rather than "inactive · PATH configured".
 
 Check existing tests for the old "0 commands" string and update them.
@@ -151,9 +151,9 @@ go test ./internal/app -run 'TestStatus' -v
 ## 7. Constraints
 
 - Do NOT change the Events line or the Last scan line.
-- The shimCount computation (`countSymlinks`) is correct — only the label changes.
+- The shimCount computation (`countSymlinks`) is correct  -  only the label changes.
 - The `shimActive` variable currently checks `shimCount > 0`. After the fix, this logic stays
-  the same — "active" means "symlinks exist AND PATH is active".
+  the same  -  "active" means "symlinks exist AND PATH is active".
 
 ## 8. Report
 
@@ -166,7 +166,7 @@ git commit -m "wave1-agent-g: clarify shims label and count in status output"
 Append to this file:
 
 ```yaml
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-g
 commit: {sha}
@@ -185,7 +185,7 @@ verification: PASS | FAIL
 
 ---
 
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-g
 commit: a8835ef

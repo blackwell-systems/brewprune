@@ -28,8 +28,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/unused.go` — modify
-- `internal/app/unused_test.go` — modify
+- `internal/app/unused.go`  -  modify
+- `internal/app/unused_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -47,7 +47,7 @@ All existing `unused.go` functions (no changes to their signatures).
 ```go
 if unusedSort == "age" {
     if allSameInstallTime {
-        fmt.Println("Note: All packages installed at the same time — age sort has no effect...")
+        fmt.Println("Note: All packages installed at the same time  -  age sort has no effect...")
     } else {
         fmt.Println("Sorted by: install date (oldest first)")
     }
@@ -63,7 +63,7 @@ switch unusedSort {
 case "age":
     if allSameInstallTime {
         fmt.Println()
-        fmt.Println("Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically.")
+        fmt.Println("Note: All packages installed at the same time  -  age sort has no effect. Sorted by tier, then alphabetically.")
     } else {
         fmt.Println()
         fmt.Println("Sorted by: install date (oldest first)")
@@ -95,7 +95,7 @@ Read `unused.go` carefully. The current structure is:
 ```go
 // line 126-130: compute showRiskyImplicit
 showRiskyImplicit := ...
-checkUsageWarning(st, showRiskyImplicit)   // line 130 — banner may print
+checkUsageWarning(st, showRiskyImplicit)   // line 130  -  banner may print
 
 // line 133: create analyzer
 // line 136-143: list packages
@@ -138,7 +138,7 @@ func checkUsageWarning(st *store.Store, showRiskyImplicit bool, skipIfNoCasks bo
         var caskCount int
         st.DB().QueryRow("SELECT COUNT(*) FROM packages WHERE is_cask = 1").Scan(&caskCount)
         if caskCount == 0 {
-            return // Skip warning — casks command with no casks is a clean no-op
+            return // Skip warning  -  casks command with no casks is a clean no-op
         }
     }
     ...
@@ -151,15 +151,15 @@ Choose whichever approach is cleaner given the existing code structure.
 
 ## 5. Tests to Write
 
-1. `TestUnused_SortSizeShowsFooter` — verify "Sorted by: size (largest first)" appears in
+1. `TestUnused_SortSizeShowsFooter`  -  verify "Sorted by: size (largest first)" appears in
    output when `--sort size` is used.
 
-2. `TestUnused_SortScoreShowsFooter` — verify "Sorted by: score (highest first)" appears in
+2. `TestUnused_SortScoreShowsFooter`  -  verify "Sorted by: score (highest first)" appears in
    output when `--sort score` is used.
 
-3. `TestUnused_SortAgeFooterUnchanged` — verify existing age sort footer still works.
+3. `TestUnused_SortAgeFooterUnchanged`  -  verify existing age sort footer still works.
 
-4. `TestUnused_CasksWithNoCasksSkipsWarning` — verify that `--casks` with no casks in DB
+4. `TestUnused_CasksWithNoCasksSkipsWarning`  -  verify that `--casks` with no casks in DB
    outputs only the "No casks found" message, without the warning banner.
 
 Update any existing tests that assert `checkUsageWarning` behavior or sort output.
@@ -191,7 +191,7 @@ git commit -m "wave1-agent-e: sort footer for size/score + casks warning skip"
 Append to this file:
 
 ```yaml
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-e
 commit: {sha}
@@ -211,7 +211,7 @@ verification: PASS | FAIL
 
 ---
 
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-e
 commit: db7cff3

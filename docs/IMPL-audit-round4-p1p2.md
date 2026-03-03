@@ -1,4 +1,4 @@
-# IMPL: Cold-Start Audit Round 4 — P1/P2 Findings
+# IMPL: Cold-Start Audit Round 4  -  P1/P2 Findings
 
 **Scope:** Fix 31 remaining UX-improvement (P1) and UX-polish (P2) findings from cold-start audit round 4.
 
@@ -91,7 +91,7 @@ Wave 3:       [J]                   <- 1 agent (verification + tests)
 
 ## Agent Prompts
 
-### Agent A — Doctor Command Improvements
+### Agent A  -  Doctor Command Improvements
 
 **Scope:** Fix 4 findings in `internal/app/doctor.go`
 
@@ -129,11 +129,11 @@ go test ./internal/app -run TestDoctor
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent A — Completion Report`
+**Completion report location:** `### Agent A  -  Completion Report`
 
 ---
 
-### Agent B — Unused Command Improvements
+### Agent B  -  Unused Command Improvements
 
 **Scope:** Fix 5 findings in `internal/app/unused.go`
 
@@ -174,11 +174,11 @@ go test ./internal/app -run TestUnused
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent B — Completion Report`
+**Completion report location:** `### Agent B  -  Completion Report`
 
 ---
 
-### Agent C — Status Command PATH Messages
+### Agent C  -  Status Command PATH Messages
 
 **Scope:** Fix 1 finding in `internal/app/status.go`
 
@@ -208,11 +208,11 @@ go test ./internal/app -run TestStatus
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent C — Completion Report`
+**Completion report location:** `### Agent C  -  Completion Report`
 
 ---
 
-### Agent D — Stats Command Improvements
+### Agent D  -  Stats Command Improvements
 
 **Scope:** Fix 2 findings in `internal/app/stats.go`
 
@@ -242,11 +242,11 @@ go test ./internal/app -run TestStats
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent D — Completion Report`
+**Completion report location:** `### Agent D  -  Completion Report`
 
 ---
 
-### Agent E — Explain Command Improvements
+### Agent E  -  Explain Command Improvements
 
 **Scope:** Fix 2 findings in `internal/app/explain.go`
 
@@ -277,11 +277,11 @@ go test ./internal/app -run TestExplain
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent E — Completion Report`
+**Completion report location:** `### Agent E  -  Completion Report`
 
 ---
 
-### Agent F — Remove/Undo Command Polish
+### Agent F  -  Remove/Undo Command Polish
 
 **Scope:** Fix 3 findings in `remove.go` and `undo.go`
 
@@ -319,11 +319,11 @@ go test ./internal/app -run TestUndo
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent F — Completion Report`
+**Completion report location:** `### Agent F  -  Completion Report`
 
 ---
 
-### Agent G — Size Formatting Consistency
+### Agent G  -  Size Formatting Consistency
 
 **Scope:** Fix 2 findings in `internal/output/table.go`
 
@@ -356,11 +356,11 @@ go test ./internal/output
 
 **Out-of-scope dependencies:** None (pure utility function changes)
 
-**Completion report location:** `### Agent G — Completion Report`
+**Completion report location:** `### Agent G  -  Completion Report`
 
 ---
 
-### Agent H — Progress Indicators with Time Estimates
+### Agent H  -  Progress Indicators with Time Estimates
 
 **Scope:** Fix 1 finding in `internal/output/progress.go`
 
@@ -388,11 +388,11 @@ go test ./internal/output
 
 **Out-of-scope dependencies:** None (API addition, not breaking change)
 
-**Completion report location:** `### Agent H — Completion Report`
+**Completion report location:** `### Agent H  -  Completion Report`
 
 ---
 
-### Agent I — Confidence Level Classification
+### Agent I  -  Confidence Level Classification
 
 **Scope:** Fix 1 finding in `internal/analyzer/confidence.go`
 
@@ -420,11 +420,11 @@ go test ./internal/analyzer
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent I — Completion Report`
+**Completion report location:** `### Agent I  -  Completion Report`
 
 ---
 
-### Agent J — PATH Idempotency Verification
+### Agent J  -  PATH Idempotency Verification
 
 **Scope:** Verify P0-3 fix and add test coverage
 
@@ -451,7 +451,7 @@ go test ./internal/shell
 
 **Out-of-scope dependencies:** None
 
-**Completion report location:** `### Agent J — Completion Report`
+**Completion report location:** `### Agent J  -  Completion Report`
 
 ---
 
@@ -516,7 +516,7 @@ After each wave completes:
 
 ## Completion Reports
 
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 
 **Status:** ✓ COMPLETE (no changes needed)
 
@@ -598,7 +598,7 @@ The implementation includes excellent inline comments explaining the three-way d
 
 ---
 
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -710,7 +710,7 @@ Comprehensive test suite covers:
 
 **No follow-up needed:** Both findings are fully resolved with appropriate test coverage.
 
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -814,7 +814,7 @@ The separated hidden count format ("X below threshold; Y in tier") establishes a
 
 ---
 
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -939,7 +939,7 @@ The subprocess test pattern in `undo_test.go` is valuable for testing exit codes
 
 ---
 
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -1071,7 +1071,7 @@ Comprehensive test coverage validates both fixes:
 
 **No follow-up needed:** Both findings fully resolved with strong test coverage.
 
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -1194,7 +1194,7 @@ Consider fixing or removing this test in a future cleanup task. The test could b
 
 ---
 
-### Agent I — Completion Report
+### Agent I  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -1340,9 +1340,9 @@ The finding is fully resolved. The data quality classification now has clear doc
 ---
 
 
-## Wave 2 — Completion Reports
+## Wave 2  -  Completion Reports
 
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 
 #### 1. Changes Made
 
@@ -1550,7 +1550,7 @@ defer spinner.Stop()
 ```
 
 ---
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 
 **Status:** ✓ COMPLETE
 
@@ -1698,7 +1698,7 @@ The solution is backward compatible, well-tested, and ready for production use.
 ---
 
 
-### Agent J — Completion Report
+### Agent J  -  Completion Report
 
 #### 1. Changes Made
 

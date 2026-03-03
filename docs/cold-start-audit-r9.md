@@ -1,4 +1,4 @@
-# Cold-Start UX Audit — Round 9
+# Cold-Start UX Audit  -  Round 9
 
 **Audit Date:** 2026-03-01
 **Tool Version:** brewprune version dev (commit: unknown, built: unknown)
@@ -31,7 +31,7 @@
 - **What happens:** `brewprune -v` prints version (`brewprune version dev (commit: unknown, built: unknown)`). The flag is documented as "show version information" in the flags list.
 - **Expected:** `-v` conventionally means `--verbose` in most CLI tools (git, brew, curl, etc.). New users who type `brewprune unused -v` expecting verbose output will get the version string instead. This is already documented in the help, but the choice is still counterintuitive.
 - **Repro:** `docker exec brewprune-r9 brewprune -v`
-- **Note:** The `unused` subcommand does accept `-v` for verbose — but it lives under the subcommand, not globally. The root `-v` maps to version, which is the source of potential confusion.
+- **Note:** The `unused` subcommand does accept `-v` for verbose  -  but it lives under the subcommand, not globally. The root `-v` maps to version, which is the source of potential confusion.
 
 ---
 
@@ -55,21 +55,21 @@
 
 ### Area 2: Setup & Onboarding
 
-#### [AREA 2] Quickstart PATH warning appears after "Setup complete" — creates confusing message ordering
+#### [AREA 2] Quickstart PATH warning appears after "Setup complete"  -  creates confusing message ordering
 
 - **Severity:** UX-improvement
-- **What happens:** The quickstart output shows "Setup complete — one step remains:" followed by a "TRACKING IS NOT ACTIVE YET" warning block. The success message and the warning appear to contradict each other.
+- **What happens:** The quickstart output shows "Setup complete  -  one step remains:" followed by a "TRACKING IS NOT ACTIVE YET" warning block. The success message and the warning appear to contradict each other.
 
   Exact output:
   ```
-  Setup complete — one step remains:
+  Setup complete  -  one step remains:
   ...
   ⚠  TRACKING IS NOT ACTIVE YET
      Your shell has not loaded the new PATH. Commands you run now
      will NOT be tracked by brewprune.
   ```
 
-- **Expected:** Either (a) the "Setup complete" message should not appear before the critical PATH warning, or (b) the warning should be integrated before the completion message so users understand setup is conditional. A cleaner framing: "Almost done — one critical step remaining:" followed by the PATH warning.
+- **Expected:** Either (a) the "Setup complete" message should not appear before the critical PATH warning, or (b) the warning should be integrated before the completion message so users understand setup is conditional. A cleaner framing: "Almost done  -  one critical step remaining:" followed by the PATH warning.
 - **Repro:** `docker exec brewprune-r9 brewprune quickstart`
 
 ---
@@ -82,7 +82,7 @@
   Shims:        inactive · 0 commands · PATH configured (restart shell to activate)
   ```
   A new user sees "Shims: inactive" which sounds like a problem, alongside "PATH configured" which sounds like it's fine.
-- **Expected:** The shim status line should disambiguate: "Shims: not yet active (PATH added to profile — restart shell to enable)". The word "inactive" signals failure; "not yet active" signals pending.
+- **Expected:** The shim status line should disambiguate: "Shims: not yet active (PATH added to profile  -  restart shell to enable)". The word "inactive" signals failure; "not yet active" signals pending.
 - **Repro:** `docker exec brewprune-r9 brewprune status`
 
 ---
@@ -93,8 +93,8 @@
 - **What happens:** When running `brewprune doctor` via `docker exec`, the pipeline test always fails:
   ```
   ✗ Pipeline test: fail (35.372s)
-    no usage event recorded after 35.367s (waited 35s) — shim executed git but daemon did not write to database
-    Action: Shims not in active PATH — run: source ~/.profile (or restart your shell)
+    no usage event recorded after 35.367s (waited 35s)  -  shim executed git but daemon did not write to database
+    Action: Shims not in active PATH  -  run: source ~/.profile (or restart your shell)
   ```
   The action is correct but the test takes 35 seconds before failing. This 35-second wait with a blank spinner and no progress updates is jarring.
 - **Expected:** The spinning dots with no time estimate during "Running pipeline test (~30s)......" feel like a hang to a new user. The approximate time is shown in the text but not while waiting. Consider periodic progress messages like "Waiting for daemon... (15s elapsed)".
@@ -106,12 +106,12 @@
 
 - **Severity:** UX-polish
 - **What happens:** Running `brewprune scan` directly shows a full 40-row package table. Running `brewprune quickstart` (which calls scan internally) shows a compact "Scan complete: 40 packages, 352 MB". The detail level differs between the two entry points.
-- **Expected:** This is arguably correct — quickstart is meant to be compact. But a user who runs manual `scan` to understand what's in their system gets a wall of "never / never / never" that adds no actionable information on first run.
+- **Expected:** This is arguably correct  -  quickstart is meant to be compact. But a user who runs manual `scan` to understand what's in their system gets a wall of "never / never / never" that adds no actionable information on first run.
 - **Repro:** `docker exec brewprune-r9 brewprune scan`
 
 ---
 
-### Area 3: Core Feature — Unused Package Discovery
+### Area 3: Core Feature  -  Unused Package Discovery
 
 #### [AREA 3] `--sort size` produces no "Sorted by:" footer annotation, but `--sort age` does
 
@@ -122,7 +122,7 @@
 
 ---
 
-#### [AREA 3] Score of 80/100 ("safe") for bat/fd/jq etc. feels misleading without usage data — all packages installed "today" have identical scores
+#### [AREA 3] Score of 80/100 ("safe") for bat/fd/jq etc. feels misleading without usage data  -  all packages installed "today" have identical scores
 
 - **Severity:** UX-improvement
 - **What happens:** Without usage data, five leaf packages (bat, fd, jq, ripgrep, tmux) all score exactly 80/100 and are all labeled safe. The verbose breakdown shows: Usage: 40/40, Dependencies: 30/30, Age: 0/20, Type: 10/10. Every leaf package installed today gets 80 regardless of anything the user knows about them.
@@ -134,7 +134,7 @@
 #### [AREA 3] Warning banner shows even when `--tier safe` is explicitly passed
 
 - **Severity:** UX-polish
-- **What happens:** Every `unused` invocation — including `--tier safe` — shows the full warning banner about no usage data. When a user already knows data is heuristic-only and is explicitly filtering to safe packages, the repeated warning adds noise.
+- **What happens:** Every `unused` invocation  -  including `--tier safe`  -  shows the full warning banner about no usage data. When a user already knows data is heuristic-only and is explicitly filtering to safe packages, the repeated warning adds noise.
 - **Expected:** The warning is appropriate on default (`brewprune unused`) but could be condensed to a single line when a specific tier is explicitly requested: "Note: heuristic scores only (no usage data recorded yet)."
 - **Repro:** `docker exec brewprune-r9 brewprune unused --tier safe`
 
@@ -163,7 +163,7 @@
   ```
   Packages to remove (medium tier):
 
-  ⚠  31 packages skipped (locked by dependents) — run with --verbose to see details
+  ⚠  31 packages skipped (locked by dependents)  -  run with --verbose to see details
   Package          Size     Score   ...
   ```
   The skip warning appears between the title and the table, breaking up visual flow.
@@ -179,7 +179,7 @@
 - **Severity:** UX-critical
 - **What happens:** After running `brewprune remove --safe --yes` (which removes bat, fd, jq, ripgrep, tmux) and then `brewprune undo latest --yes` (which restores them), calling `brewprune stats --package jq` and `brewprune explain git` both returned exit code 139 (segmentation fault) with no output. Commands returned successfully after a subsequent `brewprune scan`.
 
-  The undo output itself advises: "Run 'brewprune scan' to update the package database before running 'brewprune remove'." — but does not warn that `explain` and `stats --package` also require a fresh scan.
+  The undo output itself advises: "Run 'brewprune scan' to update the package database before running 'brewprune remove'."  -  but does not warn that `explain` and `stats --package` also require a fresh scan.
 - **Expected:** Either (a) these commands should handle the post-undo database inconsistency gracefully (not crash), or (b) the undo output warning should be expanded to cover all database-dependent commands.
 - **Repro:** `docker exec brewprune-r9 brewprune remove --safe --yes` → `docker exec brewprune-r9 brewprune undo latest --yes` → `docker exec brewprune-r9 brewprune explain git` (exit 139)
 
@@ -194,7 +194,7 @@
   Events:       3 total · 3 in last 24h
   ```
   Usage events are recorded (3 total) but the Shims line still shows "0 commands."
-- **Expected:** The "0 commands" count should reflect shim invocations that were recorded — or the label should clarify what it's counting (e.g., "shims in PATH" vs "shims invoked"). The discrepancy between "0 commands" and "3 events" is confusing.
+- **Expected:** The "0 commands" count should reflect shim invocations that were recorded  -  or the label should clarify what it's counting (e.g., "shims in PATH" vs "shims invoked"). The discrepancy between "0 commands" and "3 events" is confusing.
 - **Repro:** Run 5 shims via full path → wait 35s → `docker exec brewprune-r9 brewprune status`
 
 ---
@@ -220,16 +220,16 @@
 
 ### Area 5: Package Explanation & Detail View
 
-#### [AREA 5] `explain bat` score changed from 80 (safe) to 40 (risky) after shim usage was recorded — score correctly reflects usage, but visual discrepancy vs `unused` table is jarring
+#### [AREA 5] `explain bat` score changed from 80 (safe) to 40 (risky) after shim usage was recorded  -  score correctly reflects usage, but visual discrepancy vs `unused` table is jarring
 
 - **Severity:** UX-improvement
-- **What happens:** Before any shim invocations: `unused` table shows bat as 80/100 safe. After bat is invoked via shim and usage is recorded: `explain bat` shows Score: 40 (RISKY) with "Usage: 0/40 pts - used today (actively used — penalizes removal confidence)". The `unused` table at the same time still showed bat as 80/100 safe (this inconsistency appears immediately after usage is first recorded, before `unused` reflects the update).
-- **Expected:** This score change is correct behavior — the score should drop when the package is used. However, there's no warning in `unused` output to indicate that scores may be stale relative to very recent usage. A note like "(scores update on next polling cycle)" would help.
+- **What happens:** Before any shim invocations: `unused` table shows bat as 80/100 safe. After bat is invoked via shim and usage is recorded: `explain bat` shows Score: 40 (RISKY) with "Usage: 0/40 pts - used today (actively used  -  penalizes removal confidence)". The `unused` table at the same time still showed bat as 80/100 safe (this inconsistency appears immediately after usage is first recorded, before `unused` reflects the update).
+- **Expected:** This score change is correct behavior  -  the score should drop when the package is used. However, there's no warning in `unused` output to indicate that scores may be stale relative to very recent usage. A note like "(scores update on next polling cycle)" would help.
 - **Repro:** Run bat via shim → wait 35s → `brewprune explain bat` vs `brewprune unused`
 
 ---
 
-#### [AREA 5] `explain` output for safe packages doesn't mention `brewprune remove --safe` as the direct next action — only the dry-run variant
+#### [AREA 5] `explain` output for safe packages doesn't mention `brewprune remove --safe` as the direct next action  -  only the dry-run variant
 
 - **Severity:** UX-polish
 - **What happens:** `brewprune explain jq` ends with:
@@ -247,7 +247,7 @@
 
 ---
 
-#### [AREA 5] `explain` for a critical package (openssl@3) shows "Protected: YES (part of 47 core dependencies)" — the number 47 is unexplained
+#### [AREA 5] `explain` for a critical package (openssl@3) shows "Protected: YES (part of 47 core dependencies)"  -  the number 47 is unexplained
 
 - **Severity:** UX-polish
 - **What happens:** `explain openssl@3` output:
@@ -255,14 +255,14 @@
   Protected: YES (part of 47 core dependencies)
   ```
   The number 47 appears without context. A new user doesn't know what "47 core dependencies" means or why this number matters.
-- **Expected:** Either remove the count or expand it: "Protected: YES (brewprune considers this a core system dependency, along with 46 others)" or simply "Protected: YES (core system dependency — kept even if unused)".
+- **Expected:** Either remove the count or expand it: "Protected: YES (brewprune considers this a core system dependency, along with 46 others)" or simply "Protected: YES (core system dependency  -  kept even if unused)".
 - **Repro:** `docker exec brewprune-r9 brewprune explain openssl@3`
 
 ---
 
 ### Area 6: Diagnostics
 
-#### [AREA 6] `doctor` always fails pipeline test in docker exec context — the failure message is accurate but the check is always-failing in this environment
+#### [AREA 6] `doctor` always fails pipeline test in docker exec context  -  the failure message is accurate but the check is always-failing in this environment
 
 - **Severity:** UX-critical
 - **What happens:** In the docker exec environment, the pipeline test in `doctor` always fails with exit 1 because the shims aren't in the docker exec PATH. This happens even in the "healthy state" where the daemon is running and usage events are recorded. The output:
@@ -271,7 +271,7 @@
   Error: diagnostics failed
   ```
   The exit code is 1 (failure) even when the system is actually functional (3 usage events were recorded manually via shim paths).
-- **Expected:** This is a real limitation of the audit environment (docker exec doesn't inherit the user's PATH), but for real users after `source ~/.profile`, the pipeline test should pass. The issue is that `doctor` labels the system as broken when shims are in the profile but not yet in the active session. A better distinction: "Pipeline test: SKIPPED (shims not in active PATH for this session — restart shell first)" vs outright failure.
+- **Expected:** This is a real limitation of the audit environment (docker exec doesn't inherit the user's PATH), but for real users after `source ~/.profile`, the pipeline test should pass. The issue is that `doctor` labels the system as broken when shims are in the profile but not yet in the active session. A better distinction: "Pipeline test: SKIPPED (shims not in active PATH for this session  -  restart shell first)" vs outright failure.
 - **Repro:** Any `docker exec brewprune-r9 brewprune doctor` call where `source ~/.profile` has not been run.
 
 ---
@@ -285,18 +285,18 @@
     Action: Run 'brewprune scan' to create database
   ⚠ Daemon not running (no PID file)
     Action: Run 'brewprune watch --daemon'
-  ✗ Shim binary not found — usage tracking disabled
+  ✗ Shim binary not found  -  usage tracking disabled
     Action: Run 'brewprune scan' to build it
 
   Found 2 critical issue(s) and 1 warning(s).
   ```
-  The usage events check is absent (correctly skipped as database doesn't exist). But the count "2 critical, 1 warning" mentions 3 checks with 3 shown — this is actually clean. No issue found here beyond the PATH check still being absent.
-- **Expected:** Consider adding a PATH check: "✗ ~/.brewprune/bin not found in PATH — run brewprune scan, then add to PATH". This check is absent from all three doctor states (healthy, degraded, blank).
+  The usage events check is absent (correctly skipped as database doesn't exist). But the count "2 critical, 1 warning" mentions 3 checks with 3 shown  -  this is actually clean. No issue found here beyond the PATH check still being absent.
+- **Expected:** Consider adding a PATH check: "✗ ~/.brewprune/bin not found in PATH  -  run brewprune scan, then add to PATH". This check is absent from all three doctor states (healthy, degraded, blank).
 - **Repro:** `docker exec brewprune-r9 rm -rf /home/brewuser/.brewprune && docker exec brewprune-r9 brewprune doctor`
 
 ---
 
-#### [AREA 6] `doctor` has no PATH-in-PATH check — only a "PATH configured in profile" check
+#### [AREA 6] `doctor` has no PATH-in-PATH check  -  only a "PATH configured in profile" check
 
 - **Severity:** UX-improvement
 - **What happens:** `doctor` checks whether `~/.brewprune/bin` appears in `~/.profile` (it does), but has no check for whether it's actually in the current session's `$PATH`. These are two different states that produce very different behavior. The current check only tells you whether the profile was written, not whether tracking is actually active.
@@ -307,7 +307,7 @@
 
 ### Area 7: Destructive Operations
 
-#### [AREA 7] `undo latest --yes` output mixes two progress styles — list and progress bar run simultaneously
+#### [AREA 7] `undo latest --yes` output mixes two progress styles  -  list and progress bar run simultaneously
 
 - **Severity:** UX-polish
 - **What happens:** The undo output shows a progress bar line followed by individual "Restored X" messages:
@@ -352,16 +352,16 @@
 - **Severity:** UX-improvement
 - **What happens:** When no database exists:
   ```
-  Error: failed to get usage trends: failed to list packages: database not initialized — run 'brewprune scan' to create the database
+  Error: failed to get usage trends: failed to list packages: database not initialized  -  run 'brewprune scan' to create the database
   ```
   The error chain is exposed to the user: "failed to get usage trends: failed to list packages: database not initialized".
 - **Expected:** Surface only the actionable end of the error chain:
   ```
-  Error: database not initialized — run 'brewprune scan' to create the database
+  Error: database not initialized  -  run 'brewprune scan' to create the database
   ```
   Same issue applies to `remove --safe` with no database:
   ```
-  Error: failed to get packages: failed to list packages: database not initialized — run 'brewprune scan' to create the database
+  Error: failed to get packages: failed to list packages: database not initialized  -  run 'brewprune scan' to create the database
   ```
 - **Repro:** `docker exec brewprune-r9 rm -rf /home/brewuser/.brewprune && docker exec brewprune-r9 brewprune stats`
 
@@ -374,8 +374,8 @@
   ```
   ⚠  5 new formulae since last scan. Run 'brewprune scan' to update shims.
   ```
-  Additionally, the package list and scores appear partially stale — libevent, libgit2, and oniguruma appear in the safe tier (80/100 with no dependents) even though they have dependents in the full install. This is a consequence of the stale database state post-undo.
-- **Expected:** After `undo`, the tool should either (a) automatically trigger a scan before showing recommendations, or (b) block `unused` output with a hard error: "Database is stale after restore — run 'brewprune scan' before viewing recommendations."
+  Additionally, the package list and scores appear partially stale  -  libevent, libgit2, and oniguruma appear in the safe tier (80/100 with no dependents) even though they have dependents in the full install. This is a consequence of the stale database state post-undo.
+- **Expected:** After `undo`, the tool should either (a) automatically trigger a scan before showing recommendations, or (b) block `unused` output with a hard error: "Database is stale after restore  -  run 'brewprune scan' before viewing recommendations."
 - **Repro:** `docker exec brewprune-r9 brewprune remove --safe --yes` → `docker exec brewprune-r9 brewprune undo latest --yes` → `docker exec brewprune-r9 brewprune unused`
 
 ---
@@ -387,7 +387,7 @@
   ```
   Tracking:     stopped  (run 'brewprune watch --daemon')
   Shims:        inactive · 0 commands · PATH configured (restart shell to activate)
-  Last scan:    never — run 'brewprune scan' · 0 formulae · 4 KB
+  Last scan:    never  -  run 'brewprune scan' · 0 formulae · 4 KB
   ```
   "PATH configured" appears even though the `.brewprune` directory was deleted. This means the PATH check is reading from the shell profile, not from whether the shim directory actually exists.
 - **Expected:** The status line should reflect the actual state: "Shims: not installed (run 'brewprune scan' to build)" when the shim binary doesn't exist.
@@ -404,7 +404,7 @@ Overall visual quality is high. The tool uses consistent table formatting throug
 - Tier labels in the Status column use distinguishable symbols as proxies for color: `✓ safe`, `~ medium`, `⚠ risky`. These work in non-color contexts.
 - Warning banners use `⚠` prefix consistently.
 - Error messages start with `Error:` prefix consistently.
-- `doctor` uses `✓`, `⚠`, and `✗` for pass, warning, and fail — this is clear and consistent.
+- `doctor` uses `✓`, `⚠`, and `✗` for pass, warning, and fail  -  this is clear and consistent.
 - No evidence of color-coded tier column values in the unused table (colors can't be verified in this audit context, but the symbol-based system is solid).
 
 #### Terminology Consistency
@@ -420,7 +420,7 @@ Overall visual quality is high. The tool uses consistent table formatting throug
 - The Reclaimable summary line ("Reclaimable: 39 MB (safe) · 248 MB (medium) · 66 MB (risky)") is an excellent at-a-glance value proposition.
 - `remove --safe --yes` shows a real-time progress bar: `[=======================================>] 100% Removing packages`. Clean.
 - `undo --list` output is minimal and correct: ID, Created, Packages, Reason columns.
-- `remove --no-snapshot --dry-run` prominently warns: "⚠  Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!" — excellent danger visibility.
+- `remove --no-snapshot --dry-run` prominently warns: "⚠  Snapshot: SKIPPED (--no-snapshot)  -  removal cannot be undone!"  -  excellent danger visibility.
 - `--tier` filter indicator in the summary line is creative: `[SAFE: 5 packages (39 MB)] · MEDIUM: 32 ...` (brackets highlight the active filter). Clear and elegant.
 - Conflict detection errors are specific: "only one tier flag can be specified at a time (got --safe, --medium, and --risky)".
 - Unknown subcommand errors list all valid commands inline: "Valid commands: scan, unused, remove, undo, status, stats, explain, doctor, quickstart, watch, completion".
@@ -428,7 +428,7 @@ Overall visual quality is high. The tool uses consistent table formatting throug
 #### Spacing and Sections
 
 - Consistent use of empty lines between sections.
-- The verbose breakdown per-package in `unused --verbose` uses horizontal rules (`───...`) between packages — readable but verbose for 40 packages.
+- The verbose breakdown per-package in `unused --verbose` uses horizontal rules (`───...`) between packages  -  readable but verbose for 40 packages.
 - `stats --all` lacks a header line ("Sorted by: most used first" is present, which is good) but has no "Showing N of N packages" count line, unlike the default view.
 
 ---
@@ -467,28 +467,28 @@ Overall visual quality is high. The tool uses consistent table formatting throug
 
 ### Medium Priority (UX-improvement)
 
-4. **`status` Shims line: "inactive · 0 commands" is misleading** — "0 commands" doesn't reflect shim invocations recorded in usage.log. Fix the label or the count.
+4. **`status` Shims line: "inactive · 0 commands" is misleading**  -  "0 commands" doesn't reflect shim invocations recorded in usage.log. Fix the label or the count.
 
-5. **Stats not recording all shim invocations** — git and jq shim invocations appear in usage.log but not in `stats` output. Investigate shim→package resolution failures.
+5. **Stats not recording all shim invocations**  -  git and jq shim invocations appear in usage.log but not in `stats` output. Investigate shim→package resolution failures.
 
-6. **`remove nonexistent-package` error needs the same helpful context as `explain nonexistent-package`** — add suggestions to check `brew list` and run `brewprune scan`.
+6. **`remove nonexistent-package` error needs the same helpful context as `explain nonexistent-package`**  -  add suggestions to check `brew list` and run `brewprune scan`.
 
-7. **Error message chaining exposed to users** — `stats` and `remove` with no database show internal error chain ("failed to get usage trends: failed to list packages: database not initialized"). Surface only the terminal message.
+7. **Error message chaining exposed to users**  -  `stats` and `remove` with no database show internal error chain ("failed to get usage trends: failed to list packages: database not initialized"). Surface only the terminal message.
 
-8. **Quickstart "Setup complete" before PATH warning** — restructure so the critical warning comes before the completion message, not after.
+8. **Quickstart "Setup complete" before PATH warning**  -  restructure so the critical warning comes before the completion message, not after.
 
-9. **Doctor missing active-PATH check** — add a check for whether `~/.brewprune/bin` is in `$PATH` right now (not just in the profile). This surfaces the most common post-setup issue as a diagnostic.
+9. **Doctor missing active-PATH check**  -  add a check for whether `~/.brewprune/bin` is in `$PATH` right now (not just in the profile). This surfaces the most common post-setup issue as a diagnostic.
 
 ### Lower Priority (UX-polish)
 
-10. **Sort mode annotation inconsistency** — `--sort size` and `--sort score` don't show "Sorted by:" footer; `--sort age` does. Add footers for all sort modes.
+10. **Sort mode annotation inconsistency**  -  `--sort size` and `--sort score` don't show "Sorted by:" footer; `--sort age` does. Add footers for all sort modes.
 
-11. **Warning banner on `--casks` with no casks** — skip the full banner and just show the cask message.
+11. **Warning banner on `--casks` with no casks**  -  skip the full banner and just show the cask message.
 
-12. **`undo` progress bar + item list running simultaneously** — pick one rendering style.
+12. **`undo` progress bar + item list running simultaneously**  -  pick one rendering style.
 
-13. **"Protected: YES (part of 47 core dependencies)"** — the 47 count is unexplained and confusing.
+13. **"Protected: YES (part of 47 core dependencies)"**  -  the 47 count is unexplained and confusing.
 
 14. **Quickstart self-test step should announce expected duration upfront** before the spinner starts.
 
-15. **`explain` recommendation formatting** — use a numbered list for dry-run-then-remove steps.
+15. **`explain` recommendation formatting**  -  use a numbered list for dry-run-then-remove steps.

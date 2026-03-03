@@ -1,13 +1,13 @@
-# Wave 1 Agent E: quickstart.go — brew services message, PATH note, progress
+# Wave 1 Agent E: quickstart.go  -  brew services message, PATH note, progress
 
 You are Wave 1 Agent E. Fix three UX issues in quickstart.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/quickstart.go` — modify
+- `internal/app/quickstart.go`  -  modify
 
-Note: There is no `quickstart_test.go` file. Do not create one — the scope is
+Note: There is no `quickstart_test.go` file. Do not create one  -  the scope is
 limited to the existing file.
 
 ## 2. Interfaces You Must Implement
@@ -17,7 +17,7 @@ No new exported functions. You are modifying existing behavior only.
 ## 3. Interfaces You May Call
 
 ```go
-// internal/output/progress.go — already exists, need to add import
+// internal/output/progress.go  -  already exists, need to add import
 output.NewSpinner(message string) *output.Spinner
 (*output.Spinner).StopWithMessage(message string)
 (*output.Spinner).Stop()
@@ -36,13 +36,13 @@ Step 3 of quickstart:
 1. Finds `brew` in PATH
 2. Runs `brew services start brewprune`
 3. If it fails (it always will on Linux), prints:
-   `⚠ brew services start failed (exit status 1) — falling back to brewprune watch --daemon`
+   `⚠ brew services start failed (exit status 1)  -  falling back to brewprune watch --daemon`
 4. Falls back to `watch --daemon`
 
 A new user sees a failure message during setup, which is alarming.
 
 **Fix:** Before running `brew services`, detect whether the system supports it.
-On Linux, `brew services` requires `systemd` or `launchd` — check for
+On Linux, `brew services` requires `systemd` or `launchd`  -  check for
 `/sbin/init` being systemd or use `runtime.GOOS`:
 
 ```go
@@ -56,16 +56,16 @@ if brewPath, lookErr := exec.LookPath("brew"); lookErr == nil {
         // start daemon directly
     } else {
         // macOS: try brew services first
-        fmt.Printf("  brew found at %s — running: brew services start brewprune\n", brewPath)
+        fmt.Printf("  brew found at %s  -  running: brew services start brewprune\n", brewPath)
         // ... existing brew services logic ...
     }
 }
 ```
 
 If `brew services` is tried and fails on macOS, change the message from
-`"⚠ brew services start failed (%v) — falling back to brewprune watch --daemon"`
+`"⚠ brew services start failed (%v)  -  falling back to brewprune watch --daemon"`
 to something less alarming:
-`"  brew services unavailable — using daemon mode"`
+`"  brew services unavailable  -  using daemon mode"`
 
 ### Finding 2: `quickstart` PATH step says "Restart your shell" but continues immediately
 
@@ -117,7 +117,7 @@ if dbErr != nil {
             spinner.StopWithMessage(fmt.Sprintf("  ⚠ Self-test did not confirm tracking: %v", testErr))
             fmt.Println("  Run 'brewprune doctor' for diagnostics")
         } else {
-            spinner.StopWithMessage("  ✓ Tracking verified — brewprune is working")
+            spinner.StopWithMessage("  ✓ Tracking verified  -  brewprune is working")
         }
     }
 }
@@ -127,7 +127,7 @@ Remove the original `fmt.Println("  Waiting up to 35s for a usage event to appea
 
 ## 5. Tests to Write
 
-There is no existing quickstart_test.go. Do NOT create one — this is out of
+There is no existing quickstart_test.go. Do NOT create one  -  this is out of
 scope for this agent. The verification gate (build + full test suite) is
 sufficient.
 
@@ -148,7 +148,7 @@ All must pass before reporting completion.
   the import block.
 - The `runtime` import for GOOS detection is NOT currently in quickstart.go.
   You must add it if you use the GOOS approach.
-- Do NOT change `internal/app/shimtest.go` — only quickstart.go.
+- Do NOT change `internal/app/shimtest.go`  -  only quickstart.go.
 - Do NOT change any other files.
 - If you discover that correct implementation requires changing a file not in
   your ownership list, do NOT modify it. Report it in section 8.
@@ -156,7 +156,7 @@ All must pass before reporting completion.
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent E — Completion Report`.
+`### Agent E  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

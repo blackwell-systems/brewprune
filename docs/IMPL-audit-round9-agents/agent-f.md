@@ -27,8 +27,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/remove.go` — modify
-- `internal/app/remove_test.go` — modify
+- `internal/app/remove.go`  -  modify
+- `internal/app/remove_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -82,12 +82,12 @@ This is in the `len(args) > 0` branch of `runRemove`, inside the loop over `filt
 
 **Current behavior when no DB exists:**
 ```
-Error: failed to get packages: failed to list packages: database not initialized — run 'brewprune scan' to create the database
+Error: failed to get packages: failed to list packages: database not initialized  -  run 'brewprune scan' to create the database
 ```
 
 **Target:**
 ```
-Error: database not initialized — run 'brewprune scan' to create the database
+Error: database not initialized  -  run 'brewprune scan' to create the database
 ```
 
 The error chain is created at `remove.go:177`:
@@ -129,11 +129,11 @@ This one is fine as-is (just one level of wrapping, DB open errors are valid con
 
 ## 5. Tests to Write
 
-1. `TestRemove_NonexistentPackageHelpfulError` — verify that removing a nonexistent package
+1. `TestRemove_NonexistentPackageHelpfulError`  -  verify that removing a nonexistent package
    produces the multi-line helpful error (with "brew list" and "brewprune scan" suggestions),
    not just "package X not found".
 
-2. `TestRemove_NoDatabaseErrorUnwrapped` — verify that when no DB exists, the error message
+2. `TestRemove_NoDatabaseErrorUnwrapped`  -  verify that when no DB exists, the error message
    is the terminal "database not initialized" message without the "failed to get packages"
    prefix.
 
@@ -155,7 +155,7 @@ go test ./internal/app -run 'TestRemove' -v
   same pattern for consistency.
 - Only the NAMED PACKAGE error gets the helpful context. Tier-based removal errors (when no
   packages found in tier) are handled separately and should not change.
-- Do NOT unwrap the `store.New` error — that's a valid single-level wrap.
+- Do NOT unwrap the `store.New` error  -  that's a valid single-level wrap.
 
 ## 8. Report
 
@@ -168,7 +168,7 @@ git commit -m "wave1-agent-f: helpful remove error + error chain unwrapping"
 Append to this file:
 
 ```yaml
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-f
 commit: {sha}
@@ -186,7 +186,7 @@ verification: PASS | FAIL
 
 ---
 
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-f
 commit: f81828c7cce5e3ab7355c5aafebbc55a2b26fc09

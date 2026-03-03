@@ -83,8 +83,8 @@
   1. Quickstart reports: "✓ Added /home/brewuser/.brewprune/bin to PATH in /home/brewuser/.profile"
   2. Immediately shows: "Restart your shell (or source the config file) for this to take effect."
   3. But then later says: "✓ Usage tracking daemon started"
-  4. Step 4/4 says: "✓ Tracking verified — brewprune is working"
-  5. However, running `brewprune doctor` immediately after shows: "⚠ Shim directory not in PATH — executions won't be intercepted"
+  4. Step 4/4 says: "✓ Tracking verified  -  brewprune is working"
+  5. However, running `brewprune doctor` immediately after shows: "⚠ Shim directory not in PATH  -  executions won't be intercepted"
   6. The PATH warning conflicts with the "tracking verified" message
 - **Expected**: Either:
   - Quickstart should acknowledge PATH isn't active yet and tracking won't work until shell restart
@@ -153,7 +153,7 @@
   - Notice about hidden risky packages
   - Data confidence indicator
   - Actionable tip about waiting 1-2 weeks
-- **Expected**: This is excellent UX — shows useful info without overwhelming new users
+- **Expected**: This is excellent UX  -  shows useful info without overwhelming new users
 - **Repro**: `brewprune unused`
 
 ### [UNUSED] Verbose output is extremely helpful
@@ -213,7 +213,7 @@
 - **What happens**: In a fresh install, every package shows "Last Used: never"
 - **Expected**: Could be more informative:
   - "Last Used: not tracked (tracking started today)"
-  - Or just "—" to indicate no data
+  - Or just " - " to indicate no data
   - "never" implies we've been watching for a while and truly never saw usage
 - **Repro**: `brewprune unused` right after setup
 
@@ -221,7 +221,7 @@
 - **Severity**: UX-improvement
 - **What happens**: Running git commands then checking unused shows:
   - git: "Last Used: just now" but Score: 30/100, Status: ⚠ risky
-  - This is confusing — if it was just used, why is it risky to remove?
+  - This is confusing  -  if it was just used, why is it risky to remove?
 - **Expected**:
   - The "risky" label is because git is a core dependency (protected)
   - But to a new user, seeing "just used" + "risky to remove" is contradictory
@@ -234,7 +234,7 @@
 - **What happens**: Footer shows: "Confidence: MEDIUM (2 events, tracking for 0 days)"
 - **Expected**: This is good but easy to miss. Could be more prominent:
   - Use color: "Confidence: MEDIUM (2 events, tracking for 0 days)" in yellow
-  - Or header: "⚠ Data Confidence: MEDIUM — wait 1-2 weeks for reliable recommendations"
+  - Or header: "⚠ Data Confidence: MEDIUM  -  wait 1-2 weeks for reliable recommendations"
 - **Repro**: `brewprune unused`
 
 ---
@@ -258,7 +258,7 @@
 - **Severity**: UX-critical
 - **What happens**:
   - `brewprune status` says: "Shims: active · 222 commands · PATH configured (restart shell to activate)"
-  - `brewprune doctor` says: "⚠ Shim directory not in PATH — executions won't be intercepted"
+  - `brewprune doctor` says: "⚠ Shim directory not in PATH  -  executions won't be intercepted"
   - Both are technically correct (PATH is in config file, but not active in current shell)
   - But the mixed messaging is confusing
 - **Expected**:
@@ -294,7 +294,7 @@
   - "✓ Database up to date (40 packages, 0 changes)"
   - Subsequent scans show same message
   - No verbose output unless something changes
-- **Expected**: This is good — quiet when nothing to report
+- **Expected**: This is good  -  quiet when nothing to report
 - **Repro**: `brewprune scan` (twice)
 
 ### [TRACKING] Data quality indicator is clear
@@ -352,12 +352,12 @@
 ### [STATS] Default stats view is concise
 - **Severity**: UX-polish (positive finding)
 - **What happens**: `brewprune stats` shows:
-  - Header: "Showing 1 of 40 packages (39 with no recorded usage — use --all to see all)"
+  - Header: "Showing 1 of 40 packages (39 with no recorded usage  -  use --all to see all)"
   - Table with: Package, Total Runs, Last Used, Frequency, Trend
   - Only shows packages with usage
   - Summary: "1 packages used in last 30 days (out of 40 total)"
-  - Reminder: "(39 packages with no recorded usage hidden — use --all to show)"
-- **Expected**: This is good progressive disclosure — show interesting data, hide noise
+  - Reminder: "(39 packages with no recorded usage hidden  -  use --all to show)"
+- **Expected**: This is good progressive disclosure  -  show interesting data, hide noise
 - **Repro**: `brewprune stats`
 
 ### [STATS] Package-specific stats are detailed
@@ -568,7 +568,7 @@
 - **Severity**: UX-improvement
 - **What happens**:
   - "unused" vs "removal candidates" (both used)
-  - "packages" vs "formulae" (both used — "formulae" is Homebrew term)
+  - "packages" vs "formulae" (both used  -  "formulae" is Homebrew term)
   - "daemon" vs "service" vs "tracking" (all used for watch daemon)
   - Status column: "safe" / "review" / "risky" inconsistent with tier names "SAFE" / "MEDIUM" / "RISKY"
 - **Expected**:
@@ -582,7 +582,7 @@
 - **What happens**: Commands with no data show helpful messages:
   - No snapshots: "Use 'brewprune remove' to remove packages and create snapshots."
   - No matching packages: "Suggestions: Try lowering --min-score"
-  - No usage data: "(39 packages with no recorded usage hidden — use --all to show)"
+  - No usage data: "(39 packages with no recorded usage hidden  -  use --all to show)"
 - **Expected**: This is excellent empty state handling
 - **Repro**: `brewprune undo --list`, `brewprune unused --tier safe --min-score 90`
 

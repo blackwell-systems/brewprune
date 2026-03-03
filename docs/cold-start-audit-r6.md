@@ -221,7 +221,7 @@
 
 - **Severity**: UX-polish
 - **What happens**: The Trend column in `brewprune stats --all` shows `→` (flat arrow) for all 39 packages with no usage and also for `git` with 3 uses. The trend arrow carries no information - every package shows the same symbol regardless of whether usage is growing, declining, or nonexistent.
-- **Expected**: For packages with zero usage, the trend could show `-` or `—` (no data). For packages with actual data points, the trend should reflect whether usage is increasing (`↑`), decreasing (`↓`), or stable (`→`). If trend calculation requires more history than is available, display "n/a" or "—" rather than a misleading "flat" arrow.
+- **Expected**: For packages with zero usage, the trend could show `-` or ` - ` (no data). For packages with actual data points, the trend should reflect whether usage is increasing (`↑`), decreasing (`↓`), or stable (`→`). If trend calculation requires more history than is available, display "n/a" or " - " rather than a misleading "flat" arrow.
 - **Repro**: `docker exec brewprune-r6 brewprune stats --all`
 
 ---
@@ -367,7 +367,7 @@
 
 - **Severity**: UX-improvement
 - **What happens**: `brewprune remove --no-snapshot --safe --dry-run` shows `Snapshot: SKIPPED (--no-snapshot)` in the summary section. The help text describes this as "dangerous" but the output does not visually emphasize the danger - it's presented the same way as "Snapshot: will be created".
-- **Expected**: Flag the skipped snapshot with a warning character and color. For example: `⚠ Snapshot: SKIPPED (--no-snapshot) — removal cannot be undone!` in yellow/red.
+- **Expected**: Flag the skipped snapshot with a warning character and color. For example: `⚠ Snapshot: SKIPPED (--no-snapshot)  -  removal cannot be undone!` in yellow/red.
 - **Repro**: `docker exec brewprune-r6 brewprune remove --no-snapshot --safe --dry-run`
 
 ---
@@ -551,7 +551,7 @@
 
 8. **Clarify score inversion** (UNUSED-3): The 40/40 "usage score" meaning "never used" is unintuitive. Surface the inversion note earlier in verbose/explain output.
 
-9. **Improve trend column** (TRACK-3): `→` for everything is meaningless. Use `—` for no-data packages.
+9. **Improve trend column** (TRACK-3): `→` for everything is meaningless. Use ` - ` for no-data packages.
 
 ### Lower Priority (UX-polish)
 

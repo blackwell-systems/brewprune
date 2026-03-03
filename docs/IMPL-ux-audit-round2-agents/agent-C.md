@@ -1,12 +1,12 @@
-# Wave 1 Agent C: undo.go — help section ordering, exit codes, error framing
+# Wave 1 Agent C: undo.go  -  help section ordering, exit codes, error framing
 
 You are Wave 1 Agent C. Fix three UX issues in undo.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/undo.go` — modify
-- `internal/app/undo_test.go` — modify
+- `internal/app/undo.go`  -  modify
+- `internal/app/undo_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -64,7 +64,7 @@ if len(snaps) == 0 {
     fmt.Println("No snapshots available.")
     fmt.Println("\nSnapshots are automatically created before package removal.")
     fmt.Println("Use 'brewprune remove' to remove packages and create snapshots.")
-    return nil   // exits 0 — WRONG
+    return nil   // exits 0  -  WRONG
 }
 ```
 
@@ -86,23 +86,23 @@ Note: `os` is already imported in undo.go.
 
 ### Finding 3: `undo latest` message not clearly an error
 
-This is covered by Finding 2's fix — prefixing with `"Error:"` and printing to
+This is covered by Finding 2's fix  -  prefixing with `"Error:"` and printing to
 stderr makes it unambiguous that this is a failure state.
 
 ## 5. Tests to Write
 
 Update `internal/app/undo_test.go`:
 
-1. `TestRunUndo_LatestNoSnapshots_ExitsNonZero` — verify that `undo latest`
+1. `TestRunUndo_LatestNoSnapshots_ExitsNonZero`  -  verify that `undo latest`
    with no snapshots produces output containing "Error:" and exits non-zero.
    Note: since os.Exit(1) is called, you may need to use a subprocess test
    pattern or check that the function calls `os.Exit`. Look at how
    `TestRunDoctor_WarningOnlyExitsCode2` handles `os.Exit(2)` in doctor_test.go
    for the pattern to follow.
-2. `TestUndoHelp_UsageComesBeforeExamples` — verify that in the help output,
+2. `TestUndoHelp_UsageComesBeforeExamples`  -  verify that in the help output,
    "Usage:" appears before "Examples:" (both strings should be present, and
    Usage index < Examples index).
-3. Update `TestRunUndo_LatestNoSnapshotsFriendlyMessage` — this existing test
+3. Update `TestRunUndo_LatestNoSnapshotsFriendlyMessage`  -  this existing test
    checks the friendly message; update it to expect "Error:" prefix and stderr
    output.
 
@@ -120,7 +120,7 @@ All must pass before reporting completion.
 
 ## 7. Constraints
 
-- Do NOT change the `--list` or `--yes` flag definitions — only the Long/Example text.
+- Do NOT change the `--list` or `--yes` flag definitions  -  only the Long/Example text.
 - The `os.Exit(1)` approach for the no-snapshots case ensures the error is
   surfaced without the double-print issue from main.go's error handler.
 - If you discover that correct implementation requires changing a file not in
@@ -129,7 +129,7 @@ All must pass before reporting completion.
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent C — Completion Report`.
+`### Agent C  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

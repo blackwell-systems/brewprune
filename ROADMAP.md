@@ -8,9 +8,9 @@ Items are grouped by priority. Within each group, order reflects implementation 
 
 The goal is for brewprune to feel like a missing feature of Homebrew, not a separate tool you have to babysit. Three things must be true:
 
-1. **It installs and starts like brew things do** — `brew install`, `brew services start`, done.
-2. **It behaves like brew commands** — verbs, output style, and defaults match what brew users expect.
-3. **It never feels like a separate system** — no manual sync steps, no "remember to rescan."
+1. **It installs and starts like brew things do**  -  `brew install`, `brew services start`, done.
+2. **It behaves like brew commands**  -  verbs, output style, and defaults match what brew users expect.
+3. **It never feels like a separate system**  -  no manual sync steps, no "remember to rescan."
 
 **Elevator pitch:** *Homebrew can tell you what's installed and what depends on what. It can't tell you what you actually use. brewprune adds that missing signal, and makes cleanup reversible.*
 
@@ -24,7 +24,7 @@ The goal is for brewprune to feel like a missing feature of Homebrew, not a sepa
 ### Brew-aware stale detection
 After `brew install` or `brew upgrade`, brewprune's package DB drifts silently (new packages aren't shimmed). Two layers:
 
-**A. Lightweight — prompt on drift:**
+**A. Lightweight  -  prompt on drift:**
 On any command that reads the package DB (`unused`, `stats`, `remove`), compare last scan timestamp against `brew list`. If new packages exist, print:
 ```
 New formulae detected since last scan. Run 'brewprune scan' to update shims.
@@ -49,7 +49,7 @@ Keep `--yes` to skip for scripts.
 ---
 
 ### brew-native `status` output
-Mirror what `brew services list` feels like — structured, scannable:
+Mirror what `brew services list` feels like  -  structured, scannable:
 ```
 Tracking:     running (since 2 days ago, PID 17430)
 Events:       1,842 total  ·  38 in last 24h
@@ -66,7 +66,7 @@ Ship zsh (and bash/fish) completions. Cobra can generate these automatically. In
 
 ---
 
-### "Used" ≠ "needed" — UX clarity
+### "Used" ≠ "needed"  -  UX clarity
 Some packages are critical without being directly executed (daemons, imports, services). The scoring is still correct overall, but the UX should be explicit:
 - Add a disclaimer line to `brewprune unused` output: *"Safe = low observed execution risk. Review medium/risky tiers before removing libraries or daemons."*
 - Expand protected packages list with common daemon-only packages
@@ -79,6 +79,6 @@ Some packages are critical without being directly executed (daemons, imports, se
 Use headings that match the brew documentation mental model:
 - Install → Services → Usage → Uninstall / rollback → Troubleshooting
 
-Reframe the "daemon requirement" as "Enable tracking" — same truth, brew-native phrasing.
+Reframe the "daemon requirement" as "Enable tracking"  -  same truth, brew-native phrasing.
 
 ---

@@ -51,7 +51,7 @@ The work decomposes cleanly into disjoint file ownership across four agents. No 
 
 ## Investigation Results
 
-### Finding 4.1 — Root cause
+### Finding 4.1  -  Root cause
 
 **Trace:**
 1. Shim binary intercepts `git`, records `argv0 = /home/brewuser/.brewprune/bin/git` → appended to `~/.brewprune/usage.log`.
@@ -59,10 +59,10 @@ The work decomposes cleanly into disjoint file ownership across four agents. No 
 3. For each entry: `basename = filepath.Base(argv0) = "git"`.
 4. Lookup order: `optPathMap["/opt/homebrew/bin/git"]` → miss; `optPathMap["/usr/local/bin/git"]` → miss; `binaryMap["git"]` → MISS; `optPathMap["/home/linuxbrew/.linuxbrew/bin/git"]` → MISS.
 5. All entries fall through to `log.Printf("no package found...")` and are skipped.
-6. But **`watch.log` shows no `log.Printf` output** — this is the key anomaly.
+6. But **`watch.log` shows no `log.Printf` output**  -  this is the key anomaly.
 
 **Why `log.Printf` is not appearing in watch.log:**
-The daemon child is spawned with `cmd.Stdout = logF; cmd.Stderr = logF` (daemon.go:41-43). Go's default logger (`log.Printf`) writes to `os.Stderr`. When the child writes to `os.Stderr`, it goes to the file descriptor inherited from `cmd.Stderr = logF`. This SHOULD work. But the startup log message at `runWatchDaemonChild()` (watch.go:197-203) is guarded by `if watchLogFile != ""`. The child process is spawned with `exec.Command(executable, "watch", "--daemon-child")` — **without `--log-file`**. So `watchLogFile = ""` in the child. The startup message is suppressed. `log.Printf` still writes to inherited stderr → watch.log.
+The daemon child is spawned with `cmd.Stdout = logF; cmd.Stderr = logF` (daemon.go:41-43). Go's default logger (`log.Printf`) writes to `os.Stderr`. When the child writes to `os.Stderr`, it goes to the file descriptor inherited from `cmd.Stderr = logF`. This SHOULD work. But the startup log message at `runWatchDaemonChild()` (watch.go:197-203) is guarded by `if watchLogFile != ""`. The child process is spawned with `exec.Command(executable, "watch", "--daemon-child")`  -  **without `--log-file`**. So `watchLogFile = ""` in the child. The startup message is suppressed. `log.Printf` still writes to inherited stderr → watch.log.
 
 **However**: The child spawns in daemon.go:40 without `--log-file`. But `w.store` in the child is opened via `runWatch` → `store.New(dbPath)`. The child calls `db.CreateSchema()` and then `w.RunDaemon()`. This is correct.
 
@@ -75,7 +75,7 @@ For the `binaryMap`, the first pass maps `filepath.Base("/home/linuxbrew/.linuxb
 
 **Conclusion**: In the audit scenario, the daemon is started with `brewprune watch --daemon` BEFORE `RefreshBinaryPaths` has run for a second time after undo+scan. Packages exist in the DB (undo re-installed them) but their `BinaryPaths` field is either empty (undo does not update the DB) or reflects pre-undo scan. After `brewprune undo`, packages are reinstalled via brew but the DB still has stale/deleted package records. After `brewprune scan` (finding 7.1 scenario), `InsertPackage` uses `INSERT OR REPLACE` which DOES update `BinaryPaths`. But the dependency relationships are stale (finding 7.1).
 
-**The actual bug causing 4.1 in isolation** (independent of 7.1): `ProcessUsageLog` produces zero log output for shim paths because `log.Printf` in the daemon child is redirected to watch.log but there are NO "no package found" lines either. This means the shim log is NOT being processed at all — either the file is being read but all lines fail `parseShimLogLine`, or the file doesn't exist at the time `ProcessUsageLog` is called.
+**The actual bug causing 4.1 in isolation** (independent of 7.1): `ProcessUsageLog` produces zero log output for shim paths because `log.Printf` in the daemon child is redirected to watch.log but there are NO "no package found" lines either. This means the shim log is NOT being processed at all  -  either the file is being read but all lines fail `parseShimLogLine`, or the file doesn't exist at the time `ProcessUsageLog` is called.
 
 **Most likely root cause**: The shim log path is `filepath.Join(homeDir, ".brewprune", "usage.log")` but in the audit, the daemon's child process runs as a different process. `os.UserHomeDir()` should return the same home. However, the child is spawned with `cmd.Stdin = nil` and no environment. If `HOME` env var is not inherited by the child (only `os.UserHomeDir()` is used, which uses `HOME` first), and the daemon child has a stripped environment, `os.UserHomeDir()` could fail or return a different path.
 
@@ -86,14 +86,14 @@ For the `binaryMap`, the first pass maps `filepath.Base("/home/linuxbrew/.linuxb
 
 The agent for 4.1 should implement all three.
 
-### Finding 7.1 — Root cause
+### Finding 7.1  -  Root cause
 
 `ScanPackages()` in `inventory.go` calls `InsertPackage` (which uses `INSERT OR REPLACE`) and then `InsertDependency` (which uses `INSERT OR IGNORE`). After `brewprune undo`, the undone packages are reinstalled by brew BUT the DB still has the packages with their old data (undo calls `brew install` but does NOT call `store.InsertPackage`). More importantly, undo does NOT delete the existing `dependencies` rows for those packages.
 
 When `scan` runs after undo:
-1. `ScanPackages` inserts/updates packages via `INSERT OR REPLACE` — OK.
+1. `ScanPackages` inserts/updates packages via `INSERT OR REPLACE`  -  OK.
 2. For dependencies: `InsertDependency` uses `INSERT OR IGNORE`. If the dependency row already exists (from before undo), it is NOT updated. If `brew deps` now returns different/fewer deps (e.g., because a transitive dep was removed and reinstalled), those changes are IGNORED.
-3. Stale rows remain in the `dependencies` table pointing to packages that may have been removed from `packages` table during undo removal — but wait, `DeletePackage` cascades to `dependencies` via `ON DELETE CASCADE`, so only the removed packages' own rows are deleted, NOT the rows where they appear as `depends_on`.
+3. Stale rows remain in the `dependencies` table pointing to packages that may have been removed from `packages` table during undo removal  -  but wait, `DeletePackage` cascades to `dependencies` via `ON DELETE CASCADE`, so only the removed packages' own rows are deleted, NOT the rows where they appear as `depends_on`.
 
 **The real problem**: After undo+scan, the `dependencies` table has STALE ROWS from before undo. Packages that were removed from the DB (during `remove` → `st.DeletePackage`) had their dependency rows cascade-deleted. But packages that were NEVER deleted from the DB (only un-installed on disk) keep their old dependency rows. When scan runs, `InsertDependency` with `OR IGNORE` does NOT update stale relationships.
 
@@ -177,11 +177,11 @@ Agent D must update ALL callers: `fsevents.go` (`runShimLogProcessor`, `Start`).
 
 ## Wave Structure
 
-### Wave 1 — High-priority parallel agents (4 agents)
+### Wave 1  -  High-priority parallel agents (4 agents)
 
 All four agents work independently on disjoint files. Launch simultaneously.
 
-### Wave 2 — Secondary parallel agents (4 agents)
+### Wave 2  -  Secondary parallel agents (4 agents)
 
 Launch after Wave 1 agents complete and pass tests. These are independent of Wave 1 changes.
 
@@ -189,14 +189,14 @@ Launch after Wave 1 agents complete and pass tests. These are independent of Wav
 
 ## Agent Prompts
 
-### Agent A — remove.go fixes (findings 7.2/9.8 and 7.6)
+### Agent A  -  remove.go fixes (findings 7.2/9.8 and 7.6)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
 
 TASK: Fix two findings in /Users/dayna.blackwell/code/brewprune/internal/app/remove.go
 
-FINDING 7.2 / 9.8 — remove --safe --yes exits 0 when all removals fail:
+FINDING 7.2 / 9.8  -  remove --safe --yes exits 0 when all removals fail:
 Current behavior (remove.go ~line 316):
   fmt.Printf("\n✓ Removed %d packages, freed %s\n", successCount, formatSize(freedSize))
   [failures printed if any]
@@ -213,7 +213,7 @@ Exact change needed (~line 316):
   and returns fmt.Errorf("removed 0 packages: all %d removals failed", len(failures))
   when successCount == 0.
 
-FINDING 7.6 — remove nonexistent-package missing undo mention:
+FINDING 7.6  -  remove nonexistent-package missing undo mention:
 Current behavior (remove.go ~line 119):
   fmt.Fprintf(os.Stderr, "Error: package not found: %s\n\nCheck the name with 'brew list' or 'brew search %s'.\nIf you just installed it, run 'brewprune scan' to update the index.\n", pkg, pkg)
 
@@ -238,7 +238,7 @@ CONSTRAINTS:
 
 ---
 
-### Agent B — stale dependency graph fix (finding 7.1)
+### Agent B  -  stale dependency graph fix (finding 7.1)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
@@ -302,12 +302,12 @@ CONSTRAINTS:
 
 ---
 
-### Agent C — unused.go error chain fix (finding 8.6)
+### Agent C  -  unused.go error chain fix (finding 8.6)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
 
-TASK: Fix finding 8.6 — brewprune unused with no DB shows "failed to list packages:" prefix.
+TASK: Fix finding 8.6  -  brewprune unused with no DB shows "failed to list packages:" prefix.
 
 CURRENT BEHAVIOR (~line 138 of unused.go):
   packages, err := st.ListPackages()
@@ -315,11 +315,11 @@ CURRENT BEHAVIOR (~line 138 of unused.go):
       return fmt.Errorf("failed to list packages: %w", err)
   }
 
-When DB is not initialized, ListPackages returns store.ErrNotInitialized ("database not initialized — run 'brewprune scan' to create the database"). The wrapping adds "failed to list packages:" prefix. The user sees:
-  Error: failed to list packages: database not initialized — run 'brewprune scan'
+When DB is not initialized, ListPackages returns store.ErrNotInitialized ("database not initialized  -  run 'brewprune scan' to create the database"). The wrapping adds "failed to list packages:" prefix. The user sees:
+  Error: failed to list packages: database not initialized  -  run 'brewprune scan'
 
 REQUIRED BEHAVIOR:
-  Error: database not initialized — run 'brewprune scan'
+  Error: database not initialized  -  run 'brewprune scan'
 
 FIX: In runUnused(), replace the error wrapping:
   if err != nil {
@@ -354,7 +354,7 @@ CONSTRAINTS:
 
 ---
 
-### Agent D — daemon processing fixes (findings 4.1 and 4.2)
+### Agent D  -  daemon processing fixes (findings 4.1 and 4.2)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
@@ -373,7 +373,7 @@ ROOT CAUSE (already investigated):
 
 FIXES REQUIRED:
 
-FIX A — Add per-cycle logging to ProcessUsageLog (finding 4.2 and 4.1 diagnosis):
+FIX A  -  Add per-cycle logging to ProcessUsageLog (finding 4.2 and 4.1 diagnosis):
 Change ProcessUsageLog signature from:
   func ProcessUsageLog(st *store.Store) error
 to:
@@ -394,7 +394,7 @@ Update ProcessUsageLog to:
 - Count inserted (events actually written to DB)
 - Return ProcessingStats on success
 
-FIX B — Update callers in fsevents.go (watcher's runShimLogProcessor and Start):
+FIX B  -  Update callers in fsevents.go (watcher's runShimLogProcessor and Start):
 In fsevents.go, update the two calls to ProcessUsageLog:
 - In Start() (initial call): log the stats if resolved > 0 or linesRead > 0
 - In runShimLogProcessor (ticker case): after each tick, write a log line to stderr:
@@ -402,7 +402,7 @@ In fsevents.go, update the two calls to ProcessUsageLog:
         time.Now().Format(time.RFC3339), stats.LinesRead, stats.Resolved, stats.Skipped)
   Only write this line when linesRead > 0 (skip when log file has no new entries).
 
-FIX C — Pass --log-file to daemon child in daemon.go:
+FIX C  -  Pass --log-file to daemon child in daemon.go:
 NOTE: daemon.go is NOT in your file ownership. You MUST NOT edit daemon.go.
 Instead, in watch.go, fix startWatchDaemon to not call w.StartDaemon but instead
 call a local fork directly OR note this as a known limitation in a comment.
@@ -418,10 +418,10 @@ to pass --log-file if it's set:
   cmd := exec.Command(executable, args...)
 This requires passing logFile into StartDaemon (it already receives logFile string).
 
-FIX D — Add diagnostic log when maps are empty:
+FIX D  -  Add diagnostic log when maps are empty:
 In ProcessUsageLog, after building binaryMap and optPathMap, add:
   if len(binaryMap) == 0 && len(optPathMap) == 0 {
-      log.Printf("shim_processor: warning: no packages indexed yet — run 'brewprune scan' first")
+      log.Printf("shim_processor: warning: no packages indexed yet  -  run 'brewprune scan' first")
   }
 
 STEPS:
@@ -445,12 +445,12 @@ CONSTRAINTS:
 
 ---
 
-### Agent E — status no-events grace period (finding 2.2)
+### Agent E  -  status no-events grace period (finding 2.2)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
 
-TASK: Fix finding 2.2 — brewprune status shows alarming "no events" warning immediately after daemon starts.
+TASK: Fix finding 2.2  -  brewprune status shows alarming "no events" warning immediately after daemon starts.
 
 CURRENT BEHAVIOR (status.go ~lines 144-148):
   if daemonRunning && events24h == 0 && totalEvents <= 2 {
@@ -461,7 +461,7 @@ CURRENT BEHAVIOR (status.go ~lines 144-148):
 PROBLEM: This fires immediately when the daemon just started. A new user is alarmed.
 
 FIX: Add a grace period check using the daemon's PID file modification time (already computed by daemonSince). If the daemon started less than 5 minutes ago AND there are zero events, soften the message:
-  "No events logged yet (daemon started just now — this is normal)."
+  "No events logged yet (daemon started just now  -  this is normal)."
 
 Implementation:
 1. Add a helper function daemonAgeMinutes(pidFile string) int that reads the PID file mtime and returns age in minutes (0 if unknown).
@@ -469,7 +469,7 @@ Implementation:
    if daemonRunning && events24h == 0 && totalEvents <= 2 {
        ageMin := daemonAgeMinutes(pidFile)
        if ageMin < 5 {
-           fmt.Printf("              (no events yet — daemon started just now, this is normal)\n")
+           fmt.Printf("              (no events yet  -  daemon started just now, this is normal)\n")
        } else {
            fmt.Printf("              ⚠ Daemon running but no events logged. Shims may not be intercepting commands.\n")
            fmt.Printf("              Run 'brewprune doctor' to diagnose.\n")
@@ -493,14 +493,14 @@ CONSTRAINTS:
 
 ---
 
-### Agent F — stats.go fixes (findings 7.7 and 9.7)
+### Agent F  -  stats.go fixes (findings 7.7 and 9.7)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
 
 TASK: Fix two findings in /Users/dayna.blackwell/code/brewprune/internal/app/stats.go
 
-FINDING 7.7 — stats --package jq after undo (before scan) lacks scan hint:
+FINDING 7.7  -  stats --package jq after undo (before scan) lacks scan hint:
 Current behavior in showPackageStats (~line 108):
   stats, err := a.GetUsageStats(pkg)
   if err != nil {
@@ -523,7 +523,7 @@ Fix: Check for "not found" error string and print a formatted message:
   }
 Add "strings" and "os" to imports if not already present.
 
-FINDING 9.7 — stats --all sort annotation inconsistency:
+FINDING 9.7  -  stats --all sort annotation inconsistency:
 Current behavior (~line 251-253):
   if len(filteredStats) > 1 {
       fmt.Println("Sorted by: most used first")
@@ -557,12 +557,12 @@ CONSTRAINTS:
 
 ---
 
-### Agent G — doctor.go blank-state exit (finding 6.4)
+### Agent G  -  doctor.go blank-state exit (finding 6.4)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
 
-TASK: Fix finding 6.4 — doctor blank-state exits with redundant "Error: diagnostics failed".
+TASK: Fix finding 6.4  -  doctor blank-state exits with redundant "Error: diagnostics failed".
 
 CURRENT BEHAVIOR (doctor.go ~lines 297-299):
   if criticalIssues > 0 {
@@ -602,12 +602,12 @@ CONSTRAINTS:
 
 ---
 
-### Agent H — -v flag conflict (finding 1.1)
+### Agent H  -  -v flag conflict (finding 1.1)
 
 ```
 ROLE: You are a focused implementation agent. Read, then edit. Do not create new files.
 
-TASK: Fix finding 1.1 — -v as --version conflicts with unused -v as --verbose.
+TASK: Fix finding 1.1  -  -v as --version conflicts with unused -v as --verbose.
 
 CURRENT STATE:
 - root.go or main.go registers -v as shorthand for --version on the root command.
@@ -688,7 +688,7 @@ Spot-check:
 
 ## Known Issues (pre-existing, agents should not fix)
 
-1. `shim_processor.go` uses `INSERT OR IGNORE` for `usage_events` (no deduplication — same event could be inserted twice if offset reset occurs). This is pre-existing and not in scope.
+1. `shim_processor.go` uses `INSERT OR IGNORE` for `usage_events` (no deduplication  -  same event could be inserted twice if offset reset occurs). This is pre-existing and not in scope.
 2. `detectChanges` in scan.go does not detect dependency changes (only package count/version). If dependencies change but packages don't, no re-scan of deps occurs. Related to finding 7.1 but the root fix is in `ClearDependencies` not `detectChanges`.
 3. `buildOptPathMap` stores full Linuxbrew paths (e.g., `/home/linuxbrew/.linuxbrew/bin/git`) but the lookup in `ProcessUsageLog` only checks three hardcoded prefixes. Finding 4.1 fix (diagnostic logging) will surface this; the actual resolution bug may require a follow-up IMPL.
 4. Docker container integration tests in `docker/` are not run by `go test ./...`. Only unit tests are verified in this IMPL.
@@ -699,23 +699,23 @@ Spot-check:
 
 ### Wave 1
 
-- [x] Wave 1 Agent A — remove.go: exit code + undo hint (findings 7.2/9.8, 7.6)
-- [x] Wave 1 Agent B — stale dep graph: ClearDependencies + ScanPackages fix (finding 7.1)
-- [x] Wave 1 Agent C — unused error chain prefix (finding 8.6)
-- [x] Wave 1 Agent D — daemon processing: ProcessingStats + per-cycle logging + --log-file passthrough (findings 4.1, 4.2)
+- [x] Wave 1 Agent A  -  remove.go: exit code + undo hint (findings 7.2/9.8, 7.6)
+- [x] Wave 1 Agent B  -  stale dep graph: ClearDependencies + ScanPackages fix (finding 7.1)
+- [x] Wave 1 Agent C  -  unused error chain prefix (finding 8.6)
+- [x] Wave 1 Agent D  -  daemon processing: ProcessingStats + per-cycle logging + --log-file passthrough (findings 4.1, 4.2)
 
 ### Wave 2
 
-- [x] Wave 2 Agent E — status grace period for no-events warning (finding 2.2)
-- [x] Wave 2 Agent F — stats --package undo hint + sort annotation position (findings 7.7, 9.7)
-- [x] Wave 2 Agent G — doctor blank-state exit message (finding 6.4)
-- [x] Wave 2 Agent H — -v flag conflict resolution (finding 1.1)
+- [x] Wave 2 Agent E  -  status grace period for no-events warning (finding 2.2)
+- [x] Wave 2 Agent F  -  stats --package undo hint + sort annotation position (findings 7.7, 9.7)
+- [x] Wave 2 Agent G  -  doctor blank-state exit message (finding 6.4)
+- [x] Wave 2 Agent H  -  -v flag conflict resolution (finding 1.1)
 
 ### Findings confirmed already fixed (no agent needed)
 
-- [x] Finding 6.3 — doctor aliases tip: already guarded by criticalIssues == 0 check
-- [x] Finding 7.3 — remove --risky --dry-run warning: already printed after table
-- [x] Finding 3.6 — --sort age secondary sort: already has tertiary alphabetical sort
+- [x] Finding 6.3  -  doctor aliases tip: already guarded by criticalIssues == 0 check
+- [x] Finding 7.3  -  remove --risky --dry-run warning: already printed after table
+- [x] Finding 3.6  -  --sort age secondary sort: already has tertiary alphabetical sort
 
 ---
 

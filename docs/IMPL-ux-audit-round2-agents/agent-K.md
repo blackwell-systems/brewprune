@@ -1,12 +1,12 @@
-# Wave 1 Agent K: table.go — add Score column + rename ✗ keep → ⚠ risky
+# Wave 1 Agent K: table.go  -  add Score column + rename ✗ keep → ⚠ risky
 
 You are Wave 1 Agent K. Fix two UX issues in output/table.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/output/table.go` — modify
-- `internal/output/table_test.go` — modify
+- `internal/output/table.go`  -  modify
+- `internal/output/table_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -18,11 +18,11 @@ not change. You are only modifying the rendered output.
 func RenderConfidenceTable(scores []ConfidenceScore) string
 ```
 
-The `ConfidenceScore` struct already has `Score int` — you are just rendering it.
+The `ConfidenceScore` struct already has `Score int`  -  you are just rendering it.
 
 ## 3. Interfaces You May Call
 
-Existing functions in table.go — no new imports.
+Existing functions in table.go  -  no new imports.
 
 ## 4. What to Implement
 
@@ -87,7 +87,7 @@ sb.WriteString(fmt.Sprintf("%-16s %-8s %-7s %-10s %-16s %-13s %s%s%s\n",
 Update BOTH the color and non-color branches of the row rendering.
 The separator line width must match the new total column width (88 dashes).
 
-### Finding 2: `--tier risky` shows packages with "✗ keep" — tier label contradicts intent
+### Finding 2: `--tier risky` shows packages with "✗ keep"  -  tier label contradicts intent
 
 The `formatTierLabel` function returns `"✗ keep"` for risky packages:
 ```go
@@ -96,7 +96,7 @@ default: // risky or critical
 ```
 
 When a user runs `--tier risky` (explicitly asking to see risky packages to
-evaluate removal at their own risk), every row shows `"✗ keep"` — which implies
+evaluate removal at their own risk), every row shows `"✗ keep"`  -  which implies
 "don't remove any of these", directly contradicting why the user filtered to
 risky in the first place.
 
@@ -128,20 +128,20 @@ This is consistent with `✓ safe` (positive) and `~ review` (neutral).
 
 Update `internal/output/table_test.go`:
 
-1. `TestRenderConfidenceTable_ScoreColumnPresent` — verify that the header
+1. `TestRenderConfidenceTable_ScoreColumnPresent`  -  verify that the header
    contains "Score" and that a rendered row contains the score formatted as
    "80/100" (or similar `N/100` pattern).
-2. `TestRenderConfidenceTable_RiskyLabel` — verify that a risky-tier package
+2. `TestRenderConfidenceTable_RiskyLabel`  -  verify that a risky-tier package
    renders as `"⚠ risky"` (not `"✗ keep"`).
-3. `TestFormatTierLabel_Risky` — verify `formatTierLabel("risky", false)` returns `"⚠ risky"`.
-4. `TestFormatTierLabel_Critical` — verify `formatTierLabel("risky", true)` returns `"⚠ risky"`.
-5. Update `TestRenderConfidenceTable` and `TestVisualConfidenceTable` — these
+3. `TestFormatTierLabel_Risky`  -  verify `formatTierLabel("risky", false)` returns `"⚠ risky"`.
+4. `TestFormatTierLabel_Critical`  -  verify `formatTierLabel("risky", true)` returns `"⚠ risky"`.
+5. Update `TestRenderConfidenceTable` and `TestVisualConfidenceTable`  -  these
    existing tests likely assert on the column layout. Update them to include
    the Score column and the renamed tier label.
 6. Update `TestRenderConfidenceTable_CaskDisplay` if it asserts on column
    widths or specific output format.
 
-Also check `internal/output/example_test.go` — if it contains example output
+Also check `internal/output/example_test.go`  -  if it contains example output
 showing `"✗ keep"` or the old column layout, update those examples too.
 
 ## 6. Verification Gate
@@ -158,8 +158,8 @@ All must pass before reporting completion.
 
 ## 7. Constraints
 
-- Do NOT change the `ConfidenceScore` struct — it already has `Score int`.
-- Do NOT change `RenderConfidenceTableVerbose` — that's a different function
+- Do NOT change the `ConfidenceScore` struct  -  it already has `Score int`.
+- Do NOT change `RenderConfidenceTableVerbose`  -  that's a different function
   for the `--verbose` flag output.
 - The score column uses plain `N/100` format (no color on the score number).
 - The separator line (─ characters) must match the actual total column width
@@ -172,7 +172,7 @@ All must pass before reporting completion.
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent K — Completion Report`.
+`### Agent K  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

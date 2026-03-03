@@ -3,7 +3,7 @@
 **Date:** 2026-02-28
 **Auditor:** Claude (acting as new user)
 **Environment:** Docker container `bp-sandbox` with Homebrew packages: jq, ripgrep, fd, bat, git, curl, tmux
-**Scope:** Full CLI surface — discovery, setup, analysis, tracking, explanation, diagnostics, removal, edge cases
+**Scope:** Full CLI surface  -  discovery, setup, analysis, tracking, explanation, diagnostics, removal, edge cases
 
 ---
 
@@ -32,7 +32,7 @@
 ### [DISCOVERY] `brewprune blorp` (unknown subcommand) gives no suggestion
 
 - **Severity**: UX-improvement
-- **What happens**: `Error: unknown command "blorp" for "brewprune"` — terse, no hint about what valid commands are or whether there is a "did you mean X?" alternative.
+- **What happens**: `Error: unknown command "blorp" for "brewprune"`  -  terse, no hint about what valid commands are or whether there is a "did you mean X?" alternative.
 - **Expected**: Print the list of available subcommands (or "did you mean: ...?") below the error, similar to how git handles unknown commands.
 - **Repro**: `brewprune blorp`
 
@@ -41,7 +41,7 @@
 ### [DISCOVERY] `brewprune explain` with no argument gives a cryptic arity error
 
 - **Severity**: UX-polish
-- **What happens**: `Error: accepts 1 arg(s), received 0` — generic cobra framework message that doesn't tell the user what argument is expected.
+- **What happens**: `Error: accepts 1 arg(s), received 0`  -  generic cobra framework message that doesn't tell the user what argument is expected.
 - **Expected**: `Error: missing package name. Usage: brewprune explain <package>`
 - **Repro**: `brewprune explain`
 
@@ -50,7 +50,7 @@
 ### [DISCOVERY] `remove --help` and `unused --help` use inconsistent flag styles for tier selection
 
 - **Severity**: UX-improvement
-- **What happens**: `brewprune unused` uses `--tier safe|medium|risky` (a single flag with a value), while `brewprune remove` uses `--safe`, `--medium`, `--risky` (three separate boolean flags). The commands operate on the same concept — tier — but expose it completely differently.
+- **What happens**: `brewprune unused` uses `--tier safe|medium|risky` (a single flag with a value), while `brewprune remove` uses `--safe`, `--medium`, `--risky` (three separate boolean flags). The commands operate on the same concept  -  tier  -  but expose it completely differently.
 - **Expected**: Consistent flag design. Either both use `--tier <value>` or both use `--safe/--medium/--risky`. The inconsistency is a trap: new users who learn `--tier` from `unused` will immediately run `brewprune remove --tier medium --dry-run` and get `Error: unknown flag: --tier`.
 - **Repro**: `brewprune unused --help` vs `brewprune remove --help`, then `brewprune remove --tier medium --dry-run`
 
@@ -61,7 +61,7 @@
 ### [SETUP] Scan spinner renders as garbage in non-TTY / piped contexts
 
 - **Severity**: UX-critical
-- **What happens**: When `brewprune scan` is captured (e.g., piped to a file, run in CI, or run inside `quickstart`), the spinner animation produces unescaped carriage-return noise: `|  Discovering packages.../  Discovering packages...-  Discovering packages...\  Discovering packages...` — all on one line with the animation frames concatenated. This appears both in `brewprune scan` standalone and as sub-output within `brewprune quickstart`.
+- **What happens**: When `brewprune scan` is captured (e.g., piped to a file, run in CI, or run inside `quickstart`), the spinner animation produces unescaped carriage-return noise: `|  Discovering packages.../  Discovering packages...-  Discovering packages...\  Discovering packages...`  -  all on one line with the animation frames concatenated. This appears both in `brewprune scan` standalone and as sub-output within `brewprune quickstart`.
 - **Expected**: Detect non-TTY and suppress the spinner, printing a single static line like `Discovering packages...` instead.
 - **Repro**: `docker exec bp-sandbox brewprune scan 2>&1 | cat`
 
@@ -79,17 +79,17 @@
 ### [SETUP] `status` suggests `brew services start brewprune` even on Linux/Docker where brew services won't work
 
 - **Severity**: UX-improvement
-- **What happens**: `Tracking: stopped (run 'brew services start brewprune')` — on Linux (and in most CLI-only environments) `brew services` does not work. The correct command is `brewprune watch --daemon`. This sends new users down a dead-end path.
+- **What happens**: `Tracking: stopped (run 'brew services start brewprune')`  -  on Linux (and in most CLI-only environments) `brew services` does not work. The correct command is `brewprune watch --daemon`. This sends new users down a dead-end path.
 - **Expected**: Show `run 'brewprune watch --daemon'` as the suggested command. Possibly detect whether `brew services` is available before recommending it.
 - **Repro**: `brewprune status` (after daemon is stopped)
 
 ---
 
-### [SETUP] `quickstart` runs brew services and silently falls back — but still prints alarming `⚠` lines
+### [SETUP] `quickstart` runs brew services and silently falls back  -  but still prints alarming `⚠` lines
 
 - **Severity**: UX-improvement
 - **What happens**: `quickstart` attempts `brew services start brewprune`, that fails, it falls back to `brewprune watch --daemon`, but then also reports `⚠ Could not start daemon: daemon already running`. The "daemon already running" error is benign (quickstart ran after the user had already started the daemon) but the output is alarming. A new user running quickstart for the first time after manually starting the daemon would see two `⚠` lines in the step that should be the smoothest part.
-- **Expected**: If the daemon is already running, that's a success state — emit `✓ Daemon already running` rather than a warning.
+- **Expected**: If the daemon is already running, that's a success state  -  emit `✓ Daemon already running` rather than a warning.
 - **Repro**: `brewprune watch --daemon` then `brewprune quickstart`
 
 ---
@@ -108,8 +108,8 @@
 ### [ANALYSIS] `unused` (no flags) shows nothing and the reason is buried in the warning
 
 - **Severity**: UX-critical
-- **What happens**: Before any usage data is recorded, `brewprune unused` with no flags shows a full warning block, then a summary line `SAFE: 0 · MEDIUM: 0 · RISKY: 40 (hidden)`, then `No packages match the specified criteria.` A new user's natural first action after running `brewprune scan` is `brewprune unused` — and they see nothing actionable. The reason (no usage data yet, 40 packages hidden in risky) is explained but easy to miss.
-- **Expected**: When there is no usage data at all and no tier filter is active, either: (a) show the risky tier by default with a prominent warning banner, or (b) suggest the user run `brewprune unused --all` explicitly and explain why. The current state — zero output rows with a hidden count — reads as "this tool does nothing."
+- **What happens**: Before any usage data is recorded, `brewprune unused` with no flags shows a full warning block, then a summary line `SAFE: 0 · MEDIUM: 0 · RISKY: 40 (hidden)`, then `No packages match the specified criteria.` A new user's natural first action after running `brewprune scan` is `brewprune unused`  -  and they see nothing actionable. The reason (no usage data yet, 40 packages hidden in risky) is explained but easy to miss.
+- **Expected**: When there is no usage data at all and no tier filter is active, either: (a) show the risky tier by default with a prominent warning banner, or (b) suggest the user run `brewprune unused --all` explicitly and explain why. The current state  -  zero output rows with a hidden count  -  reads as "this tool does nothing."
 - **Repro**: `brewprune scan` then immediately `brewprune unused`
 
 ---
@@ -127,13 +127,13 @@
 
 - **Severity**: UX-critical
 - **What happens**: After running `jq --version`, `rg --version`, `fd --version` (via shims), all three packages receive score 80 (SAFE). The explain output says:
-  - `Usage: 40/40 pts — used today`
+  - `Usage: 40/40 pts  -  used today`
   - `Why SAFE: rarely used, safe to remove`
   - `Recommendation: Safe to remove.`
 
-  A package that was used today scores maximum usage points AND is labeled "rarely used, safe to remove." These two statements directly contradict each other. The scoring rubric in `unused --help` says usage accounts for 40 points with "recent activity indicates active use" — meaning high usage score should indicate the package is heavily used and SHOULD NOT be removed, not that it is safe to remove.
+  A package that was used today scores maximum usage points AND is labeled "rarely used, safe to remove." These two statements directly contradict each other. The scoring rubric in `unused --help` says usage accounts for 40 points with "recent activity indicates active use"  -  meaning high usage score should indicate the package is heavily used and SHOULD NOT be removed, not that it is safe to remove.
 
-  The issue appears to be an inverted interpretation: 40/40 usage points is being treated as "high confidence for removal" when it should mean "this package is actively used, keep it." The safe tier is intended for packages with low confidence to keep (high removal confidence), but the scoring maps "used today" to 40/40 points which then pushes the total into the SAFE removal tier — the opposite of correct behavior.
+  The issue appears to be an inverted interpretation: 40/40 usage points is being treated as "high confidence for removal" when it should mean "this package is actively used, keep it." The safe tier is intended for packages with low confidence to keep (high removal confidence), but the scoring maps "used today" to 40/40 points which then pushes the total into the SAFE removal tier  -  the opposite of correct behavior.
 
 - **Expected**: A package used today should score very LOW for removal confidence (not high). Usage points should subtract from removal confidence, not add to it. OR the scoring system labels should be inverted at the display layer to clarify: "40/40 pts usage = 0 removal pressure from this dimension."
 - **Repro**: Use shimmed packages (`PATH="/home/brewuser/.brewprune/bin:$PATH" jq --version`), wait 35s, then `brewprune explain jq`
@@ -143,7 +143,7 @@
 ### [ANALYSIS] `unused --all` "Status" column shows `✗ keep` for every package, even safe-tier ones after usage data is collected
 
 - **Severity**: UX-improvement
-- **What happens**: After packages are tracked, `unused --all` shows every package with `✗ keep` in red in the Status column — including packages in the SAFE tier. The `✗ keep` label appears to be misapplied; a SAFE package should show something like `✓ remove` or `SAFE`.
+- **What happens**: After packages are tracked, `unused --all` shows every package with `✗ keep` in red in the Status column  -  including packages in the SAFE tier. The `✗ keep` label appears to be misapplied; a SAFE package should show something like `✓ remove` or `SAFE`.
 - **Expected**: Status column should reflect the tier: `SAFE` packages show green `✓ safe`, medium show yellow `~ review`, risky show `✗ keep`. Currently even the SAFE packages show `✗ keep` in `--all` mode, which contradicts the summary header saying they are SAFE.
 - **Repro**: `brewprune unused --all` (when packages are present in the SAFE tier)
 
@@ -154,13 +154,13 @@
 ### [TRACKING] Usage data is 0 for 35+ seconds after shim use if shim dir is not in PATH
 
 - **Severity**: UX-critical
-- **What happens**: Running `jq --version` (without the shim dir in PATH) produces no entry in `usage.log`. The daemon never sees the usage. `brewprune stats` shows 0 events for jq, rg, fd. Only after running via `export PATH="/home/brewuser/.brewprune/bin:$PATH"` do events appear. But the PATH setup step is a manual, opt-in step with no enforcement — the scan output warning is easy to miss.
+- **What happens**: Running `jq --version` (without the shim dir in PATH) produces no entry in `usage.log`. The daemon never sees the usage. `brewprune stats` shows 0 events for jq, rg, fd. Only after running via `export PATH="/home/brewuser/.brewprune/bin:$PATH"` do events appear. But the PATH setup step is a manual, opt-in step with no enforcement  -  the scan output warning is easy to miss.
 - **Expected**: The PATH setup step is the single most important part of brewprune's setup. It should be impossible to miss. Suggestions: (a) `brewprune scan` should block or loudly error if it detects PATH is not configured correctly after building shims, (b) `quickstart` should verify PATH is active (not just write to `.profile`) before proceeding to the self-test, (c) the self-test in quickstart should fail loudly if events don't appear.
-- **Repro**: `brewprune scan`, then `jq --version` (without updating PATH), then wait 35s, then `brewprune stats` — all show 0 events.
+- **Repro**: `brewprune scan`, then `jq --version` (without updating PATH), then wait 35s, then `brewprune stats`  -  all show 0 events.
 
 ---
 
-### [TRACKING] `stats` output is not sorted usefully — packages with usage are buried in the middle
+### [TRACKING] `stats` output is not sorted usefully  -  packages with usage are buried in the middle
 
 - **Severity**: UX-polish
 - **What happens**: `brewprune stats` shows 40 packages. The three used packages (jq, fd, ripgrep) appear at the top in one run but scattered in another. There's no visible sort order documentation in the help text, and the default appears unstable.
@@ -182,14 +182,14 @@
   Frequency: daily
   ```
   Every other command uses tables with headers and colored tiers.
-- **Expected**: Style this output consistently with the rest of the CLI — at minimum, use a header and color-code the frequency value.
+- **Expected**: Style this output consistently with the rest of the CLI  -  at minimum, use a header and color-code the frequency value.
 - **Repro**: `brewprune stats --package jq`
 
 ---
 
 ## EXPLANATION
 
-### [EXPLAIN] `explain` table footer row has misaligned padding — trailing spaces inside border
+### [EXPLAIN] `explain` table footer row has misaligned padding  -  trailing spaces inside border
 
 - **Severity**: UX-polish
 - **What happens**: The `SAFE tier` string in the footer row of the explain table appears to have trailing padding that leaves visible whitespace before the `│` border character. This is cosmetically inconsistent with the other cells.
@@ -209,7 +209,7 @@
   Error: package not found: nonexistent-package
   Run 'brewprune scan' to update package database
   ```
-  The error block is printed twice — once to stdout and once to stderr (or it is emitted twice by the error handler).
+  The error block is printed twice  -  once to stdout and once to stderr (or it is emitted twice by the error handler).
 - **Expected**: Error message printed exactly once.
 - **Repro**: `brewprune explain nonexistent-package`
 
@@ -249,7 +249,7 @@
 ### [REMOVE] `remove` with no flags gives no hint about the flag syntax
 
 - **Severity**: UX-polish
-- **What happens**: `Error: no tier specified: use --safe, --medium, or --risky` — reasonable message, but doesn't mention that `--dry-run` is available. A new user might not know to preview before removing.
+- **What happens**: `Error: no tier specified: use --safe, --medium, or --risky`  -  reasonable message, but doesn't mention that `--dry-run` is available. A new user might not know to preview before removing.
 - **Expected**: Include a dry-run hint: `Error: no tier specified. Use --safe, --medium, or --risky. Add --dry-run to preview changes first.`
 - **Repro**: `brewprune remove`
 
@@ -294,7 +294,7 @@
 - **Severity**: UX-polish
 - **What happens**: The scan package table has a `Version` column that contains no data for any package. It occupies significant horizontal space and adds visual noise with no information content.
 - **Expected**: Either populate the version column from Homebrew metadata, or remove it from the table. An empty column erodes trust in the data completeness.
-- **Repro**: `brewprune scan` (look at the package list table — Version column is blank for all 40 packages)
+- **Repro**: `brewprune scan` (look at the package list table  -  Version column is blank for all 40 packages)
 
 ---
 
@@ -312,7 +312,7 @@
 ### [EDGE] `unused --tier risky` implicitly shows risky tier without `--all`, but `unused` alone does not
 
 - **Severity**: UX-improvement
-- **What happens**: `brewprune unused --tier risky` shows all 40 risky packages without needing `--all`, but `brewprune unused` (no flags) hides the risky tier and says `use --all`. A user who tries `--tier risky` gets the data; a user who just runs `unused` does not. This asymmetry is confusing — `--tier risky` functions as an implicit `--all` for the risky tier.
+- **What happens**: `brewprune unused --tier risky` shows all 40 risky packages without needing `--all`, but `brewprune unused` (no flags) hides the risky tier and says `use --all`. A user who tries `--tier risky` gets the data; a user who just runs `unused` does not. This asymmetry is confusing  -  `--tier risky` functions as an implicit `--all` for the risky tier.
 - **Expected**: Document this behavior explicitly in the help text, or unify the behavior: if `--tier` is specified, always show that tier regardless of `--all`. The current implicit behavior should at minimum be called out in `unused --help`.
 - **Repro**: Compare `brewprune unused` vs `brewprune unused --tier risky`
 

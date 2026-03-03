@@ -27,8 +27,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/quickstart.go` — modify
-- `internal/app/quickstart_test.go` — modify
+- `internal/app/quickstart.go`  -  modify
+- `internal/app/quickstart_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -48,7 +48,7 @@ detectShellConfig() string                      // from doctor.go (already share
 
 **Current output (quickstart.go ~line 229-257):**
 ```
-Setup complete — one step remains:
+Setup complete  -  one step remains:
 
 IMPORTANT: Wait 1-2 weeks before acting on recommendations.
 
@@ -65,7 +65,7 @@ Run diagnostics:      brewprune doctor
 ```
 
 **Problem:** "Setup complete" followed by "Wait 1-2 weeks" followed by the tracking warning is
-confusing — users may act on the "complete" message before reading the critical warning.
+confusing  -  users may act on the "complete" message before reading the critical warning.
 
 **Target output (when PATH not active):**
 ```
@@ -79,7 +79,7 @@ confusing — users may act on the "complete" message before reading the critica
 
    Or restart your terminal.
 
-Setup complete — one step remains (see warning above).
+Setup complete  -  one step remains (see warning above).
 
 IMPORTANT: Wait 1-2 weeks before acting on recommendations.
 
@@ -95,7 +95,7 @@ Run diagnostics:      brewprune doctor
 quickstart.go). Move the `pathNotActive` warning block BEFORE the "Setup complete" print.
 Update the "Setup complete" message when pathNotActive to read:
 ```
-Setup complete — one step remains (see warning above).
+Setup complete  -  one step remains (see warning above).
 ```
 
 When PATH is active (`!pathNotActive`):
@@ -133,13 +133,13 @@ step header, which users see before the spinner starts.
 
 ## 5. Tests to Write
 
-1. `TestQuickstart_PathWarningBeforeCompletion` — verify that when PATH is not active, the
+1. `TestQuickstart_PathWarningBeforeCompletion`  -  verify that when PATH is not active, the
    "TRACKING IS NOT ACTIVE YET" text appears in output BEFORE "Setup complete".
 
-2. `TestQuickstart_SetupCompleteWhenPathActive` — verify that when PATH is active, "Setup
+2. `TestQuickstart_SetupCompleteWhenPathActive`  -  verify that when PATH is active, "Setup
    complete!" (without caveat) appears and no tracking warning is shown.
 
-3. `TestQuickstart_SelfTestStepShowsDuration` — verify that "Step 4/4:" line contains "~30s"
+3. `TestQuickstart_SelfTestStepShowsDuration`  -  verify that "Step 4/4:" line contains "~30s"
    before the spinner message.
 
 Check existing quickstart tests for any assertions about output ordering and update them.
@@ -155,10 +155,10 @@ go test ./internal/app -run 'TestQuickstart' -v
 
 ## 7. Constraints
 
-- The reordering must preserve all existing content — only the ORDER changes, not the content.
+- The reordering must preserve all existing content  -  only the ORDER changes, not the content.
 - The "one step remains" phrasing must stay; only the parenthetical changes from "(see warning
   above)" to nothing when path is active.
-- Do NOT add a new call to `isOnPATH` — `pathNotActive` is already computed on line 229 and
+- Do NOT add a new call to `isOnPATH`  -  `pathNotActive` is already computed on line 229 and
   can be reused.
 
 ## 8. Report
@@ -172,7 +172,7 @@ git commit -m "wave1-agent-d: path warning before completion + self-test duratio
 Append to this file:
 
 ```yaml
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-d
 commit: {sha}
@@ -191,7 +191,7 @@ verification: PASS | FAIL
 
 ---
 
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-d
 commit: e885e01

@@ -2,7 +2,7 @@
 
 You are Wave 1 Agent C. Your task is to:
 1. Reclassify the pipeline test failure as a warning (not critical) when shims are not yet in
-   the active PATH — the system is functional, just not fully configured.
+   the active PATH  -  the system is functional, just not fully configured.
 2. Add a new "active PATH" diagnostic check that distinguishes "shims configured in profile"
    from "shims active in current session".
 
@@ -28,8 +28,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/doctor.go` — modify
-- `internal/app/doctor_test.go` — modify
+- `internal/app/doctor.go`  -  modify
+- `internal/app/doctor_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -49,7 +49,7 @@ detectShellConfig() string                     // returns ~/.profile, ~/.zprofil
 ### 4.1 Reclassify pipeline failure as warning when PATH is not sourced (UX-critical finding)
 
 **Current behavior (doctor.go:274):** When the pipeline test fails, it increments
-`criticalIssues++`. This causes exit code 1 and the "diagnostics failed" error — even when
+`criticalIssues++`. This causes exit code 1 and the "diagnostics failed" error  -  even when
 the only issue is that the user hasn't run `source ~/.profile` yet.
 
 **The distinction:**
@@ -57,16 +57,16 @@ the only issue is that the user hasn't run `source ~/.profile` yet.
 - **WARNING**: Pipeline test fails because shims aren't in active PATH → system is fine, just
   not yet active in this session
 
-**Fix in `runDoctor` (doctor.go, Check 8 — pipeline test section):**
+**Fix in `runDoctor` (doctor.go, Check 8  -  pipeline test section):**
 
 When `pipelineErr != nil` AND `daemonRunning == true` AND `!shimPathActive` AND
 `shimPathConfigured == true`, change from `criticalIssues++` to `warningIssues++`. The action
-message is already correct ("Shims not in active PATH — run: source ~/.profile").
+message is already correct ("Shims not in active PATH  -  run: source ~/.profile").
 
 The check is at doctor.go:267:
 ```go
 if daemonRunning && !shimPathActive && shimPathConfigured {
-    fmt.Println("  Action: Shims not in active PATH — run: source " + detectShellConfig() + " (or restart your shell)")
+    fmt.Println("  Action: Shims not in active PATH  -  run: source " + detectShellConfig() + " (or restart your shell)")
 } else if !daemonRunning {
     ...
 } else {
@@ -124,15 +124,15 @@ change needed there.
 
 ## 5. Tests to Write
 
-1. `TestDoctor_PipelineFailIsWarnWhenPathConfigured` — verify that when daemon is running,
+1. `TestDoctor_PipelineFailIsWarnWhenPathConfigured`  -  verify that when daemon is running,
    shim is configured but PATH not active, pipeline failure increments warningIssues not
    criticalIssues (exit code 0, not 1). You'll need to check the final exit code of the
    command or inspect the output for "Found N warning(s)".
 
-2. `TestDoctor_ActivePATHCheckShownSeparately` — verify that the "PATH configured but not
+2. `TestDoctor_ActivePATHCheckShownSeparately`  -  verify that the "PATH configured but not
    yet active" message appears as its own distinct check, not buried in the shim binary block.
 
-3. `TestDoctor_ActivePATHCheck_PathMissingIsCritical` — verify that when path is missing
+3. `TestDoctor_ActivePATHCheck_PathMissingIsCritical`  -  verify that when path is missing
    entirely (not configured, not active), it's a critical issue.
 
 Check existing tests in `doctor_test.go` for any that assert the pipeline failure is critical
@@ -154,7 +154,7 @@ go test ./internal/app -run 'TestDoctor' -skip 'TestDoctorHelpIncludesFixNote' -
   case changes from critical to warning.
 - The output ordering of checks must remain logical: DB → daemon → shim binary → PATH status
   → alias tip → pipeline test.
-- The active-PATH check should NOT introduce a new `isOnPATH` call — `shimPathActive` is
+- The active-PATH check should NOT introduce a new `isOnPATH` call  -  `shimPathActive` is
   already computed in Check 7 and can be reused.
 
 ## 8. Report
@@ -168,7 +168,7 @@ git commit -m "wave1-agent-c: reclassify pipeline warn + add active-PATH check"
 Append to this file:
 
 ```yaml
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-c
 commit: {sha}
@@ -187,7 +187,7 @@ verification: PASS | FAIL
 
 ---
 
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-c
 commit: 52cf79d

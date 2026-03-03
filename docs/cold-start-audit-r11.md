@@ -1,4 +1,4 @@
-# Cold-Start UX Audit Report — Round 11
+# Cold-Start UX Audit Report  -  Round 11
 
 **Audit Date:** 2026-03-02 (executed 2026-03-03 UTC)
 **Tool Version:** brewprune version dev (commit: unknown, built: unknown)
@@ -31,11 +31,11 @@
 
 `brewprune --version` (exit 0): `brewprune version dev (commit: unknown, built: unknown)`
 
-`brewprune -v` (exit 1): `Error: unknown shorthand flag: 'v' in -v` — this is a regression; `-v` was expected to show the version string.
+`brewprune -v` (exit 1): `Error: unknown shorthand flag: 'v' in -v`  -  this is a regression; `-v` was expected to show the version string.
 
 `brewprune help` (exit 0): Identical output to `--help`. Correct.
 
-`brewprune` (no args, exit 0): Shows full help output. Good — new users are not stranded at a bare error.
+`brewprune` (no args, exit 0): Shows full help output. Good  -  new users are not stranded at a bare error.
 
 All subcommand `--help` pages were accessible and informative. The `watch --help` page clearly explains the 30-second polling interval. The `unused --help` explains the tier system, score components, and the `--tier` vs `--all` interaction clearly. The `remove --help` explains both shortcut flags and `--tier`.
 
@@ -97,7 +97,7 @@ Good. The self-test event is recorded. The PATH/shim warning is accurate.
 ### [AREA 2] Finding: Quickstart Writes PATH Config to Wrong User's Profile
 
 - **Severity:** UX-improvement
-- **What happens:** `quickstart` output says "Added /home/brewuser/.brewprune/bin to PATH in /home/brewuser/.profile" — the container runs as `brewuser`, not `root`. This is correct for the container but is noted because the audit prompt uses `/root/.brewprune/` paths, which do not exist. The actual data directory is at `/home/brewuser/.brewprune/`.
+- **What happens:** `quickstart` output says "Added /home/brewuser/.brewprune/bin to PATH in /home/brewuser/.profile"  -  the container runs as `brewuser`, not `root`. This is correct for the container but is noted because the audit prompt uses `/root/.brewprune/` paths, which do not exist. The actual data directory is at `/home/brewuser/.brewprune/`.
 - **Expected:** Audit documentation should note that the user running `brewprune` in this container is `brewuser`, not `root`. All `ls -la /root/.brewprune/` commands in the audit prompt fail with "Permission denied" or "No such file or directory."
 - **Repro:** `docker exec brewprune-r11 ls -la /root/.brewprune/` → `Permission denied`
 
@@ -110,11 +110,11 @@ Note: This is a documentation/audit-prompt issue, not a tool issue.
 - **Severity:** UX-polish
 - **What happens:** During Step 4, the output prints "Verifying shim → daemon → database pipeline..." and then pauses approximately 30 seconds before printing the result. There is no spinner or progress indication during the wait.
 - **Expected:** A spinner or periodic dot output (e.g., "....") would reassure the user the command has not hung.
-- **Repro:** `docker exec brewprune-r11 brewprune quickstart` — observe the pause at Step 4.
+- **Repro:** `docker exec brewprune-r11 brewprune quickstart`  -  observe the pause at Step 4.
 
 ---
 
-### Area 3: Core Feature — Unused Package Discovery
+### Area 3: Core Feature  -  Unused Package Discovery
 
 **Default (`brewprune unused`, exit 0):** Displays a warning banner (yellow text in terminal: "WARNING: No usage data available"), followed by a tier count summary ("SAFE: 5 · MEDIUM: 32 · RISKY: 3"), then a full 40-package table, then a sorted-by annotation, reclaimable disk totals, and confidence footer. Output is comprehensive.
 
@@ -147,7 +147,7 @@ Status column uses: `✓ safe` (safe tier), `~ medium` (medium tier), `⚠ risky
   ```
   Packages to remove (risky tier):
 
-  ⚠  34 packages skipped (locked by dependents) — run with --verbose to see details
+  ⚠  34 packages skipped (locked by dependents)  -  run with --verbose to see details
   Package          Size     Score   ...
   ```
   The warning appears between the section label and the table header, interrupting the visual flow.
@@ -178,9 +178,9 @@ Note: This may be related to when `unused` queries the DB vs when `explain` quer
 
 ### Area 4: Data Collection & Tracking
 
-**Start daemon:** `brewprune watch --daemon` — clean output with PID and log file path. Exit 0.
+**Start daemon:** `brewprune watch --daemon`  -  clean output with PID and log file path. Exit 0.
 
-**`status` immediately after:** Shows grace period message: "(no events yet — daemon started just now, this is normal)". Pass.
+**`status` immediately after:** Shows grace period message: "(no events yet  -  daemon started just now, this is normal)". Pass.
 
 **Shim execution:** All 5 shims ran and correctly returned tool output. The shims transparently pass through to the real binaries.
 
@@ -196,7 +196,7 @@ The per-cycle logging is working. Format is timestamped and clear.
 
 **`status` after 35s:** Shows `Events: 5 total · 5 in last 24h`. Correct.
 
-**`stats`:** Shows 5 packages used with correct "Total Runs: 1", frequency: daily, trend: →. Shows "Showing 5 of 40 packages (35 with no recorded usage — use --all to see all)". Clean.
+**`stats`:** Shows 5 packages used with correct "Total Runs: 1", frequency: daily, trend: →. Shows "Showing 5 of 40 packages (35 with no recorded usage  -  use --all to see all)". Clean.
 
 **`stats --days 1/7/90`:** All work correctly and adjust the summary line ("last 1 day", "last 7 days", "last 90 days"). No issues.
 
@@ -224,7 +224,7 @@ The per-cycle logging is working. Format is timestamped and clear.
   The first Area 4 run worked only because the daemon from `quickstart` was already established and had completed a cycle before the 5 new shims were added.
 
 - **Expected:** The daemon should process all entries in `usage.log` that were written after the daemon's start timestamp (or start from offset 0 on first launch), not skip everything present at startup.
-- **Repro:** `rm -rf ~/.brewprune && brewprune scan && brewprune watch --daemon && ~/.brewprune/bin/git --version && ~/.brewprune/bin/jq --version && ~/.brewprune/bin/bat --version && ~/.brewprune/bin/fd --version && ~/.brewprune/bin/rg --version && sleep 35 && brewprune status` — Events will show 0, not 5.
+- **Repro:** `rm -rf ~/.brewprune && brewprune scan && brewprune watch --daemon && ~/.brewprune/bin/git --version && ~/.brewprune/bin/jq --version && ~/.brewprune/bin/bat --version && ~/.brewprune/bin/fd --version && ~/.brewprune/bin/rg --version && sleep 35 && brewprune status`  -  Events will show 0, not 5.
 
 ---
 
@@ -239,7 +239,7 @@ The per-cycle logging is working. Format is timestamped and clear.
 
 ### Area 5: Package Explanation & Detail View
 
-**`explain git`** (after daemon recorded 1 use of git): Correctly shows `Usage: 0/40 pts - used today`. Score 30 (RISKY) with the cap applied. The "Critical: YES — capped at 70" line appears in the breakdown. Recommendation says "Do not remove." Protected status shown.
+**`explain git`** (after daemon recorded 1 use of git): Correctly shows `Usage: 0/40 pts - used today`. Score 30 (RISKY) with the cap applied. The "Critical: YES  -  capped at 70" line appears in the breakdown. Recommendation says "Do not remove." Protected status shown.
 
 **`explain jq`** (after 1 recorded use): Score 40 (RISKY), usage 0/40 pts (recently used). No dependents, leaf package.
 
@@ -255,7 +255,7 @@ The per-cycle logging is working. Format is timestamped and clear.
 
 ---
 
-### [AREA 5] Finding: `explain` Score Inconsistency — Verbose vs Explain
+### [AREA 5] Finding: `explain` Score Inconsistency  -  Verbose vs Explain
 
 - **Severity:** UX-improvement
 - **What happens:** `unused --verbose` shows `Usage: 40/40 pts` for git (treating it as never-used) while `explain git` shows `Usage: 0/40 pts` for git (correctly showing it as recently used). A user running both commands sees contradictory removal scores for the same package.
@@ -285,7 +285,7 @@ The per-cycle logging is working. Format is timestamped and clear.
   Action: Run 'brewprune scan' to create database
 ⚠ Daemon not running (no PID file)
   Action: Run 'brewprune watch --daemon'
-✗ Shim binary not found — usage tracking disabled
+✗ Shim binary not found  -  usage tracking disabled
   Action: Run 'brewprune scan' to build it
 
 Found 2 critical issue(s) and 1 warning(s). Run the suggested actions above to fix.
@@ -299,7 +299,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 - **Severity:** UX-improvement
 - **What happens:** `doctor` checks whether the shim binary exists and whether PATH is "configured" (written to shell profile), but does not check whether `~/.brewprune/bin` is actually present in the current `PATH`. A user might have removed it manually from their profile after quickstart.
 - **Expected:** An explicit PATH check: "✓ ~/.brewprune/bin in active PATH" or "⚠ ~/.brewprune/bin not in active PATH (add to PATH or restart shell)".
-- **Repro:** `docker exec brewprune-r11 brewprune doctor` — shows "PATH configured" but not whether PATH is actually active.
+- **Repro:** `docker exec brewprune-r11 brewprune doctor`  -  shows "PATH configured" but not whether PATH is actually active.
 
 ---
 
@@ -308,7 +308,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 - **Severity:** UX-polish
 - **What happens:** The tip about `~/.config/brewprune/aliases` appears in every `doctor` output, even in fully configured healthy states. It feels like noise after the first time.
 - **Expected:** Show the alias tip only when no alias file exists, or only on first run.
-- **Repro:** Run `brewprune doctor` multiple times — the alias tip always appears.
+- **Repro:** Run `brewprune doctor` multiple times  -  the alias tip always appears.
 
 ---
 
@@ -316,7 +316,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 
 **`--dry-run` previews:** All worked correctly. Output includes a table of packages to remove with `Dry-run mode: no packages will be removed.` clearly at the bottom. Exit 0.
 
-**`remove --medium --dry-run`**: Shows 6 packages (5 safe + git), plus "⚠ 31 packages skipped (locked by dependents)". The skipped notice appears in the Summary section (after the table). Good placement here (compare with `--risky` where it appears before the table — see Area 3 finding).
+**`remove --medium --dry-run`**: Shows 6 packages (5 safe + git), plus "⚠ 31 packages skipped (locked by dependents)". The skipped notice appears in the Summary section (after the table). Good placement here (compare with `--risky` where it appears before the table  -  see Area 3 finding).
 
 **`undo --list` before removal**: "No snapshots available." with explanation. Clear.
 
@@ -356,7 +356,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 - **Severity:** UX-polish
 - **What happens:** `remove --help` mentions `--no-snapshot` with "(dangerous)" in the example comment, but there is no flag-level warning in the help text itself. Running `remove --medium --no-snapshot --yes` would silently skip snapshot creation.
 - **Expected:** The `--no-snapshot` flag description should include a WARNING: prefix or similar visual marker.
-- **Repro:** `docker exec brewprune-r11 brewprune remove --help` — `--no-snapshot` described as "Skip automatic snapshot creation (dangerous)" — the "(dangerous)" is easy to miss.
+- **Repro:** `docker exec brewprune-r11 brewprune remove --help`  -  `--no-snapshot` described as "Skip automatic snapshot creation (dangerous)"  -  the "(dangerous)" is easy to miss.
 
 ---
 
@@ -388,7 +388,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 - `unused --tier safe --all` → "Error: --all and --tier are mutually exclusive." Exit 1.
 
 **Missing database:**
-- `unused`, `stats`, `remove --safe` → all: "Error: database not initialized — run 'brewprune scan' to create the database" (exit 1). Consistent and clear.
+- `unused`, `stats`, `remove --safe` → all: "Error: database not initialized  -  run 'brewprune scan' to create the database" (exit 1). Consistent and clear.
 - `status` → still works, shows appropriate "stopped" state with 0 events and "never" scan. Exit 0.
 
 ---
@@ -416,7 +416,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 
 **Symbols:** Checkmarks (✓), bullets (•), warning (⚠), x-marks (✗), and progress bars are used. These are consistent and purposeful.
 
-**Context lines:** Present throughout. `unused --min-score 70` shows "Showing 6 of 40 packages (score >= 70)" before and "Hidden: 34 below score threshold (70)" after. `stats` shows "Showing 5 of 40 packages (35 with no recorded usage — use --all to see all)" before and repeats the count in the summary.
+**Context lines:** Present throughout. `unused --min-score 70` shows "Showing 6 of 40 packages (score >= 70)" before and "Hidden: 34 below score threshold (70)" after. `stats` shows "Showing 5 of 40 packages (35 with no recorded usage  -  use --all to see all)" before and repeats the count in the summary.
 
 **Progress indicators:** `remove --safe --yes` shows a real-time progress bar: `[=======================================>] 100%`. Excellent. `watch --daemon` shows "Starting daemon......" (animated dots in a live terminal). `undo latest --yes` shows "Restoring packages from snapshot......" then per-package lines. Good.
 
@@ -439,8 +439,8 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 
 - **Severity:** UX-polish
 - **What happens:** The dry-run notice "Dry-run mode: no packages will be removed." appears only at the very bottom of the output, after the full summary. If the output scrolls off screen, the user may miss that this was a preview.
-- **Expected:** A "DRY RUN — NO CHANGES WILL BE MADE" banner at the TOP of the output, before the package table.
-- **Repro:** `docker exec brewprune-r11 brewprune remove --safe --dry-run` — notice only appears at end.
+- **Expected:** A "DRY RUN  -  NO CHANGES WILL BE MADE" banner at the TOP of the output, before the package table.
+- **Repro:** `docker exec brewprune-r11 brewprune remove --safe --dry-run`  -  notice only appears at end.
 
 ---
 
@@ -450,7 +450,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 
 2. **`undo` flow is clean.** Snapshot creation is visible, IDs are shown, and `undo latest` correctly identifies and restores. The post-undo scan reminder is prominent and specific.
 
-3. **Grace period UX is working.** `status` immediately after `watch --daemon` shows the "(no events yet — daemon started just now, this is normal)" message instead of an alarming warning. This was a regression fix from a prior round.
+3. **Grace period UX is working.** `status` immediately after `watch --daemon` shows the "(no events yet  -  daemon started just now, this is normal)" message instead of an alarming warning. This was a regression fix from a prior round.
 
 4. **`doctor` in blank state exits 1 cleanly.** No bare "Error:" line printed. The summary counts critical issues and warnings separately and directs users to run the suggested actions.
 
@@ -517,7 +517,7 @@ Exit 1. Correct. No bare "Error:" line after the summary. Clean.
 | **Stale dep graph after undo + scan** | PASS | `undo latest --yes` then `brewprune scan` then `explain bat` showed correct score (80/SAFE, no dependents). No stale rows observed. |
 | **`doctor` exits 1 cleanly on critical issues** | PASS | Blank state doctor exits 1 with "Found 2 critical issue(s) and 1 warning(s)." No bare "Error:" line after summary. |
 | **`stats --package <pkg>` undo hint** | PASS | `stats --package tmux` after undo (before scan) → "Error: package tmux not found. / If you recently ran 'brewprune undo', run 'brewprune scan' to update the index." Exit 1. |
-| **`status` grace period** | PASS | `watch --daemon` followed immediately by `status` → "(no events yet — daemon started just now, this is normal)". Alarming shim warning not shown. |
+| **`status` grace period** | PASS | `watch --daemon` followed immediately by `status` → "(no events yet  -  daemon started just now, this is normal)". Alarming shim warning not shown. |
 | **`-v` shows version, not conflict** | FAIL | `brewprune -v` → "Error: unknown shorthand flag: 'v' in -v". Exit 1. Expected version string. |
 | **`stats --all` sort annotation after table** | PASS | "Sorted by: most used first" appears after the table body, before the Summary line. Correct placement. |
 

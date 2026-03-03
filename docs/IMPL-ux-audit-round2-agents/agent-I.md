@@ -1,12 +1,12 @@
-# Wave 1 Agent I: stats.go — hide zero-usage by default + explain pointer
+# Wave 1 Agent I: stats.go  -  hide zero-usage by default + explain pointer
 
 You are Wave 1 Agent I. Fix two UX issues in stats.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/stats.go` — modify
-- `internal/app/stats_test.go` — modify
+- `internal/app/stats.go`  -  modify
+- `internal/app/stats_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -14,7 +14,7 @@ No new exported functions. You are modifying existing behavior only.
 
 ## 3. Interfaces You May Call
 
-Existing `output.RenderUsageTable` and standard library — no new imports needed.
+Existing `output.RenderUsageTable` and standard library  -  no new imports needed.
 
 ## 4. What to Implement
 
@@ -71,7 +71,7 @@ fmt.Print(table)
 fmt.Printf("\nSummary: %d packages used in last %d days (out of %d total)\n",
     usedCount, days, len(trends))
 if hiddenCount > 0 && !statsAll {
-    fmt.Printf("(%d packages with no recorded usage hidden — use --all to show)\n", hiddenCount)
+    fmt.Printf("(%d packages with no recorded usage hidden  -  use --all to show)\n", hiddenCount)
 }
 ```
 
@@ -92,12 +92,12 @@ if stats.TotalUses == 0 {
 
 Update `internal/app/stats_test.go`:
 
-1. `TestShowUsageTrends_HidesZeroUsageByDefault` — verify that with `statsAll =
+1. `TestShowUsageTrends_HidesZeroUsageByDefault`  -  verify that with `statsAll =
    false` (default), packages with 0 TotalRuns are not shown in the table, and
    the output contains "hidden" to indicate suppressed packages.
-2. `TestShowUsageTrends_ShowAllFlag` — verify that with `statsAll = true`, all
+2. `TestShowUsageTrends_ShowAllFlag`  -  verify that with `statsAll = true`, all
    packages appear including those with 0 usage.
-3. `TestShowPackageStats_ZeroUsage_ShowsExplainHint` — verify that when a
+3. `TestShowPackageStats_ZeroUsage_ShowsExplainHint`  -  verify that when a
    package has 0 TotalUses, the output contains "brewprune explain".
 4. Update `TestStatsCommand_Flags` to include the new `--all` flag.
 5. Update `TestStatsCommand_EmptyDatabase` if needed to match new empty state
@@ -122,14 +122,14 @@ All must pass before reporting completion.
 - The `statsAll` variable must be a package-level var in stats.go (following
   the pattern of `statsDays` and `statsPackage`).
 - The existing `TestStatsCommand_EmptyDatabase` test verifies "No usage data
-  found" message — update it if the message changes for the zero-usage case.
+  found" message  -  update it if the message changes for the zero-usage case.
 - If you discover that correct implementation requires changing a file not in
   your ownership list, do NOT modify it. Report it in section 8.
 
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent I — Completion Report`.
+`### Agent I  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

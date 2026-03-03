@@ -7,14 +7,14 @@ Overhaul the `brewprune unused` rendering to make output actionable:
 2. Add tier summary header with per-tier counts and sizes
 3. Add reclaimable space footer
 4. Show `n/a` for cask usage columns (casks can't be tracked via shims)
-5. Show `—` instead of `0 packages` for zero deps
+5. Show ` - ` instead of `0 packages` for zero deps
 6. Pass `IsCask` through the rendering pipeline
 
 ### Pre-completed work (do NOT touch these files)
 
-- `internal/scanner/dependencies.go` — `brewprune` added to `coreDependencies`
-- `internal/analyzer/types.go` — `IsCask bool` added to `ConfidenceScore`
-- `internal/analyzer/confidence.go` — `IsCask` populated from `pkgInfo.IsCask`
+- `internal/scanner/dependencies.go`  -  `brewprune` added to `coreDependencies`
+- `internal/analyzer/types.go`  -  `IsCask bool` added to `ConfidenceScore`
+- `internal/analyzer/confidence.go`  -  `IsCask` populated from `pkgInfo.IsCask`
 
 ---
 
@@ -36,12 +36,12 @@ output.TierStats ──────────────────> output.
 Root nodes: `output/table.go` (new types + rendering functions)
 Leaf nodes: `app/unused.go`, `app/remove.go` (consume output layer)
 
-All rendering files are tightly coupled — a single agent owns them all.
+All rendering files are tightly coupled  -  a single agent owns them all.
 
 ### Interface Contracts
 
 ```go
-// output/table.go — NEW types and functions
+// output/table.go  -  NEW types and functions
 
 type TierStats struct {
     Count     int
@@ -51,14 +51,14 @@ type TierStats struct {
 func RenderTierSummary(safe, medium, risky TierStats, showAll bool) string
 func RenderReclaimableFooter(safe, medium, risky TierStats, showAll bool) string
 
-// output/table.go — MODIFIED struct (add field)
+// output/table.go  -  MODIFIED struct (add field)
 type ConfidenceScore struct {
     // ... existing fields ...
     IsCask bool // NEW: true for cask/GUI apps
 }
 
-// output/table.go — MODIFIED behavior
-// formatDepCount(0) returns "—" instead of "0 packages"
+// output/table.go  -  MODIFIED behavior
+// formatDepCount(0) returns " - " instead of "0 packages"
 // RenderConfidenceTable: IsCask rows show "n/a" for Uses (7d) and Last Used
 ```
 
@@ -66,11 +66,11 @@ type ConfidenceScore struct {
 
 | File | Agent | Wave | Depends On |
 |------|-------|------|------------|
-| `internal/output/table.go` | A | 1 | — |
-| `internal/output/table_test.go` | A | 1 | — |
-| `internal/output/example_test.go` | A | 1 | — |
-| `internal/app/unused.go` | A | 1 | — |
-| `internal/app/remove.go` | A | 1 | — |
+| `internal/output/table.go` | A | 1 |  -  |
+| `internal/output/table_test.go` | A | 1 |  -  |
+| `internal/output/example_test.go` | A | 1 |  -  |
+| `internal/app/unused.go` | A | 1 |  -  |
+| `internal/app/remove.go` | A | 1 |  -  |
 
 ### Wave Structure
 
@@ -145,9 +145,9 @@ type ConfidenceScore struct {
 ## 4. What to Implement
 
 Read these files first:
-- `internal/output/table.go` — current RenderConfidenceTable, formatDepCount, ConfidenceScore struct
-- `internal/app/unused.go` — full runUnused function, computeSummary, showConfidenceAssessment
-- `internal/app/remove.go` — displayConfidenceScores function
+- `internal/output/table.go`  -  current RenderConfidenceTable, formatDepCount, ConfidenceScore struct
+- `internal/app/unused.go`  -  full runUnused function, computeSummary, showConfidenceAssessment
+- `internal/app/remove.go`  -  displayConfidenceScores function
 
 ### Changes to `internal/output/table.go`:
 
@@ -177,7 +177,7 @@ Read these files first:
        }
    }
    ```
-3. When `unusedAll == false` AND `unusedTier == ""`: filter out risky-tier packages from the scores slice before rendering. When `unusedTier != ""` (explicitly set): do NOT filter — explicit tier flag overrides default hiding.
+3. When `unusedAll == false` AND `unusedTier == ""`: filter out risky-tier packages from the scores slice before rendering. When `unusedTier != ""` (explicitly set): do NOT filter  -  explicit tier flag overrides default hiding.
 4. Build a `map[string]bool` from the packages list (name -> IsCask) and set `IsCask` on each `output.ConfidenceScore` during conversion.
 5. Print `output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "")` before the table.
 6. Replace the summary block (lines ~206-209: `Summary: N safe...` + `Note: Safe =...`) with `output.RenderReclaimableFooter(...)`.
@@ -216,8 +216,8 @@ All must pass.
 
 ## 7. Constraints
 
-- Do NOT touch `internal/scanner/dependencies.go`, `internal/analyzer/types.go`, or `internal/analyzer/confidence.go` — those changes are already done.
-- Use `"\u2014"` (em dash, —) not a hyphen for zero deps.
+- Do NOT touch `internal/scanner/dependencies.go`, `internal/analyzer/types.go`, or `internal/analyzer/confidence.go`  -  those changes are already done.
+- Use `"\u2014"` (em dash,  - ) not a hyphen for zero deps.
 - Cask `n/a` should be plain text, no color codes.
 - `RenderTierSummary` and `RenderReclaimableFooter` must use the existing `formatSize()` helper.
 - The `--all` flag must not interfere with `--tier`. If `--tier risky` is set, show risky regardless of `--all`.

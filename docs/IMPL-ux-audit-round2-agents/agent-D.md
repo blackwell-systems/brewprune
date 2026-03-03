@@ -1,12 +1,12 @@
-# Wave 1 Agent D: remove.go — dual-flag help clarification + doubled error fix
+# Wave 1 Agent D: remove.go  -  dual-flag help clarification + doubled error fix
 
 You are Wave 1 Agent D. Fix two UX issues in remove.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/remove.go` — modify
-- `internal/app/remove_test.go` — modify
+- `internal/app/remove.go`  -  modify
+- `internal/app/remove_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -14,7 +14,7 @@ No new exported functions. You are modifying existing behavior only.
 
 ## 3. Interfaces You May Call
 
-Existing store and analyzer functions — no changes to those.
+Existing store and analyzer functions  -  no changes to those.
 
 ## 4. What to Implement
 
@@ -71,10 +71,10 @@ This produces the clean message: `Error: package "nonexistent" not found`
 
 Update `internal/app/remove_test.go`:
 
-1. `TestRemoveHelp_ExplainsTierShortcuts` — verify that `removeCmd`'s Long
+1. `TestRemoveHelp_ExplainsTierShortcuts`  -  verify that `removeCmd`'s Long
    description or help output contains both "shortcut" (or "equivalent") and
    "--tier" to confirm the clarification is present.
-2. `TestRunRemove_NotFoundError_NotDoubled` — verify that when a nonexistent
+2. `TestRunRemove_NotFoundError_NotDoubled`  -  verify that when a nonexistent
    package is specified, the error message contains "not found" exactly once
    (not twice). Read how existing remove tests invoke the command to follow the
    same pattern.
@@ -93,9 +93,9 @@ All must pass before reporting completion.
 
 ## 7. Constraints
 
-- Do NOT change the tier flag logic or `determineTier()` — only the help text
+- Do NOT change the tier flag logic or `determineTier()`  -  only the help text
   and the error formatting.
-- Do NOT modify `internal/store/` — if the store error message changes, that
+- Do NOT modify `internal/store/`  -  if the store error message changes, that
   is out of scope.
 - The `--risky` boolean flag in the Long description example is a bit confusing
   since it appears alongside `--tier medium`. Keep the example text accurate to
@@ -107,7 +107,7 @@ All must pass before reporting completion.
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent D — Completion Report`.
+`### Agent D  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

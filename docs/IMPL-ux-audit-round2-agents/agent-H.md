@@ -1,12 +1,12 @@
-# Wave 1 Agent H: status.go — synthetic event explanation
+# Wave 1 Agent H: status.go  -  synthetic event explanation
 
 You are Wave 1 Agent H. Fix one UX issue in status.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/status.go` — modify
-- `internal/app/status_test.go` — modify
+- `internal/app/status.go`  -  modify
+- `internal/app/status_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -14,7 +14,7 @@ No new exported functions. You are modifying existing behavior only.
 
 ## 3. Interfaces You May Call
 
-Existing standard library and store functions — no new imports.
+Existing standard library and store functions  -  no new imports.
 
 ## 4. What to Implement
 
@@ -61,7 +61,7 @@ function. Match the indentation of the note lines to align with the output.
 
 Update `internal/app/status_test.go`:
 
-1. `TestRunStatus_PathMissingWithEvents_ShowsNote` — verify that when shim PATH
+1. `TestRunStatus_PathMissingWithEvents_ShowsNote`  -  verify that when shim PATH
    is missing and there are usage events, the output contains "setup self-test"
    or equivalent explanatory text. Since directly setting PATH state in a test
    is complex, test via the output string: construct a test scenario where
@@ -87,7 +87,7 @@ All must pass before reporting completion.
 
 ## 7. Constraints
 
-- Only add the explanatory note — do not change any existing output lines.
+- Only add the explanatory note  -  do not change any existing output lines.
 - The note must only appear when `!pathOK && totalEvents > 0`.
 - If you discover that correct implementation requires changing a file not in
   your ownership list, do NOT modify it. Report it in section 8.
@@ -95,7 +95,7 @@ All must pass before reporting completion.
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent H — Completion Report`.
+`### Agent H  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

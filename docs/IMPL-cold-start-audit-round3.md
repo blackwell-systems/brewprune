@@ -6,11 +6,11 @@ Fix all 19 findings from the round 3 cold-start UX audit (docs/cold-start-audit.
 
 **Verdict: SUITABLE**
 
-The 19 findings decompose cleanly into 11 disjoint file groups with one interface contract (tier validation error format). No investigation-first items — the stats SIGSEGV root cause is known (missing nil guard at analyzer/usage.go:25). All cross-agent interfaces can be defined upfront. Single-wave execution with maximum parallelism.
+The 19 findings decompose cleanly into 11 disjoint file groups with one interface contract (tier validation error format). No investigation-first items  -  the stats SIGSEGV root cause is known (missing nil guard at analyzer/usage.go:25). All cross-agent interfaces can be defined upfront. Single-wave execution with maximum parallelism.
 
 ## Dependency Graph
 
-Flat DAG — all agents are independent except for Agent F (unused.go) defining the tier validation error format that Agent J (remove.go) adopts. No Wave 0 needed.
+Flat DAG  -  all agents are independent except for Agent F (unused.go) defining the tier validation error format that Agent J (remove.go) adopts. No Wave 0 needed.
 
 ```
 Wave 1: [A] [B] [C] [D] [E] [F] [G] [H] [I] [J] [K]  <- 11 parallel agents
@@ -64,7 +64,7 @@ fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", value
 Wave 1: [A] [B] [C] [D] [E] [F] [G] [H] [I] [J] [K]  <- 11 parallel agents
 ```
 
-Single wave — maximum parallelism. All agents can execute simultaneously because file ownership is disjoint and the one interface contract (tier validation format) is pre-specified.
+Single wave  -  maximum parallelism. All agents can execute simultaneously because file ownership is disjoint and the one interface contract (tier validation format) is pre-specified.
 
 ## Cascade Candidates
 
@@ -135,14 +135,14 @@ go test ./internal/app -run TestDoctor
 #### 7. Constraints
 
 - Do not implement the --fix flag itself (that's a larger feature for later)
-- Do not change exit codes for success (0) or errors (1) — only change the warning case from 2 to 1
+- Do not change exit codes for success (0) or errors (1)  -  only change the warning case from 2 to 1
 - The help text note should be user-facing language, not internal jargon
 
 If you discover that correct implementation requires changing a file not in your ownership list, do NOT modify it. Report it in section 8 as an out-of-scope dependency.
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent A — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent A  -  Completion Report`.
 
 Include:
 - What you implemented (exit code change, help text addition)
@@ -225,7 +225,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent B — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent B  -  Completion Report`.
 
 Include:
 - What you implemented (PATH detection logic, message changes)
@@ -310,7 +310,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent C — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent C  -  Completion Report`.
 
 Include:
 - What you implemented (table suppression, PATH dedup)
@@ -402,7 +402,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent D — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent D  -  Completion Report`.
 
 Include:
 - What you implemented (idempotent output logic, help text change)
@@ -448,9 +448,9 @@ Fix three stats command issues:
    }
    ```
 
-2. **Hidden-count banner (improvement)**: `brewprune stats` default output hides 39 of 40 packages, showing only git (which has usage data). The footer note `(39 packages with no recorded usage hidden — use --all to show)` is easy to miss. Add a prominent banner line BEFORE the table:
+2. **Hidden-count banner (improvement)**: `brewprune stats` default output hides 39 of 40 packages, showing only git (which has usage data). The footer note `(39 packages with no recorded usage hidden  -  use --all to show)` is easy to miss. Add a prominent banner line BEFORE the table:
    ```
-   Showing 1 of 40 packages (39 with no recorded usage — use --all to see all)
+   Showing 1 of 40 packages (39 with no recorded usage  -  use --all to see all)
    ```
    This surfaces the hidden count immediately, not buried after the table.
 
@@ -497,7 +497,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent E — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent E  -  Completion Report`.
 
 Include:
 - What you implemented (nil guard, banner, hint)
@@ -538,7 +538,7 @@ Fix three unused command issues:
 
 1. **Sort age explanation (improvement)**: `brewprune unused --sort age` returns packages in no visible order when all packages were installed at the same time (common in test environments or fresh installs). Add a note to the footer when this happens:
    ```
-   Note: All packages installed at the same time — age sort has no effect. Sorted by score.
+   Note: All packages installed at the same time  -  age sort has no effect. Sorted by score.
    ```
    Detect this by checking if all package install timestamps are identical. Fall back to score sort as the secondary.
 
@@ -595,13 +595,13 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent F — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent F  -  Completion Report`.
 
 Include:
 - What you implemented (sort age note, footer explanation, tier validation format)
 - Test results (pass/fail, count)
 - Any deviations from the spec and why
-- Any interface contract changes (none — format is pre-specified)
+- Any interface contract changes (none  -  format is pre-specified)
 - Any out-of-scope dependencies discovered
 
 ---
@@ -687,7 +687,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent G — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent G  -  Completion Report`.
 
 Include:
 - What you implemented (note rewording, error message improvement)
@@ -737,8 +737,8 @@ Implementation hints:
 
 Edge cases:
 - Non-TTY output (pipes, redirects) must NOT include ANSI codes (use existing TTY check pattern)
-- If a tier has 0 packages, it may not appear in the summary — color the labels that DO appear
-- The summary format may vary slightly between commands (unused, remove, etc.) — ensure consistency
+- If a tier has 0 packages, it may not appear in the summary  -  color the labels that DO appear
+- The summary format may vary slightly between commands (unused, remove, etc.)  -  ensure consistency
 
 #### 5. Tests to Write
 
@@ -766,7 +766,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent H — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent H  -  Completion Report`.
 
 Include:
 - What you implemented (tier summary color coding)
@@ -799,7 +799,7 @@ All existing brewprune internal APIs.
 
 Fix two undo command issues:
 
-1. **Exit code consistency (polish)**: `brewprune undo` with no arguments exits 1 with a usage error. `brewprune undo --list` with no snapshots available exits 0. The asymmetry is inconsistent — both represent "no snapshots" states. Change `undo` (no args) to exit 0, treating it as a request for guidance rather than an error.
+1. **Exit code consistency (polish)**: `brewprune undo` with no arguments exits 1 with a usage error. `brewprune undo --list` with no snapshots available exits 0. The asymmetry is inconsistent  -  both represent "no snapshots" states. Change `undo` (no args) to exit 0, treating it as a request for guidance rather than an error.
 
 2. **Add --list suggestion (polish)**: `brewprune undo latest` returns:
    ```
@@ -851,7 +851,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent I — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent I  -  Completion Report`.
 
 Include:
 - What you implemented (exit code change, --list suggestion)
@@ -930,13 +930,13 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent J — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent J  -  Completion Report`.
 
 Include:
 - What you implemented (tier validation format change)
 - Test results (pass/fail, count)
 - Any deviations from the spec and why
-- Any interface contract changes (none — format was pre-specified)
+- Any interface contract changes (none  -  format was pre-specified)
 - Any out-of-scope dependencies discovered
 
 ---
@@ -982,7 +982,7 @@ Read `internal/app/root.go` first to locate:
 - Where unknown subcommand errors are generated (likely cobra's built-in error handler)
 
 Implementation hints:
-- cobra has a `SilenceUsage` flag and custom error formatters — investigate those
+- cobra has a `SilenceUsage` flag and custom error formatters  -  investigate those
 - The exit code change may require setting a RunE function that checks if args are empty
 - The error order may require overriding cobra's default error output format
 
@@ -1017,7 +1017,7 @@ If you discover that correct implementation requires changing a file not in your
 
 #### 8. Report
 
-Append your completion report to this IMPL doc under `### Agent K — Completion Report`.
+Append your completion report to this IMPL doc under `### Agent K  -  Completion Report`.
 
 Include:
 - What you implemented (exit code change, error order fix)
@@ -1032,7 +1032,7 @@ Include:
 
 After Wave 1 completes:
 
-1. Read each agent's completion report from their named section in this IMPL doc (`### Agent {A-K} — Completion Report`). Check for interface contract deviations and out-of-scope dependencies flagged by agents.
+1. Read each agent's completion report from their named section in this IMPL doc (`### Agent {A-K}  -  Completion Report`). Check for interface contract deviations and out-of-scope dependencies flagged by agents.
 2. Merge all 11 agent worktrees back into the main branch.
 3. Run the full verification gate (build + test) against the merged result. Individual agents pass their gates in isolation, but the merged codebase can surface issues none of them saw individually. This post-merge verification is the real gate.
 4. Fix any compiler errors or integration issues, including any out-of-scope changes flagged by agents in their reports.
@@ -1073,7 +1073,7 @@ All commands must pass with exit code 0.
 
 (Agents will append their reports here after completing their work.)
 
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 
 **What I implemented:**
 - Added comprehensive tests for tier summary color coding in `internal/output/table_test.go`
@@ -1090,7 +1090,7 @@ The implementation uses `IsColorEnabled()` (lines 37-42) which checks both TTY s
 
 **Test results:**
 - All tests PASS
-- TestTierSummaryColorCoded: SKIP (expected — stdout is not a TTY during test runs)
+- TestTierSummaryColorCoded: SKIP (expected  -  stdout is not a TTY during test runs)
 - TestTierSummaryPlainTextWhenNoTTY: PASS
 - go build ./...: SUCCESS
 - go vet ./...: SUCCESS
@@ -1105,7 +1105,7 @@ None.
 **Out-of-scope dependencies discovered:**
 None. The implementation was complete and self-contained within `internal/output/table.go`.
 
-### Agent G — Completion Report
+### Agent G  -  Completion Report
 
 **What I implemented:**
 - Rewording of the "0/40 means recently used" note in `internal/app/explain.go` (lines 147-149)
@@ -1143,7 +1143,7 @@ None.
 - These files are owned by Agent C and Agent D respectively
 - The errors must be fixed before the merged result can pass verification
 
-### Agent A — Completion Report
+### Agent A  -  Completion Report
 
 **What I implemented:**
 Both features were **already implemented** when I received the task:
@@ -1161,7 +1161,7 @@ Both features were **already implemented** when I received the task:
    - `TestDoctorHelpIncludesFixNote` (lines 277-299 in `internal/app/doctor_test.go`)
 
 **Test results:**
-Cannot verify — build failures in files outside my ownership block test execution:
+Cannot verify  -  build failures in files outside my ownership block test execution:
 - `internal/app/quickstart.go:147:16`: no new variables on left side of `:=`
 - `internal/app/scan.go:81:2`: declared and not used: existingPackages
 
@@ -1176,7 +1176,7 @@ None.
 **Out-of-scope dependencies discovered:**
 Build errors in `quickstart.go` and `scan.go` (owned by Agents C and D) prevent verification gate execution. These files must be fixed before the merged codebase can be verified. The doctor command implementation itself is correct and complete.
 
-### Agent I — Completion Report
+### Agent I  -  Completion Report
 
 **What I implemented:**
 Nothing. Both requested features were **already implemented** in the codebase:
@@ -1191,7 +1191,7 @@ Both required tests were **already written** in `internal/app/undo_test.go`:
 - `TestUndoLatestSuggestsList` (lines 366-413): Verifies --list suggestion in error message
 
 **Test results:**
-Cannot verify — build failures in files outside my ownership block test execution:
+Cannot verify  -  build failures in files outside my ownership block test execution:
 - `internal/app/quickstart.go:147:16`: no new variables on left side of `:=`
 - `internal/app/scan.go:81:2`: declared and not used: existingPackages
 
@@ -1206,7 +1206,7 @@ None.
 **Out-of-scope dependencies discovered:**
 Build errors in `quickstart.go` and `scan.go` (owned by Agents C and D) prevent verification gate execution. These files must be fixed before the merged codebase can be verified. The undo command implementation itself is correct and complete.
 
-### Agent J — Completion Report
+### Agent J  -  Completion Report
 
 **What I implemented:**
 - Updated tier validation error format in `internal/app/remove.go` line 332 (in `getPackagesByTier` function) to match the standard format defined by Agent F
@@ -1231,7 +1231,7 @@ return "", fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, ri
 The only inconsistency was in the defensive validation within `getPackagesByTier()`'s default case, which should never be reached in practice since `determineTier()` validates before calling `getPackagesByTier()`. However, having consistent error messages is important for maintainability.
 
 **Test results:**
-Cannot verify — build failures in files outside my ownership block test execution:
+Cannot verify  -  build failures in files outside my ownership block test execution:
 - `internal/app/quickstart.go:147:16`: no new variables on left side of `:=`
 - `internal/app/scan.go:81:2`: declared and not used: existingPackages
 
@@ -1254,7 +1254,7 @@ None. The implementation follows the pre-defined interface contract from Agent F
 **Out-of-scope dependencies discovered:**
 Build errors in `quickstart.go` and `scan.go` (owned by Agents C and D) prevent verification gate execution. These files must be fixed before the merged codebase can be verified. The remove command tier validation implementation itself is correct and complete.
 
-### Agent K — Completion Report
+### Agent K  -  Completion Report
 
 **What I implemented:**
 Nothing. Both requested features were **already implemented** in the codebase:
@@ -1265,8 +1265,8 @@ Nothing. Both requested features were **already implemented** in the codebase:
    - Line 72 calls `cmd.Help()` to show help text, then line 73 returns the error to signal failure
 
 2. **Unknown subcommand error order**: Lines 95-99 of `internal/app/root.go` already implement the correct order:
-   - Line 97: `fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())` — error first
-   - Line 98: `fmt.Fprintf(os.Stderr, "Run 'brewprune --help' for a list of available commands.\n")` — hint second
+   - Line 97: `fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())`  -  error first
+   - Line 98: `fmt.Fprintf(os.Stderr, "Run 'brewprune --help' for a list of available commands.\n")`  -  hint second
 
 **Tests:**
 All three required tests were **already written** in `internal/app/root_test.go`:
@@ -1275,7 +1275,7 @@ All three required tests were **already written** in `internal/app/root_test.go`
 - `TestUnknownSubcommandErrorOrder` (lines 309-335): Verifies error message is returned correctly for Execute() to format
 
 **Test results:**
-Cannot verify — build failures in files outside my ownership block test execution:
+Cannot verify  -  build failures in files outside my ownership block test execution:
 - `internal/app/quickstart.go:147:16`: no new variables on left side of `:=`
 - `internal/app/scan.go:81:2`: declared and not used: existingPackages
 - `internal/app/scan.go:369:40`: undefined: brew
@@ -1289,7 +1289,7 @@ Manual inspection confirms the implementation matches the specification exactly:
 - Error order (root.go:95-99): Error message printed first, then help hint
 - Edge cases handled: --version would be handled by cobra's built-in version handling, unknown flags fall through to cobra's default error handling which Execute() catches
 
-The root command files (`root.go` and `root_test.go`) compile successfully in isolation — verified by attempting to build just the test binary.
+The root command files (`root.go` and `root_test.go`) compile successfully in isolation  -  verified by attempting to build just the test binary.
 
 **Deviations from spec:**
 None. The spec requested implementation of features that were already present in the codebase and already tested.
@@ -1300,7 +1300,7 @@ None.
 **Out-of-scope dependencies discovered:**
 Build errors in `quickstart.go` and `scan.go` (owned by Agents C and D) prevent verification gate execution. These files must be fixed before the merged codebase can be verified. The root command implementation itself is correct and complete.
 
-### Agent F — Completion Report
+### Agent F  -  Completion Report
 
 **What I implemented:**
 
@@ -1313,14 +1313,14 @@ Build errors in `quickstart.go` and `scan.go` (owned by Agents C and D) prevent 
      - Both score threshold AND risky tier filtering active
      - Only score threshold filtering active
      - Only risky tier filtering active (handled by reclaimable footer)
-   - No functional changes needed — the existing logic already correctly differentiates these cases
+   - No functional changes needed  -  the existing logic already correctly differentiates these cases
 
 3. **Tier validation format standardization** (line 86 in `internal/app/unused.go`)
    - **Already correct!** The tier validation was already using the standard format:
      ```go
      fmt.Errorf("invalid --tier value %q: must be one of: safe, medium, risky", unusedTier)
      ```
-   - No changes needed — Agent J will adopt this same format
+   - No changes needed  -  Agent J will adopt this same format
 
 **Tests written:**
 
@@ -1339,7 +1339,7 @@ Build errors in `quickstart.go` and `scan.go` (owned by Agents C and D) prevent 
    - Ensures error text is: `invalid --tier value "invalid": must be one of: safe, medium, risky`
 
 **Test results:**
-Cannot fully verify — build failures in files outside my ownership block test execution:
+Cannot fully verify  -  build failures in files outside my ownership block test execution:
 - `internal/app/scan.go:369:40`: undefined: brew
 - `internal/app/scan.go:376:29`: undefined: brew
 - `internal/app/quickstart.go:147:16`: no new variables on left side of :=
@@ -1354,7 +1354,7 @@ These errors are in files owned by Agents D and C.
 
 **Deviations from spec:**
 
-Minor clarification — the spec said the sort age fallback was "score sort" but actual implementation is "tier order then alphabetical". I corrected the note text to match reality rather than changing the sort behavior, as the current behavior is more logical (keeps same-tier packages together).
+Minor clarification  -  the spec said the sort age fallback was "score sort" but actual implementation is "tier order then alphabetical". I corrected the note text to match reality rather than changing the sort behavior, as the current behavior is more logical (keeps same-tier packages together).
 
 The spec also said to implement tier validation format, but it was already correct. No changes were needed.
 
@@ -1364,7 +1364,7 @@ None. The tier validation format was already implemented correctly as specified 
 **Out-of-scope dependencies discovered:**
 Build errors in `scan.go` (Agent D) and `quickstart.go` (Agent C) prevent full verification gate execution. These must be resolved before the complete test suite can run. However, my changes compile cleanly and are isolated to my owned files.
 
-### Agent B — Completion Report
+### Agent B  -  Completion Report
 
 **What I implemented:**
 Enhanced PATH detection logic in `internal/app/status.go` to distinguish three states instead of two:
@@ -1409,7 +1409,7 @@ Added four comprehensive tests to `internal/app/status_test.go`:
    - Verifies the note about self-test events appears when PATH is missing but events exist
 
 **Test results:**
-Cannot verify — build failure in file outside my ownership blocks test execution:
+Cannot verify  -  build failure in file outside my ownership blocks test execution:
 - `internal/app/quickstart.go:147:16`: no new variables on left side of `:=`
 
 This error prevents the entire `internal/app` package from building, blocking test execution. The error is in Agent C's file (quickstart.go line 147 uses `:=` to assign to `dbPath` which is already a global variable; should use `=` instead).
@@ -1447,7 +1447,7 @@ None. The `isConfiguredInShellProfile()` function is internal to status.go.
 - No dependencies on `internal/shell/config.go` changes were needed (the existing `EnsurePathEntry()` function already writes the format that `isConfiguredInShellProfile()` searches for)
 
 
-### Agent D — Completion Report
+### Agent D  -  Completion Report
 
 **What I implemented:**
 
@@ -1535,7 +1535,7 @@ quickstart.go:147:16: no new variables on left side of :=
 ```
 This is a simple fix (change `:=` to `=` on line 147) but is outside my file ownership scope. My files (`scan.go` and `scan_test.go`) compile cleanly and all tests pass.
 
-### Agent C — Completion Report
+### Agent C  -  Completion Report
 
 **What I implemented:**
 
@@ -1643,7 +1643,7 @@ None. The scan.go `scanQuiet` flag already provided the exact functionality need
 
 ---
 
-### Agent E — Completion Report
+### Agent E  -  Completion Report
 
 **Status: COMPLETE**
 
@@ -1651,7 +1651,7 @@ None. The scan.go `scanQuiet` flag already provided the exact functionality need
 
 1. **SIGSEGV fix**: The nil guard was already implemented at lines 15-17 in `internal/analyzer/usage.go`. The code correctly checks for nil after calling `a.store.GetPackage(pkg)` and returns a user-friendly error `fmt.Errorf("package not found: %s", pkg)`. This prevents the segmentation fault that would occur from accessing `pkgInfo.InstalledAt` on a nil pointer.
 
-2. **Hidden-count banner**: The banner was already implemented at lines 221-225 in `internal/app/stats.go`. It displays before the table when packages are hidden: `Showing X of Y packages (Z with no recorded usage — use --all to see all)`. The banner only appears when `hiddenCount > 0 && !statsAll`, meeting all edge case requirements (no banner when all packages shown, or when --all flag is used).
+2. **Hidden-count banner**: The banner was already implemented at lines 221-225 in `internal/app/stats.go`. It displays before the table when packages are hidden: `Showing X of Y packages (Z with no recorded usage  -  use --all to see all)`. The banner only appears when `hiddenCount > 0 && !statsAll`, meeting all edge case requirements (no banner when all packages shown, or when --all flag is used).
 
 3. **Explain hint for packages with usage**: Added the explain hint at lines 147-154 in `internal/app/stats.go`. Previously, the hint only appeared for packages with zero usage (lines 151-152). Now it appears for all packages, with different messages:
    - Zero usage: `Tip: Run 'brewprune explain PKG' for removal recommendation.`

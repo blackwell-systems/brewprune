@@ -199,7 +199,7 @@
 
 ### [EDGE] Nonexistent database path shows gentle error
 - **Severity**: UX-polish (positive note)
-- **What happens**: Using `--db /nonexistent/path.db` shows friendly message: "brewprune is not set up — run 'brewprune scan' to get started."
+- **What happens**: Using `--db /nonexistent/path.db` shows friendly message: "brewprune is not set up  -  run 'brewprune scan' to get started."
 - **Expected**: This is excellent! This is the right tone for error messages.
 - **Repro**: `docker exec bp-audit4 brewprune --db /nonexistent/path.db status`
 

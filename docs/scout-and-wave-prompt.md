@@ -27,12 +27,12 @@ waves.
 ## Process
 
 1. **Read the project first.** Examine the build system (Makefile, go.mod,
-   package.json, pyproject.toml — whatever exists), test patterns, naming
+   package.json, pyproject.toml  -  whatever exists), test patterns, naming
    conventions, and directory structure. The verification gates and test
    expectations you emit must match the project's actual toolchain.
 
 2. **Identify every file that will change or be created.** Trace call paths,
-   imports, and type dependencies. Do not guess — read the actual source.
+   imports, and type dependencies. Do not guess  -  read the actual source.
 
 3. **Map the dependency graph.** For each file, determine what it depends on
    and what depends on it. Identify the leaf nodes (files whose changes block
@@ -40,7 +40,7 @@ waves.
    work can begin). Draw the full DAG.
 
 4. **Define interface contracts.** For every function, method, or type that
-   will be called across agent boundaries, write the exact signature —
+   will be called across agent boundaries, write the exact signature  - 
    language-specific, fully typed, no pseudocode. These signatures are binding
    contracts. Agents will implement against them without seeing each other's
    code. If you cannot determine a signature, flag it as a blocker that must
@@ -58,11 +58,11 @@ waves.
    - Wave N+1: Agents whose files depend on interfaces delivered in Wave N.
    - An agent is in the earliest wave where all its dependencies are satisfied.
    - Annotate each wave transition with the *specific* agent(s) that unblock
-     it — not "blocked on Wave 1" but "blocked on Agent A completing."
+     it  -  not "blocked on Wave 1" but "blocked on Agent A completing."
 
 7. **Write agent prompts.** For each agent, produce a complete prompt using
    the standard 8-field format (see Agent Prompt Template below). The prompt
-   must be self-contained — an agent receiving it should need nothing beyond
+   must be self-contained  -  an agent receiving it should need nothing beyond
    the prompt and the existing codebase to do its work.
 
 8. **Determine verification gates from the build system.** Read the Makefile,
@@ -119,14 +119,14 @@ After each wave completes:
 5. Update the Status checklist below.
 6. Launch the next wave.
 
-If verification fails, fix before proceeding — do not launch the next wave
+If verification fails, fix before proceeding  -  do not launch the next wave
 with a broken build.
 
 ### Status
 
-- [ ] Wave 1 Agent A — [description]
-- [ ] Wave 1 Agent B — [description]
-- [ ] Wave 2 Agent C — [description]
+- [ ] Wave 1 Agent A  -  [description]
+- [ ] Wave 1 Agent B  -  [description]
+- [ ] Wave 2 Agent C  -  [description]
 - ...
 
 ## Rules
@@ -159,9 +159,9 @@ You are Wave {N} Agent {letter}. {One-sentence summary of your task.}
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `path/to/file.go` — {create | modify}
-- `path/to/file_test.go` — {create | modify}
-- `CHANGELOG.md` — append to `## [Unreleased]` only
+- `path/to/file.go`  -  {create | modify}
+- `path/to/file_test.go`  -  {create | modify}
+- `CHANGELOG.md`  -  append to `## [Unreleased]` only
 
 ## 2. Interfaces You Must Implement
 
@@ -174,7 +174,7 @@ func YourNewFunction(param Type) (ReturnType, error)
 ## 3. Interfaces You May Call
 
 Signatures from prior waves or existing code that you can depend on.
-These are already implemented — code against them directly.
+These are already implemented  -  code against them directly.
 
 ```
 func ExistingFunction(param Type) ReturnType
@@ -188,11 +188,11 @@ expectations, and any constraints on the approach.}
 
 ## 5. Tests to Write
 
-{Named tests with one-line descriptions. Be specific — "write tests" is
+{Named tests with one-line descriptions. Be specific  -  "write tests" is
 not sufficient.}
 
-1. `TestFunctionName_Scenario` — {what it verifies}
-2. `TestFunctionName_EdgeCase` — {what it verifies}
+1. `TestFunctionName_Scenario`  -  {what it verifies}
+2. `TestFunctionName_EdgeCase`  -  {what it verifies}
 3. ...
 
 ## 6. Verification Gate
@@ -229,6 +229,6 @@ interfaces can be defined before implementation.
 **Poor fit:** Tightly coupled code with no clean seams, interface unknown
 until you start implementing, single-file change.
 
-**The scout itself will surface a poor fit** — if file ownership cannot be
+**The scout itself will surface a poor fit**  -  if file ownership cannot be
 cleanly assigned, that's a signal the work isn't parallelizable, which is
 still useful information before you start.

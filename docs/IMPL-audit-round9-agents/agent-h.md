@@ -28,8 +28,8 @@ echo "✓ Isolation verified: $ACTUAL_DIR on $ACTUAL_BRANCH"
 
 ## 1. File Ownership
 
-- `internal/app/undo.go` — modify
-- `internal/app/undo_test.go` — modify
+- `internal/app/undo.go`  -  modify
+- `internal/app/undo_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -88,13 +88,13 @@ Restored tmux
 ```
 
 The spinner stops when `RestoreSnapshot` returns. The item-by-item list from `restore.go`
-is printed directly to stdout during the operation — this is acceptable as the canonical
+is printed directly to stdout during the operation  -  this is acceptable as the canonical
 progress display for restoration.
 
 **Implementation:**
 ```go
 fmt.Printf("Restoring %d packages...\n", len(snapshotPackages))
-// Use spinner only — progress bar is immediately finished and adds visual noise.
+// Use spinner only  -  progress bar is immediately finished and adds visual noise.
 spinner := output.NewSpinner("Restoring packages from snapshot...")
 spinner.Start()
 err = snapMgr.RestoreSnapshot(snapshotID)
@@ -112,7 +112,7 @@ fmt.Println("\n⚠  Run 'brewprune scan' to update the package database before r
 
 **Problem:** The undo warning only mentions `remove`. But `explain`, `stats --package`, and
 `unused` also require a fresh scan after undo (they depend on the DB having current package
-data). The audit reports a segfault on `explain` and `stats --package` after undo — while
+data). The audit reports a segfault on `explain` and `stats --package` after undo  -  while
 the segfault is fixed by Agent A, the warning should still cover these commands.
 
 **Fix:**
@@ -131,11 +131,11 @@ explicitly mentioned alongside `remove`.
 
 ## 5. Tests to Write
 
-1. `TestUndo_ProgressBarRemovedFromOutput` — verify that the `undo` output does NOT contain
+1. `TestUndo_ProgressBarRemovedFromOutput`  -  verify that the `undo` output does NOT contain
    the immediate 100% progress bar. Check that the "Restoring packages from snapshot" spinner
    message is present instead.
 
-2. `TestUndo_PostUndoWarningMentionsAllCommands` — verify that the post-undo warning text
+2. `TestUndo_PostUndoWarningMentionsAllCommands`  -  verify that the post-undo warning text
    mentions "explain" and "stats" (not just "remove").
 
 Check existing undo tests for any assertions about the progress bar output and update them.
@@ -151,7 +151,7 @@ go test ./internal/app -run 'TestUndo' -v
 
 ## 7. Constraints
 
-- Do NOT modify `internal/snapshots/restore.go` — the per-package "Restored X" output is
+- Do NOT modify `internal/snapshots/restore.go`  -  the per-package "Restored X" output is
   intentional and useful for the user to see each package being restored.
 - The spinner should still wrap `RestoreSnapshot` to show activity during the (30-60s)
   installation process.
@@ -168,7 +168,7 @@ git commit -m "wave1-agent-h: fix undo progress rendering + expand stale DB warn
 Append to this file:
 
 ```yaml
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 status: complete | partial | blocked
 worktree: .claude/worktrees/wave1-agent-h
 commit: {sha}
@@ -186,7 +186,7 @@ verification: PASS | FAIL
 
 ---
 
-### Agent H — Completion Report
+### Agent H  -  Completion Report
 status: complete
 worktree: .claude/worktrees/wave1-agent-h
 commit: 972cebb

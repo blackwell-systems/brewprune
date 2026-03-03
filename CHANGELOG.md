@@ -10,81 +10,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.2] - 2026-03-02
 
 ### Fixed
-- **Dependency graph stale after `undo` + `scan`** (Cold-Start Audit Round 10) — `ScanPackages` used `INSERT OR IGNORE` when writing dependency rows, so old relationships from before the undo survived silently. A post-undo scan now calls `ClearDependencies(pkg)` for every package before re-inserting, ensuring the dependency table always reflects the current `brew deps` output.
-- **Daemon reads `usage.log` but records zero events — WAL checkpoint race** (Round 10, follow-up) — `watch --daemon` opened a SQLite WAL connection in the parent process before spawning the child; when `runWatch` returned, `defer db.Close()` triggered a WAL checkpoint that raced with the child's own `store.New()` call. The child could see 0 packages during the checkpoint window, causing all shim log entries to be skipped. Fixed by handling `--daemon` before `store.New`: the launcher now spawns the child without ever opening the database. `LaunchDaemon` is a new standalone function (no store needed); `StartDaemon` is a thin wrapper for backward compat.
-- **Daemon reads `usage.log` but records zero events — observability** (Round 10) — the daemon child process was spawned without `--log-file`, so its startup message was suppressed and per-cycle log entries never appeared in `watch.log`. Fixed: `--log-file` is now passed to the daemon child; `ProcessUsageLog` returns a `ProcessingStats` struct (lines read, resolved, skipped, inserted); callers in `fsevents.go` write a per-cycle summary line to `watch.log` when new entries were processed; an explicit warning is logged when both `binaryMap` and `optPathMap` are empty (indicating `brewprune scan` has not been run yet).
-- **`remove` exited 0 with `✓` when all removals failed** (Round 10) — when every `brew uninstall` call failed, the success summary line (`✓ Removed 0 packages, freed 0 B`) was still printed above the failure block. Now uses `✗` and exits 1 when `successCount == 0`.
-- **`unused` leaked internal error chain prefix with no database** (Round 10) — `brewprune unused` with no initialized database showed `Error: failed to list packages: database not initialized — run 'brewprune scan'`. The `failed to list packages:` prefix is an internal wrapping artifact. Now unwraps to the terminal error message, matching how `remove` already handles this case.
-- **`remove nonexistent-package` missing undo hint** (Round 10) — `explain nonexistent-package` already included "If you recently ran 'brewprune undo', run 'brewprune scan' to update the index." `remove` did not. Both commands now show the same three-line not-found error.
-- **`doctor` blank-state printed redundant `Error: diagnostics failed`** (Round 10) — when critical issues exist, cobra appended `Error: diagnostics failed` below doctor's own clear summary. Replaced `return fmt.Errorf(...)` with `os.Exit(1)` so the process exits 1 without cobra adding a second error line. Summary message updated to "Found N critical issue(s). Run the suggested actions above to fix."
-- **`stats --package <pkg>` after `undo` (before `scan`) gave cryptic not-found error** (Round 10) — error now reads "Package 'jq' not found. Check the name with 'brew list'... If you recently ran 'brewprune undo', run 'brewprune scan' to update the index."
-- **`status` showed alarming "no events logged" warning immediately after daemon start** (Round 10) — the "Shims may not be intercepting commands" warning now checks the daemon PID file mtime; if the daemon started fewer than 5 minutes ago it shows "(no events yet — daemon started just now, this is normal)" instead.
-- **`-v` on root command conflicted with `unused -v` for `--verbose`** (Round 10) — `--version` was registered with `BoolVarP(..., "v", ...)` on the root command. Changed to `BoolVar` (no shorthand). `--version` still works; `-v` is now reserved for `--verbose` in subcommands.
-- **`stats --all` sort annotation appeared before the table** (Round 10) — "Sorted by: most used first" was printed above the table, inconsistent with `unused` which places it below. Moved to after the table with a blank-line separator.
-- **`explain` package-not-found error missing undo hint; "47 core dependencies" wording** (Cold-Start Audit Round 9) — error now includes "If you recently ran 'brewprune undo', run 'brewprune scan' to update the index." Protected-package line changed from "part of 47 core dependencies" to "core system dependency — kept even if unused."
-- **`explain` safe-tier recommendation didn't suggest `--dry-run` first** (Round 9) — now shows a numbered two-step list: "1. Preview: brewprune remove --safe --dry-run / 2. Remove: brewprune remove --safe".
-- **`stats` unwrapped error chain in no-DB path** (Round 9) — `showUsageTrends` now surfaces only the terminal `ErrNotInitialized` message without the internal wrapping prefix.
-- **Shim resolution silently skipped packages when basename map had collisions** (Round 9) — `buildBasenameMap` used a conditional second pass (`if !exists { m[pkg.Name] = pkg.Name }`) that could miss packages. Changed to an unconditional pass so every package name is always populated. Added `log.Printf` for unresolvable binaries (previously silently dropped with `continue`).
-- **`doctor` pipeline test showed `FAIL` (not `SKIPPED`) when shims configured but PATH not active** (Round 9) — when `shimPathConfigured && !shimPathActive`, the pipeline test now shows `⚠ Pipeline test: SKIPPED` and does not increment `criticalIssues`.
-- **`quickstart` PATH warning appeared after "Setup complete!" message** (Round 9) — PATH warning now printed before the success line.
-- **`remove nonexistent-package` showed single-line error** (Round 9) — now shows multi-line helpful format with `brew list`, `brew search`, and `brewprune scan` suggestions.
-- **`status` showed "0 commands" / "inactive" for unactivated shims** (Round 9) — now shows "not yet active" when 0 shims and PATH is configured; uses "N shims" terminology throughout.
-- **`undo` showed redundant 0%→100% progress bar** (Round 9) — progress bar removed; output is spinner + per-package "Restored X" lines. Post-undo warning now lists all four commands that need a fresh scan: `remove, unused, explain, stats --package`.
-- **Shim usage tracking dropped all but one event per poll cycle** (Cold-Start Audit Round 8) — `bufio.Scanner` read-ahead pulled the entire `usage.log` into its internal buffer on the first `Read()` call; `f.Seek(0, io.SeekCurrent)` then returned the file's physical read position (EOF) instead of the logical end of the first scanned line. After inserting one event, the offset was saved at EOF — subsequent poll ticks found nothing. Replaced `bufio.Scanner` with `bufio.Reader.ReadString` and per-line byte accumulation so the saved offset always matches the last fully-processed line. Also added Linuxbrew path prefix (`/home/linuxbrew/.linuxbrew/bin/`) to the shim resolution chain so Linux users' events are correctly attributed.
-- **`doctor` pipeline failure blamed the daemon when shims weren't on PATH** (Round 8) — when the manual setup path was used (`scan` → `watch --daemon` → `doctor`), the pipeline test correctly failed (shims not yet in the active shell PATH), but the action message said "Run 'brewprune watch --daemon' to restart the daemon." The daemon was running fine; the fix was `source ~/.profile`. Now checks whether the daemon is running and the shim directory is configured-but-inactive before choosing the action: "Shims not in active PATH — run: `source ~/.profile`" vs. "Run 'brewprune watch --daemon' to start the daemon."
-- **`quickstart` printed "Setup complete!" before the PATH-not-active warning** (Round 8) — users saw a success message, felt done, then hit a large warning block below it. Now shows "Setup complete — one step remains:" when the shim directory isn't in the active shell PATH, so the warning reads as the natural completion of setup rather than a contradiction.
-- **`quickstart` Step 2 said "already in PATH" when it meant "already in ~/.profile"** (Round 8) — the message incorrectly implied the directory was in the live `$PATH`; changed to "already configured in ~/.profile" to clarify.
-- **`unused` showed two warning banners when no usage data existed** (Round 8) — a "WARNING: No usage data available" block and a second "⚠ No usage data yet — showing all packages (risky tier included)" notice appeared back-to-back. Consolidated into one block that covers both the missing-data context and the risky-tier-included note.
-- **`unused` footer said "(risky, hidden)" when risky packages were visible** (Round 8) — the no-data fallback shows risky packages automatically, but the `Reclaimable` footer still labelled them as hidden. Footer now reflects actual visibility.
-- **`unused --sort age` gave no indication of sort direction** (Round 8) — the install-date column appeared with no hint of ordering. Now prints "Sorted by: install date (oldest first)" above the table.
-- **`unused --all --tier` error message was circular** (Round 8) — changed from "cannot be used together; --tier already filters to a specific tier" to "mutually exclusive — use --tier safe to show only safe packages, or --all to show all tiers."
-- **`remove` skipped-packages list appeared before the removal table** (Round 8) — 31 "skipped (locked by installed dependents)" lines printed before the candidates table, making the output feel like the tool was mostly refusing. Now collapsed to a summary line after the table: "N packages skipped (locked by dependents)."
-- **`remove` multi-flag conflict error reported only the first two flags** (Round 8) — `--safe --medium --risky` produced "got --safe and --medium", silently ignoring `--risky`. Now reports all conflicting flags with Oxford comma formatting.
-- **`remove` showed "explicitly installed" warning for named packages** (Round 8) — when removing packages by name (e.g., `remove bat fd`), the output warned "bat: explicitly installed (not a dependency)", which read as a reason not to remove rather than context. Suppressed for named-package removals; warning remains in tier-based mode.
-- **`explain` MEDIUM/SAFE recommendations suggested `remove` without `--dry-run`** (Round 8) — new users following the recommendation could remove packages without a preview step. Now suggests `brewprune remove <pkg> --dry-run` to preview first.
-- **`status` showed "Last scan: just now · 0 formulae" when no scan had ever run** (Round 8) — `getDBPath()` creates the `~/.brewprune/` directory as a side effect, causing `os.Stat` to succeed with a fresh mtime even on a blank install. Now shows "never — run 'brewprune scan'" when `formulaeCount == 0`.
-- **`stats` table had no sort order indicator** (Round 8) — the most-used-first ordering wasn't communicated to users. Now prints "Sorted by: most used first" before the table when showing multiple packages.
-- **Unknown subcommand error didn't list valid commands** (Round 8) — `brewprune blorp` said only "Run 'brewprune --help' for usage." Now shows the full list of valid commands inline: `scan, unused, remove, undo, status, stats, explain, doctor, quickstart, watch, completion`.
-- **`watch --help` polling interval note was buried at the end** (Round 8) — the 30-second write interval is important context for users wondering why tracking hasn't appeared yet. Moved from the last line of the description to the second line.
+- **Dependency graph stale after `undo` + `scan`** (Cold-Start Audit Round 10)  -  `ScanPackages` used `INSERT OR IGNORE` when writing dependency rows, so old relationships from before the undo survived silently. A post-undo scan now calls `ClearDependencies(pkg)` for every package before re-inserting, ensuring the dependency table always reflects the current `brew deps` output.
+- **Daemon reads `usage.log` but records zero events  -  WAL checkpoint race** (Round 10, follow-up)  -  `watch --daemon` opened a SQLite WAL connection in the parent process before spawning the child; when `runWatch` returned, `defer db.Close()` triggered a WAL checkpoint that raced with the child's own `store.New()` call. The child could see 0 packages during the checkpoint window, causing all shim log entries to be skipped. Fixed by handling `--daemon` before `store.New`: the launcher now spawns the child without ever opening the database. `LaunchDaemon` is a new standalone function (no store needed); `StartDaemon` is a thin wrapper for backward compat.
+- **Daemon reads `usage.log` but records zero events  -  observability** (Round 10)  -  the daemon child process was spawned without `--log-file`, so its startup message was suppressed and per-cycle log entries never appeared in `watch.log`. Fixed: `--log-file` is now passed to the daemon child; `ProcessUsageLog` returns a `ProcessingStats` struct (lines read, resolved, skipped, inserted); callers in `fsevents.go` write a per-cycle summary line to `watch.log` when new entries were processed; an explicit warning is logged when both `binaryMap` and `optPathMap` are empty (indicating `brewprune scan` has not been run yet).
+- **`remove` exited 0 with `✓` when all removals failed** (Round 10)  -  when every `brew uninstall` call failed, the success summary line (`✓ Removed 0 packages, freed 0 B`) was still printed above the failure block. Now uses `✗` and exits 1 when `successCount == 0`.
+- **`unused` leaked internal error chain prefix with no database** (Round 10)  -  `brewprune unused` with no initialized database showed `Error: failed to list packages: database not initialized  -  run 'brewprune scan'`. The `failed to list packages:` prefix is an internal wrapping artifact. Now unwraps to the terminal error message, matching how `remove` already handles this case.
+- **`remove nonexistent-package` missing undo hint** (Round 10)  -  `explain nonexistent-package` already included "If you recently ran 'brewprune undo', run 'brewprune scan' to update the index." `remove` did not. Both commands now show the same three-line not-found error.
+- **`doctor` blank-state printed redundant `Error: diagnostics failed`** (Round 10)  -  when critical issues exist, cobra appended `Error: diagnostics failed` below doctor's own clear summary. Replaced `return fmt.Errorf(...)` with `os.Exit(1)` so the process exits 1 without cobra adding a second error line. Summary message updated to "Found N critical issue(s). Run the suggested actions above to fix."
+- **`stats --package <pkg>` after `undo` (before `scan`) gave cryptic not-found error** (Round 10)  -  error now reads "Package 'jq' not found. Check the name with 'brew list'... If you recently ran 'brewprune undo', run 'brewprune scan' to update the index."
+- **`status` showed alarming "no events logged" warning immediately after daemon start** (Round 10)  -  the "Shims may not be intercepting commands" warning now checks the daemon PID file mtime; if the daemon started fewer than 5 minutes ago it shows "(no events yet  -  daemon started just now, this is normal)" instead.
+- **`-v` on root command conflicted with `unused -v` for `--verbose`** (Round 10)  -  `--version` was registered with `BoolVarP(..., "v", ...)` on the root command. Changed to `BoolVar` (no shorthand). `--version` still works; `-v` is now reserved for `--verbose` in subcommands.
+- **`stats --all` sort annotation appeared before the table** (Round 10)  -  "Sorted by: most used first" was printed above the table, inconsistent with `unused` which places it below. Moved to after the table with a blank-line separator.
+- **`explain` package-not-found error missing undo hint; "47 core dependencies" wording** (Cold-Start Audit Round 9)  -  error now includes "If you recently ran 'brewprune undo', run 'brewprune scan' to update the index." Protected-package line changed from "part of 47 core dependencies" to "core system dependency  -  kept even if unused."
+- **`explain` safe-tier recommendation didn't suggest `--dry-run` first** (Round 9)  -  now shows a numbered two-step list: "1. Preview: brewprune remove --safe --dry-run / 2. Remove: brewprune remove --safe".
+- **`stats` unwrapped error chain in no-DB path** (Round 9)  -  `showUsageTrends` now surfaces only the terminal `ErrNotInitialized` message without the internal wrapping prefix.
+- **Shim resolution silently skipped packages when basename map had collisions** (Round 9)  -  `buildBasenameMap` used a conditional second pass (`if !exists { m[pkg.Name] = pkg.Name }`) that could miss packages. Changed to an unconditional pass so every package name is always populated. Added `log.Printf` for unresolvable binaries (previously silently dropped with `continue`).
+- **`doctor` pipeline test showed `FAIL` (not `SKIPPED`) when shims configured but PATH not active** (Round 9)  -  when `shimPathConfigured && !shimPathActive`, the pipeline test now shows `⚠ Pipeline test: SKIPPED` and does not increment `criticalIssues`.
+- **`quickstart` PATH warning appeared after "Setup complete!" message** (Round 9)  -  PATH warning now printed before the success line.
+- **`remove nonexistent-package` showed single-line error** (Round 9)  -  now shows multi-line helpful format with `brew list`, `brew search`, and `brewprune scan` suggestions.
+- **`status` showed "0 commands" / "inactive" for unactivated shims** (Round 9)  -  now shows "not yet active" when 0 shims and PATH is configured; uses "N shims" terminology throughout.
+- **`undo` showed redundant 0%→100% progress bar** (Round 9)  -  progress bar removed; output is spinner + per-package "Restored X" lines. Post-undo warning now lists all four commands that need a fresh scan: `remove, unused, explain, stats --package`.
+- **Shim usage tracking dropped all but one event per poll cycle** (Cold-Start Audit Round 8)  -  `bufio.Scanner` read-ahead pulled the entire `usage.log` into its internal buffer on the first `Read()` call; `f.Seek(0, io.SeekCurrent)` then returned the file's physical read position (EOF) instead of the logical end of the first scanned line. After inserting one event, the offset was saved at EOF  -  subsequent poll ticks found nothing. Replaced `bufio.Scanner` with `bufio.Reader.ReadString` and per-line byte accumulation so the saved offset always matches the last fully-processed line. Also added Linuxbrew path prefix (`/home/linuxbrew/.linuxbrew/bin/`) to the shim resolution chain so Linux users' events are correctly attributed.
+- **`doctor` pipeline failure blamed the daemon when shims weren't on PATH** (Round 8)  -  when the manual setup path was used (`scan` → `watch --daemon` → `doctor`), the pipeline test correctly failed (shims not yet in the active shell PATH), but the action message said "Run 'brewprune watch --daemon' to restart the daemon." The daemon was running fine; the fix was `source ~/.profile`. Now checks whether the daemon is running and the shim directory is configured-but-inactive before choosing the action: "Shims not in active PATH  -  run: `source ~/.profile`" vs. "Run 'brewprune watch --daemon' to start the daemon."
+- **`quickstart` printed "Setup complete!" before the PATH-not-active warning** (Round 8)  -  users saw a success message, felt done, then hit a large warning block below it. Now shows "Setup complete  -  one step remains:" when the shim directory isn't in the active shell PATH, so the warning reads as the natural completion of setup rather than a contradiction.
+- **`quickstart` Step 2 said "already in PATH" when it meant "already in ~/.profile"** (Round 8)  -  the message incorrectly implied the directory was in the live `$PATH`; changed to "already configured in ~/.profile" to clarify.
+- **`unused` showed two warning banners when no usage data existed** (Round 8)  -  a "WARNING: No usage data available" block and a second "⚠ No usage data yet  -  showing all packages (risky tier included)" notice appeared back-to-back. Consolidated into one block that covers both the missing-data context and the risky-tier-included note.
+- **`unused` footer said "(risky, hidden)" when risky packages were visible** (Round 8)  -  the no-data fallback shows risky packages automatically, but the `Reclaimable` footer still labelled them as hidden. Footer now reflects actual visibility.
+- **`unused --sort age` gave no indication of sort direction** (Round 8)  -  the install-date column appeared with no hint of ordering. Now prints "Sorted by: install date (oldest first)" above the table.
+- **`unused --all --tier` error message was circular** (Round 8)  -  changed from "cannot be used together; --tier already filters to a specific tier" to "mutually exclusive  -  use --tier safe to show only safe packages, or --all to show all tiers."
+- **`remove` skipped-packages list appeared before the removal table** (Round 8)  -  31 "skipped (locked by installed dependents)" lines printed before the candidates table, making the output feel like the tool was mostly refusing. Now collapsed to a summary line after the table: "N packages skipped (locked by dependents)."
+- **`remove` multi-flag conflict error reported only the first two flags** (Round 8)  -  `--safe --medium --risky` produced "got --safe and --medium", silently ignoring `--risky`. Now reports all conflicting flags with Oxford comma formatting.
+- **`remove` showed "explicitly installed" warning for named packages** (Round 8)  -  when removing packages by name (e.g., `remove bat fd`), the output warned "bat: explicitly installed (not a dependency)", which read as a reason not to remove rather than context. Suppressed for named-package removals; warning remains in tier-based mode.
+- **`explain` MEDIUM/SAFE recommendations suggested `remove` without `--dry-run`** (Round 8)  -  new users following the recommendation could remove packages without a preview step. Now suggests `brewprune remove <pkg> --dry-run` to preview first.
+- **`status` showed "Last scan: just now · 0 formulae" when no scan had ever run** (Round 8)  -  `getDBPath()` creates the `~/.brewprune/` directory as a side effect, causing `os.Stat` to succeed with a fresh mtime even on a blank install. Now shows "never  -  run 'brewprune scan'" when `formulaeCount == 0`.
+- **`stats` table had no sort order indicator** (Round 8)  -  the most-used-first ordering wasn't communicated to users. Now prints "Sorted by: most used first" before the table when showing multiple packages.
+- **Unknown subcommand error didn't list valid commands** (Round 8)  -  `brewprune blorp` said only "Run 'brewprune --help' for usage." Now shows the full list of valid commands inline: `scan, unused, remove, undo, status, stats, explain, doctor, quickstart, watch, completion`.
+- **`watch --help` polling interval note was buried at the end** (Round 8)  -  the 30-second write interval is important context for users wondering why tracking hasn't appeared yet. Moved from the last line of the description to the second line.
 
 ## [0.3.1] - 2026-03-01
 
 ### Fixed
-- **`--version` always reported `dev`** — GoReleaser ldflags were injecting into `main.version` but the version variable lives in `internal/app`. Fixed the package path so release binaries now correctly report their version.
+- **`--version` always reported `dev`**  -  GoReleaser ldflags were injecting into `main.version` but the version variable lives in `internal/app`. Fixed the package path so release binaries now correctly report their version.
 
 ## [0.3.0] - 2026-03-01
 
 ### Added
-- **`watch.log` lifecycle events** — the daemon now writes a timestamped startup entry (`brewprune-watch: daemon started (PID N)`) and a shutdown entry to `watch.log` on stop, making it easy to audit when tracking was active.
-- **Dep-locked package pre-validation in `remove`** — before attempting any uninstall, `remove` now calls `brew uses --installed` for each candidate and skips packages that other installed formulae depend on. Previously, Homebrew would refuse mid-operation and leave the removal in an ambiguous state.
-- **Alias config for shim tracking coverage** — users can declare shell alias→package mappings in `~/.config/brewprune/aliases` (e.g. `ll=eza`, `rg=ripgrep`) to track usage of tools invoked via aliases. `brewprune scan` generates shims for declared aliases; events are logged against the canonical package name. `brewprune doctor` hints when the file doesn't exist.
-- **XDG config directory support** — config files now live in `$XDG_CONFIG_HOME/brewprune` (default `~/.config/brewprune`), separate from the data directory (`~/.brewprune`).
+- **`watch.log` lifecycle events**  -  the daemon now writes a timestamped startup entry (`brewprune-watch: daemon started (PID N)`) and a shutdown entry to `watch.log` on stop, making it easy to audit when tracking was active.
+- **Dep-locked package pre-validation in `remove`**  -  before attempting any uninstall, `remove` now calls `brew uses --installed` for each candidate and skips packages that other installed formulae depend on. Previously, Homebrew would refuse mid-operation and leave the removal in an ambiguous state.
+- **Alias config for shim tracking coverage**  -  users can declare shell alias→package mappings in `~/.config/brewprune/aliases` (e.g. `ll=eza`, `rg=ripgrep`) to track usage of tools invoked via aliases. `brewprune scan` generates shims for declared aliases; events are logged against the canonical package name. `brewprune doctor` hints when the file doesn't exist.
+- **XDG config directory support**  -  config files now live in `$XDG_CONFIG_HOME/brewprune` (default `~/.config/brewprune`), separate from the data directory (`~/.brewprune`).
 
 ### Fixed
-- **`quickstart` PATH-not-active warning was easy to miss** (Cold-Start Audit Round 7) — the note shown when the shim directory isn't on PATH yet was a mild "Note: …" line. Now replaced with a prominent `⚠ TRACKING IS NOT ACTIVE YET` block that includes the exact `source <config-file>` command needed to activate tracking immediately.
-- **`remove` freed-space calculation was wrong** — the "Freed N MB" summary at the end of a removal run always showed the total size of all *candidates*, not just the packages that were actually uninstalled. Now only accumulates size for successful removals.
-- **`remove` stale-scan warning shown at wrong time** — a "database may be stale" warning appeared even when the daemon was running and the DB was current. Removed.
-- **`undo` output showed bare `@` suffix for packages with no version** — e.g. `Restored bat@` instead of `Restored bat`. Added a helper that conditionally includes `@version` only when a version string is present.
-- **`watch --daemon --stop` silently continued** — passing both flags produced a warning but proceeded (doing nothing useful). Now returns an error: `--daemon and --stop are mutually exclusive: use one or the other`.
-- **`stats --days abc` exposed a raw Go error** — Cobra parses `IntVar` flags before `RunE`, so invalid input like `abc` or `-1` reached the user as `strconv.ParseInt: parsing "abc": invalid syntax`. Switched to `StringVar` with manual validation; now shows `--days must be a positive integer`.
-- **`unused --all --tier` conflict showed double "Error:" prefix** — `fmt.Errorf("Error: …")` combined with Cobra's automatic `Error: ` prefix produced `Error: Error: --all and --tier cannot be used together`. Removed the redundant inline prefix.
-- **`unused --verbose` tip printed after output** — the "pipe to less" pagination hint appeared after the verbose table, requiring the user to scroll back to see it. Now printed before the table (and only when stdout is a TTY).
-- **`doctor` alias tip referenced nonexistent `brewprune help`** — the tip directing users to configure aliases said "See 'brewprune help' for details", but that command has no alias documentation. Now includes an inline format example: `one alias per line, e.g. ll=eza or g=git`. The tip is also suppressed when critical issues exist — there's no point suggesting alias config when the daemon isn't running.
-- **`status` showed "0 seconds ago" for a freshly-started daemon** — `formatDuration` had no special case for very short durations. Now returns "just now" for anything under 5 seconds. Also fixes `1 seconds ago` (was never singular-safe).
-- **Shims survive enterprise EDR (e.g. CrowdStrike Falcon)** — shim entries are now created as **hard links** to `brewprune-shim` instead of symlinks. Hard links share the same inode as the shim binary, appearing as regular executables to filesystem scanners. CrowdStrike's StaticAnalysis component targets symlinks in user bin directories as a PATH hijacking heuristic; hard links are not affected. Legacy symlink shims are upgraded automatically on the next `scan --refresh-shims`.
-- **Shim purge when `~/.brewprune/bin` is already in PATH** — `RefreshShims` and `GenerateShims` now search for real Homebrew binaries by excluding the shim directory from the `exec.LookPath` search. Previously, if `~/.brewprune/bin` was already in PATH (as is normal after setup), LookPath would find the shim hard links instead of real binaries, making the desired shim set appear empty — causing all 600+ shims to be silently deleted on every subsequent `scan --refresh-shims` invocation.
-- **`doctor` pipeline test failed after symlink→hard-link migration** — `findShimTestBinary` only scanned for symlinks; updated to use inode-based detection (`IsShimEntry`) so it correctly locates hard-link shim entries. `RemoveShims` had the same blind spot and now removes both legacy symlinks and current hard-link entries.
-- **`*-config` binary invocations no longer inflate usage scores** — build-system probe binaries (`pkg-config`, `Magick++-config`, `freetype-config`, etc.) are now logged as `event_type='probe'` instead of `'exec'` and excluded from all usage scoring queries. Previously these automated probes made library packages appear actively used.
+- **`quickstart` PATH-not-active warning was easy to miss** (Cold-Start Audit Round 7)  -  the note shown when the shim directory isn't on PATH yet was a mild "Note: …" line. Now replaced with a prominent `⚠ TRACKING IS NOT ACTIVE YET` block that includes the exact `source <config-file>` command needed to activate tracking immediately.
+- **`remove` freed-space calculation was wrong**  -  the "Freed N MB" summary at the end of a removal run always showed the total size of all *candidates*, not just the packages that were actually uninstalled. Now only accumulates size for successful removals.
+- **`remove` stale-scan warning shown at wrong time**  -  a "database may be stale" warning appeared even when the daemon was running and the DB was current. Removed.
+- **`undo` output showed bare `@` suffix for packages with no version**  -  e.g. `Restored bat@` instead of `Restored bat`. Added a helper that conditionally includes `@version` only when a version string is present.
+- **`watch --daemon --stop` silently continued**  -  passing both flags produced a warning but proceeded (doing nothing useful). Now returns an error: `--daemon and --stop are mutually exclusive: use one or the other`.
+- **`stats --days abc` exposed a raw Go error**  -  Cobra parses `IntVar` flags before `RunE`, so invalid input like `abc` or `-1` reached the user as `strconv.ParseInt: parsing "abc": invalid syntax`. Switched to `StringVar` with manual validation; now shows `--days must be a positive integer`.
+- **`unused --all --tier` conflict showed double "Error:" prefix**  -  `fmt.Errorf("Error: …")` combined with Cobra's automatic `Error: ` prefix produced `Error: Error: --all and --tier cannot be used together`. Removed the redundant inline prefix.
+- **`unused --verbose` tip printed after output**  -  the "pipe to less" pagination hint appeared after the verbose table, requiring the user to scroll back to see it. Now printed before the table (and only when stdout is a TTY).
+- **`doctor` alias tip referenced nonexistent `brewprune help`**  -  the tip directing users to configure aliases said "See 'brewprune help' for details", but that command has no alias documentation. Now includes an inline format example: `one alias per line, e.g. ll=eza or g=git`. The tip is also suppressed when critical issues exist  -  there's no point suggesting alias config when the daemon isn't running.
+- **`status` showed "0 seconds ago" for a freshly-started daemon**  -  `formatDuration` had no special case for very short durations. Now returns "just now" for anything under 5 seconds. Also fixes `1 seconds ago` (was never singular-safe).
+- **Shims survive enterprise EDR (e.g. CrowdStrike Falcon)**  -  shim entries are now created as **hard links** to `brewprune-shim` instead of symlinks. Hard links share the same inode as the shim binary, appearing as regular executables to filesystem scanners. CrowdStrike's StaticAnalysis component targets symlinks in user bin directories as a PATH hijacking heuristic; hard links are not affected. Legacy symlink shims are upgraded automatically on the next `scan --refresh-shims`.
+- **Shim purge when `~/.brewprune/bin` is already in PATH**  -  `RefreshShims` and `GenerateShims` now search for real Homebrew binaries by excluding the shim directory from the `exec.LookPath` search. Previously, if `~/.brewprune/bin` was already in PATH (as is normal after setup), LookPath would find the shim hard links instead of real binaries, making the desired shim set appear empty  -  causing all 600+ shims to be silently deleted on every subsequent `scan --refresh-shims` invocation.
+- **`doctor` pipeline test failed after symlink→hard-link migration**  -  `findShimTestBinary` only scanned for symlinks; updated to use inode-based detection (`IsShimEntry`) so it correctly locates hard-link shim entries. `RemoveShims` had the same blind spot and now removes both legacy symlinks and current hard-link entries.
+- **`*-config` binary invocations no longer inflate usage scores**  -  build-system probe binaries (`pkg-config`, `Magick++-config`, `freetype-config`, etc.) are now logged as `event_type='probe'` instead of `'exec'` and excluded from all usage scoring queries. Previously these automated probes made library packages appear actively used.
 
 ## [0.2.3] - 2026-02-28
 
 ### Fixed
-- **PATH messaging consistency** (Cold-Start Audit Round 5) — `status`, `doctor`, and `quickstart` commands now use consistent three-state messaging: "PATH active ✓" (in current session), "PATH configured (restart shell to activate)" (written to profile but not sourced), or "PATH missing ⚠" (not configured). Previously contradictory messages appeared when PATH was configured but not yet active.
-- **`doctor --fix` flag advertised but not implemented** — removed mention of `--fix` flag from help text (flag doesn't exist)
-- **`quickstart` success message misleading when PATH not active** — now qualifies the success message based on actual PATH status: "Tracking verified" (PATH active), "Self-test passed (tracking will work after shell restart)" (PATH configured but not sourced), or "Self-test passed (run brewprune doctor to check PATH)" (PATH missing)
+- **PATH messaging consistency** (Cold-Start Audit Round 5)  -  `status`, `doctor`, and `quickstart` commands now use consistent three-state messaging: "PATH active ✓" (in current session), "PATH configured (restart shell to activate)" (written to profile but not sourced), or "PATH missing ⚠" (not configured). Previously contradictory messages appeared when PATH was configured but not yet active.
+- **`doctor --fix` flag advertised but not implemented**  -  removed mention of `--fix` flag from help text (flag doesn't exist)
+- **`quickstart` success message misleading when PATH not active**  -  now qualifies the success message based on actual PATH status: "Tracking verified" (PATH active), "Self-test passed (tracking will work after shell restart)" (PATH configured but not sourced), or "Self-test passed (run brewprune doctor to check PATH)" (PATH missing)
 
 ### Fixed (Earlier Unreleased)
-- **Usage scoring was inverted** — packages used today scored 40/40 removal points and appeared as safe-to-remove. Inverted the mapping: recently-used (≤7d) → 0 pts, never-used → 40 pts. Packages now score high only when there is genuine evidence they can be removed.
+- **Usage scoring was inverted**  -  packages used today scored 40/40 removal points and appeared as safe-to-remove. Inverted the mapping: recently-used (≤7d) → 0 pts, never-used → 40 pts. Packages now score high only when there is genuine evidence they can be removed.
 - **`explain <package>` double-printed not-found error** and exited 0 on failure; now exits 1 with a single error message
 - **`explain` missing-arg error** was cryptic; improved to a clear usage hint
 - **`explain` table footer** had ANSI padding misalignment causing ragged borders
@@ -108,13 +108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`stats`** hide zero-usage packages by default (add `--all` to show them)
 
 ### Changed
-- **`unused --sort age` shows "Installed" column** — when sorting by install age, the "Last Used" column (which is meaningless for age-based sorting) is replaced with an "Installed" date column so the sort key is visible in the output.
-- **`unused` terminology consistency** (Cold-Start Audit Round 5) — status labels now consistently use "safe", "medium", "risky" throughout. Previously used "~ review" which has been changed to "~ medium" for consistency with tier names.
-- **`doctor` summary messages color-coded** (Cold-Start Audit Round 5) — final summary now uses ANSI colors: green for success, yellow for warnings, red for critical errors. Previously plain text.
-- **Casks hidden from `unused` by default** — GUI apps can't be tracked via PATH shims, so they were showing misleading `n/a` data. Now hidden unless `--casks` is passed; count shown in tier summary header.
-- **`unused` shows risky tier by default when no usage data exists** — risky-only mode (no `--all` required) when the database has no tracking data yet, so new users see something useful
+- **`unused --sort age` shows "Installed" column**  -  when sorting by install age, the "Last Used" column (which is meaningless for age-based sorting) is replaced with an "Installed" date column so the sort key is visible in the output.
+- **`unused` terminology consistency** (Cold-Start Audit Round 5)  -  status labels now consistently use "safe", "medium", "risky" throughout. Previously used "~ review" which has been changed to "~ medium" for consistency with tier names.
+- **`doctor` summary messages color-coded** (Cold-Start Audit Round 5)  -  final summary now uses ANSI colors: green for success, yellow for warnings, red for critical errors. Previously plain text.
+- **Casks hidden from `unused` by default**  -  GUI apps can't be tracked via PATH shims, so they were showing misleading `n/a` data. Now hidden unless `--casks` is passed; count shown in tier summary header.
+- **`unused` shows risky tier by default when no usage data exists**  -  risky-only mode (no `--all` required) when the database has no tracking data yet, so new users see something useful
 - **ANSI color output** now respects `NO_COLOR` and isatty; piped output and CI logs are clean
-- **`formatTierLabel`** values unified to `✓ safe`, `~ review`, `⚠ risky` — removes `✗ keep` which implied a mandatory action for risky packages
+- **`formatTierLabel`** values unified to `✓ safe`, `~ review`, `⚠ risky`  -  removes `✗ keep` which implied a mandatory action for risky packages
 - **`unused` and `remove` tables** now include a **Score** column (between Size and Uses) showing the numeric removal score as `N/100`
 - **`remove --tier`** added as an explicit flag alias for `--safe` / `--medium` / `--risky`; all three shortcut flags still work
 - **`explain` Points column** renamed to "Score"; wider Detail column (36 → 50 chars); scoring direction note added below the table ("Higher removal score = more confident to remove")
@@ -123,13 +123,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`doctor` action labels** renamed from "Fix:" to "Action:" throughout
 
 ### Added
-- **`unused` confidence indicator colors** (Cold-Start Audit Round 5) — confidence assessment footer now uses color-coding: red for LOW confidence (0-2 events), yellow for MEDIUM confidence (3-6 events), green for HIGH confidence (7+ events). Makes confidence levels more visually prominent.
-- **`stats` pagination tip** (Cold-Start Audit Round 5) — when using `--all` flag with 40+ packages, shows tip: "Tip: pipe to less for easier scrolling: brewprune stats --all | less". Only displays in TTY environments.
-- **`explain` ANSI code documentation** (Cold-Start Audit Round 5) — added documentation explaining that ANSI escape codes render correctly in standard terminals but may appear as raw text when output is redirected or in non-ANSI environments. This is expected behavior, not a bug.
+- **`unused` confidence indicator colors** (Cold-Start Audit Round 5)  -  confidence assessment footer now uses color-coding: red for LOW confidence (0-2 events), yellow for MEDIUM confidence (3-6 events), green for HIGH confidence (7+ events). Makes confidence levels more visually prominent.
+- **`stats` pagination tip** (Cold-Start Audit Round 5)  -  when using `--all` flag with 40+ packages, shows tip: "Tip: pipe to less for easier scrolling: brewprune stats --all | less". Only displays in TTY environments.
+- **`explain` ANSI code documentation** (Cold-Start Audit Round 5)  -  added documentation explaining that ANSI escape codes render correctly in standard terminals but may appear as raw text when output is redirected or in non-ANSI environments. This is expected behavior, not a bug.
 - **Linux Homebrew prefix** (`/home/linuxbrew/.linuxbrew`) added to shim binary resolution so shims work on Homebrew-on-Linux
 - **Docker sandbox** (`Dockerfile.sandbox`) with real Homebrew installed for user-simulation testing and cold-start UX audits
-- **`stats --all` flag** — show all packages including those with zero usage (previously the default, now opt-in)
-- **`quickstart` PATH note** — completion summary now explains that tracking only activates once the shim directory is in PATH
+- **`stats --all` flag**  -  show all packages including those with zero usage (previously the default, now opt-in)
+- **`quickstart` PATH note**  -  completion summary now explains that tracking only activates once the shim directory is in PATH
 
 ### Quality Assurance
 
@@ -139,7 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 3 UX-critical: PATH configuration messaging conflicts, --fix flag advertised but unimplemented, post-quickstart tracking status misleading
   - 9 UX-improvement: doctor pipeline test slow, exit codes undifferentiated, terminology inconsistencies
   - 12 UX-polish: mostly positive findings worth preserving (comprehensive help, excellent errors, safety-first design)
-- Overall assessment: "exceptional attention to UX detail" — remaining issues are messaging consistency, not broken functionality
+- Overall assessment: "exceptional attention to UX detail"  -  remaining issues are messaging consistency, not broken functionality
 - Full report: `docs/cold-start-audit-r5.md`
 
 **Audit-Fix-Audit Cycle Results:**
@@ -151,56 +151,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.2] - 2026-02-27
 
 ### Changed
-- **`unused` table redesigned for actionable data** — replaced opaque Score and Reason columns with Size (disk usage), Uses (7d) (shim execution count), Depended On (reverse dependency count), and a colored tier tag. Risky and critical packages now show `✗ keep` instead of a tier name. Same layout applied to `remove` confirmation table.
-- **Risky packages hidden by default** — 143+ transitive dependency packages no longer clutter the output. Use `--all` to show them. Explicit `--tier risky` still works.
-- **Casks show `n/a` for usage columns** — GUI apps can't be tracked via shims; `n/a` replaces misleading `0`/`never`.
-- **Zero deps show `—`** — em dash replaces noisy `0 packages` for cleaner display.
-- **Tier summary header** — per-tier package counts and sizes shown before the table.
-- **Reclaimable space footer** — per-tier disk space totals shown after the table.
+- **`unused` table redesigned for actionable data**  -  replaced opaque Score and Reason columns with Size (disk usage), Uses (7d) (shim execution count), Depended On (reverse dependency count), and a colored tier tag. Risky and critical packages now show `✗ keep` instead of a tier name. Same layout applied to `remove` confirmation table.
+- **Risky packages hidden by default**  -  143+ transitive dependency packages no longer clutter the output. Use `--all` to show them. Explicit `--tier risky` still works.
+- **Casks show `n/a` for usage columns**  -  GUI apps can't be tracked via shims; `n/a` replaces misleading `0`/`never`.
+- **Zero deps show ` - `**  -  em dash replaces noisy `0 packages` for cleaner display.
+- **Tier summary header**  -  per-tier package counts and sizes shown before the table.
+- **Reclaimable space footer**  -  per-tier disk space totals shown after the table.
 
 ### Added
-- **`--all` flag for `unused`** — shows all tiers including risky (hidden by default)
-- **`GetUsageEventCountSince` store query** — returns usage event count for a package within a time window (used for 7-day column)
-- **`GetReverseDependencyCount` store query** — returns number of packages depending on a given package
-- **`brewprune` added to core dependencies** — no longer recommends removing itself
+- **`--all` flag for `unused`**  -  shows all tiers including risky (hidden by default)
+- **`GetUsageEventCountSince` store query**  -  returns usage event count for a package within a time window (used for 7-day column)
+- **`GetReverseDependencyCount` store query**  -  returns number of packages depending on a given package
+- **`brewprune` added to core dependencies**  -  no longer recommends removing itself
 
 ## [0.2.1] - 2026-02-27
 
 ### Fixed
-- **Scan destroyed all usage history** — `InsertPackage` used `INSERT OR REPLACE` which deletes the existing row before inserting, triggering `ON DELETE CASCADE` on `usage_events`. Every `brewprune scan` silently wiped all collected usage data. Switched to `INSERT ... ON CONFLICT(name) DO UPDATE SET` which updates in-place without cascade deletes.
+- **Scan destroyed all usage history**  -  `InsertPackage` used `INSERT OR REPLACE` which deletes the existing row before inserting, triggering `ON DELETE CASCADE` on `usage_events`. Every `brewprune scan` silently wiped all collected usage data. Switched to `INSERT ... ON CONFLICT(name) DO UPDATE SET` which updates in-place without cascade deletes.
 
 ## [0.2.0] - 2026-02-27
 
 ### Added
-- **Brew-native shim infrastructure** — `shim.RefreshShims` performs incremental diff of desired vs current symlinks with LookPath collision-safety; `WriteShimVersion`/`ReadShimVersion` track shim binary version via crash-safe temp-file rename
-- **Shim startup version check** — `brewprune-shim` compares its embedded version against `~/.brewprune/shim.version` on every invocation and warns (rate-limited to once/day) when stale, prompting `brewprune scan`
-- **`brewprune scan --refresh-shims` flag** — fast path used by the Homebrew formula `post_install` hook after upgrades. Reads binary paths from the existing DB, diffs symlinks via `shim.RefreshShims`, skipping the full dep tree rebuild. Rebuilds the shim binary only when absent
-- **`brewprune doctor` pipeline test** — Check 8 executes a real shimmed binary and polls `usage_events` for up to 35s to verify the full shim → daemon → DB pipeline end-to-end
-- **`brewprune quickstart` blessed workflow** — interactive first-run walkthrough (scan → daemon → PATH config → next steps) with `internal/shell/config.go` for auto-appending PATH entries to `.zprofile`, `.bash_profile`, or `conf.d/brewprune.fish`
-- **Stale detection** — `brew.CheckStaleness` compares `brew list --formula` against the DB and warns when new formulae are installed since last scan (shown in `unused` and `remove` output)
-- **Shell completions** — zsh, bash, and fish completions generated via cobra, shipped in release tarballs via `.goreleaser.yml`, and installed by the Homebrew formula
-- **"Used ≠ needed" disclaimer** in `unused` output — clarifies that "Safe" means low observed execution risk, not that the package is unnecessary
-- **"Why it's safe" inline scores** in `remove` — per-package score/tier/reason displayed before the confirmation prompt when removing by name
-- **Docker integration test container** — 12-step pipeline test (scan → shims → status → daemon → usage tracking → stats → unused → doctor → remove dry-run → refresh-shims) with mock brew prefix, exercising the full brewprune pipeline without Homebrew installed
-- **Scout-and-wave prompt template** — canonical reusable prompt for parallel agent coordination (`docs/scout-and-wave-prompt.md`)
+- **Brew-native shim infrastructure**  -  `shim.RefreshShims` performs incremental diff of desired vs current symlinks with LookPath collision-safety; `WriteShimVersion`/`ReadShimVersion` track shim binary version via crash-safe temp-file rename
+- **Shim startup version check**  -  `brewprune-shim` compares its embedded version against `~/.brewprune/shim.version` on every invocation and warns (rate-limited to once/day) when stale, prompting `brewprune scan`
+- **`brewprune scan --refresh-shims` flag**  -  fast path used by the Homebrew formula `post_install` hook after upgrades. Reads binary paths from the existing DB, diffs symlinks via `shim.RefreshShims`, skipping the full dep tree rebuild. Rebuilds the shim binary only when absent
+- **`brewprune doctor` pipeline test**  -  Check 8 executes a real shimmed binary and polls `usage_events` for up to 35s to verify the full shim → daemon → DB pipeline end-to-end
+- **`brewprune quickstart` blessed workflow**  -  interactive first-run walkthrough (scan → daemon → PATH config → next steps) with `internal/shell/config.go` for auto-appending PATH entries to `.zprofile`, `.bash_profile`, or `conf.d/brewprune.fish`
+- **Stale detection**  -  `brew.CheckStaleness` compares `brew list --formula` against the DB and warns when new formulae are installed since last scan (shown in `unused` and `remove` output)
+- **Shell completions**  -  zsh, bash, and fish completions generated via cobra, shipped in release tarballs via `.goreleaser.yml`, and installed by the Homebrew formula
+- **"Used ≠ needed" disclaimer** in `unused` output  -  clarifies that "Safe" means low observed execution risk, not that the package is unnecessary
+- **"Why it's safe" inline scores** in `remove`  -  per-package score/tier/reason displayed before the confirmation prompt when removing by name
+- **Docker integration test container**  -  12-step pipeline test (scan → shims → status → daemon → usage tracking → stats → unused → doctor → remove dry-run → refresh-shims) with mock brew prefix, exercising the full brewprune pipeline without Homebrew installed
+- **Scout-and-wave prompt template**  -  canonical reusable prompt for parallel agent coordination (`docs/scout-and-wave-prompt.md`)
 
 ### Fixed
-- **Watcher package matching** — use opt path (`/opt/homebrew/opt/<pkg>`) for package resolution from shim log entries, fall back to basename extraction
-- **Docker test environment** — mock brew prefix on PATH for `exec.LookPath`, `/opt/homebrew` symlink for shim `findRealBinary`, correct PID file path (`watch.pid`), ANSI-stripped score extraction
+- **Watcher package matching**  -  use opt path (`/opt/homebrew/opt/<pkg>`) for package resolution from shim log entries, fall back to basename extraction
+- **Docker test environment**  -  mock brew prefix on PATH for `exec.LookPath`, `/opt/homebrew` symlink for shim `findRealBinary`, correct PID file path (`watch.pid`), ANSI-stripped score extraction
 
 ### Changed
-- **`brewprune status` rewritten** — brew-native aligned column format showing tracking state, 24h event count, shim count, last scan time, and data quality indicator
+- **`brewprune status` rewritten**  -  brew-native aligned column format showing tracking state, 24h event count, shim count, last scan time, and data quality indicator
 - Homebrew formula `post_install` now calls `brewprune scan --refresh-shims` and installs shell completions
 
 ## [0.1.5] - 2026-02-27
 
 ### Fixed
-- **Infinite exec loop in brewprune-shim** — v0.1.4 bundled `brewprune-shim` into the Homebrew formula, placing it at `/opt/homebrew/bin/brewprune-shim`. This introduced a loop: when the shim was invoked as `brewprune-shim`, `findRealBinary` resolved to `/opt/homebrew/bin/brewprune-shim` (itself), and `syscall.Exec` would re-execute it indefinitely — logging thousands of spurious events per second with no CPU overhead (same PID, no fork). Fixed by returning `""` early when `name == "brewprune-shim"`, producing a clean error exit instead.
+- **Infinite exec loop in brewprune-shim**  -  v0.1.4 bundled `brewprune-shim` into the Homebrew formula, placing it at `/opt/homebrew/bin/brewprune-shim`. This introduced a loop: when the shim was invoked as `brewprune-shim`, `findRealBinary` resolved to `/opt/homebrew/bin/brewprune-shim` (itself), and `syscall.Exec` would re-execute it indefinitely  -  logging thousands of spurious events per second with no CPU overhead (same PID, no fork). Fixed by returning `""` early when `name == "brewprune-shim"`, producing a clean error exit instead.
 
 ## [0.1.4] - 2026-02-27
 
 ### Fixed
-- **Shim binary not found when installed via Homebrew** — `brewprune-shim` is now bundled in GoReleaser release tarballs and installed alongside `brewprune`. Strategy 1 (co-location lookup) now works correctly for Homebrew installs; the `go install` fallback is no longer needed in production.
+- **Shim binary not found when installed via Homebrew**  -  `brewprune-shim` is now bundled in GoReleaser release tarballs and installed alongside `brewprune`. Strategy 1 (co-location lookup) now works correctly for Homebrew installs; the `go install` fallback is no longer needed in production.
 
 ### Changed
 - Homebrew formula now installs both `brewprune` and `brewprune-shim` binaries
@@ -208,17 +208,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.3] - 2026-02-27
 
 ### Added
-- **PATH shim execution tracking** — `brewprune scan` builds a Go interceptor binary (`~/.brewprune/bin/brewprune-shim`) and creates symlinks for every Homebrew command on your PATH. When you run `git`, `gh`, `jq`, etc., the shim logs the execution to `~/.brewprune/usage.log` and hands off to the real binary with zero perceptible overhead.
-- **`brewprune quickstart` command** — interactive walkthrough for first-time users (runs scan + starts daemon + shows next steps)
-- **`brewprune doctor` command** — diagnostic tool checking database, daemon, shim binary, and PATH setup; provides specific fix commands
-- **Package size calculation** — shows actual disk usage per package instead of "0 B"
-- **Functional `--sort size`** — sorts by disk usage (largest first)
-- **Functional `--sort age`** — sorts by installation date (oldest first)
-- **Confidence summary in `unused` output** — data quality indicator (NOT READY / COLLECTING / GOOD / EXCELLENT)
-- **Timeline reminder in scan output** — shows next steps after scan completes
+- **PATH shim execution tracking**  -  `brewprune scan` builds a Go interceptor binary (`~/.brewprune/bin/brewprune-shim`) and creates symlinks for every Homebrew command on your PATH. When you run `git`, `gh`, `jq`, etc., the shim logs the execution to `~/.brewprune/usage.log` and hands off to the real binary with zero perceptible overhead.
+- **`brewprune quickstart` command**  -  interactive walkthrough for first-time users (runs scan + starts daemon + shows next steps)
+- **`brewprune doctor` command**  -  diagnostic tool checking database, daemon, shim binary, and PATH setup; provides specific fix commands
+- **Package size calculation**  -  shows actual disk usage per package instead of "0 B"
+- **Functional `--sort size`**  -  sorts by disk usage (largest first)
+- **Functional `--sort age`**  -  sorts by installation date (oldest first)
+- **Confidence summary in `unused` output**  -  data quality indicator (NOT READY / COLLECTING / GOOD / EXCELLENT)
+- **Timeline reminder in scan output**  -  shows next steps after scan completes
 
 ### Fixed
-- **Usage tracking was completely broken** — the previous fsnotify watcher listened for `Write`/`Chmod` events on Homebrew bin directories, which never fire on binary execution. Zero events were ever captured despite the daemon running. PATH shims fix this permanently.
+- **Usage tracking was completely broken**  -  the previous fsnotify watcher listened for `Write`/`Chmod` events on Homebrew bin directories, which never fire on binary execution. Zero events were ever captured despite the daemon running. PATH shims fix this permanently.
 - Sorting flags now work correctly (previously ignored by the render function)
 - Size calculation now runs during scan and populates the database
 

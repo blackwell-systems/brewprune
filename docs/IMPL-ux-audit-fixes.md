@@ -27,7 +27,7 @@ reflects correct output.
 ## Hidden Coupling Notes
 
 - `remove.go` calls `displayConfidenceScores()` which hard-codes `getNeverTime()`
-  for `LastUsed` — this is the root of the [REMOVE] "Last Used shows never" bug.
+  for `LastUsed`  -  this is the root of the [REMOVE] "Last Used shows never" bug.
   **Agent D owns this.** Agent C must not change `RenderConfidenceTable`'s
   signature in a way that breaks Agent D's call site.
 
@@ -47,7 +47,7 @@ reflects correct output.
   **Agent C owns output/table.go** for the NO_COLOR/isatty work. Agent B must
   use `output.IsColorEnabled()` (a helper Agent C will add to output/table.go)
   for any new color emission in explain.go. Agent B must NOT refactor all
-  existing color codes in renderExplanation() — that belongs to Agent C's
+  existing color codes in renderExplanation()  -  that belongs to Agent C's
   color-detection sweep.
 
 ---
@@ -74,7 +74,7 @@ never       0        40
 ```
 
 This means a never-used package scores maximum usage points (40), and a
-package used today scores 0 — exactly as the rubric intends. The existing test
+package used today scores 0  -  exactly as the rubric intends. The existing test
 `TestComputeScore_RecentlyUsedPackage` currently asserts `UsageScore == 40` and
 `Tier == "safe"` for jq used 3 days ago; that test encodes the **broken**
 behavior and must be updated alongside the fix.
@@ -99,8 +99,8 @@ explanation strings.
 
 ## 1. File Ownership
 You own these files. Do not touch any other files.
-- `internal/analyzer/confidence.go` — modify
-- `internal/analyzer/confidence_test.go` — modify
+- `internal/analyzer/confidence.go`  -  modify
+- `internal/analyzer/confidence_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 No new exported signatures. All existing exported signatures remain identical:
@@ -125,17 +125,17 @@ func IsCoreDependency(pkg string) bool
 
 ## 4. What to Implement
 
-### computeUsageScore — invert the mapping
+### computeUsageScore  -  invert the mapping
 ```
 daysSince ≤ 7   → return 0   (was 40)
 daysSince ≤ 30  → return 10  (was 30)
-daysSince ≤ 90  → return 20  (was 20) — no change
+daysSince ≤ 90  → return 20  (was 20)  -  no change
 daysSince ≤ 365 → return 30  (was 10)
 never / error   → return 40  (was 0)
 ```
 Comment: "0 = recently used (keep), 40 = never used (safe to remove)".
 
-### generateReason — fix the risky-tier "recently used" branch
+### generateReason  -  fix the risky-tier "recently used" branch
 The current code checks `score.UsageScore >= 30` to detect recent use in the
 risky tier. After inversion, `UsageScore >= 30` means *rarely or never used*,
 not recently used. Fix this branch: detect recent use by re-fetching the last
@@ -145,7 +145,7 @@ checking `score.UsageScore == 0` (which now means used within 7 days).
 Use `score.UsageScore == 0` as the signal for "recently used, keep" in
 generateReason's risky branch.
 
-### generateReason — fix safe-tier reason text
+### generateReason  -  fix safe-tier reason text
 The safe-tier branch currently returns "rarely used, safe to remove" when
 `score.UsageScore != 0`. After inversion, a non-zero UsageScore in the safe
 tier means the package hasn't been used recently. This text is now accurate
@@ -157,7 +157,7 @@ After the fix the only safe-tier reason that was wrong was the fallback "rarely
 used, safe to remove" on a package with UsageScore==40 (never used). That is
 now correct.
 
-### Explanation UsageDetail — no change required
+### Explanation UsageDetail  -  no change required
 The UsageDetail string is generated from the raw timestamp, not from UsageScore,
 so it remains accurate ("used today", "last used 3 days ago", etc.).
 
@@ -200,8 +200,8 @@ so it remains accurate ("used today", "last used 3 days ago", etc.).
   Package never used should have UsageScore=40. Assert UsageScore==40.
 
 ## 5. Tests to Write
-- `TestComputeScore_UsedTodayIsRisky` — package used today scores UsageScore=0
-- `TestComputeScore_NeverUsedIsHighScore` — package never used scores UsageScore=40
+- `TestComputeScore_UsedTodayIsRisky`  -  package used today scores UsageScore=0
+- `TestComputeScore_NeverUsedIsHighScore`  -  package never used scores UsageScore=40
 
 ## 6. Verification Gate
 ```
@@ -239,10 +239,10 @@ flow commands.
 
 ## 1. File Ownership
 You own these files. Do not touch any other files.
-- `internal/app/scan.go` — modify
-- `internal/app/quickstart.go` — modify
-- `internal/app/watch.go` — modify
-- `internal/app/status.go` — modify
+- `internal/app/scan.go`  -  modify
+- `internal/app/quickstart.go`  -  modify
+- `internal/app/watch.go`  -  modify
+- `internal/app/status.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 No new exported functions. All existing RunE function signatures remain.
@@ -268,7 +268,7 @@ runWatch(cmd, args) error  // called by startWatchDaemonFallback
 
 ## 4. What to Implement
 
-### [SETUP-1] scan.go — TTY detection for spinner (audit issue: SETUP spinner garbage)
+### [SETUP-1] scan.go  -  TTY detection for spinner (audit issue: SETUP spinner garbage)
 The `output.NewSpinner()` call in `runScan` starts an animated spinner that
 emits `\r` overwrite sequences. In non-TTY contexts these become literal noise.
 
@@ -284,7 +284,7 @@ The `output.NewSpinner` API is owned by Agent C (Wave 2); do not modify it.
 Instead, call `isatty.IsTerminal(os.Stdout.Fd())` inline in scan.go before
 each spinner creation and use a static `fmt.Println` as the non-TTY fallback.
 
-### [SETUP-2] scan.go — "0 shims created" on re-scan (audit issue: SETUP 0 shims)
+### [SETUP-2] scan.go  -  "0 shims created" on re-scan (audit issue: SETUP 0 shims)
 In `runScan`, after `shim.GenerateShims(allBinaries)` returns, the shim count
 `shimCount` is the number of **newly created** shims (0 on a re-scan when all
 shims already exist). The current message is:
@@ -298,10 +298,10 @@ already present in the shim directory and display:
 ```
 If shimCount>0, keep the existing message `✓ %d command shims created`.
 
-Use `countSymlinks(shimDir)` — this helper already exists in `status.go` in
+Use `countSymlinks(shimDir)`  -  this helper already exists in `status.go` in
 the same package. You may call it directly.
 
-### [SETUP-3] scan.go — emoji consistency (audit issue: OUTPUT emoji style)
+### [SETUP-3] scan.go  -  emoji consistency (audit issue: OUTPUT emoji style)
 The scan footer currently uses `⚠️ ` (emoji with variation selector + double
 space) in one branch and `⚠` (plain Unicode) in another.
 
@@ -309,17 +309,17 @@ Standardize: replace all occurrences of `⚠️ ` and `⚠️  ` in `scan.go` wi
 `⚠ ` (plain `\u26A0` + single space). This makes scan consistent with watch.go
 which already uses `⚠`.
 
-### [SETUP-4] scan.go — remove empty Version column (audit issue: OUTPUT empty Version column)
+### [SETUP-4] scan.go  -  remove empty Version column (audit issue: OUTPUT empty Version column)
 In `scan.go`, `runScan` calls `output.RenderPackageTable(packages)`. The
 `RenderPackageTable` function in `output/table.go` renders a `Version` column
 that is always empty because `pkg.Version` is never populated from Homebrew
 metadata. Agent C (Wave 2) will remove the Version column from `table.go`.
 
-For Agent A: no change required in `scan.go` itself — just be aware the table
+For Agent A: no change required in `scan.go` itself  -  just be aware the table
 output will change shape after Agent C's work. This is noted here for
 coordination only.
 
-### [SETUP-5] status.go — fix daemon suggestion (audit issue: SETUP status suggests brew services)
+### [SETUP-5] status.go  -  fix daemon suggestion (audit issue: SETUP status suggests brew services)
 In `runStatus`, line:
 ```go
 fmt.Printf(label+"stopped  (run 'brew services start brewprune')\n", "Tracking:")
@@ -328,10 +328,10 @@ Replace with:
 ```go
 fmt.Printf(label+"stopped  (run 'brewprune watch --daemon')\n", "Tracking:")
 ```
-No platform detection needed — always recommend `brewprune watch --daemon` as
+No platform detection needed  -  always recommend `brewprune watch --daemon` as
 the canonical way to start the daemon.
 
-### [SETUP-6] quickstart.go — treat "daemon already running" as success (audit issue: SETUP quickstart alarming warning)
+### [SETUP-6] quickstart.go  -  treat "daemon already running" as success (audit issue: SETUP quickstart alarming warning)
 In `runQuickstart`, the daemon-start step:
 ```go
 if daemonErr := startWatchDaemonFallback(cmd, args); daemonErr != nil {
@@ -355,7 +355,7 @@ if daemonErr := startWatchDaemonFallback(cmd, args); daemonErr != nil {
 Apply the same pattern to both daemon-start branches in quickstart.go (the
 `brew services` fallback path and the `brew not found` path).
 
-### [SETUP-7] watch.go — idempotent --daemon (audit issue: SETUP watch --daemon fails when already running)
+### [SETUP-7] watch.go  -  idempotent --daemon (audit issue: SETUP watch --daemon fails when already running)
 In `startWatchDaemon`, when `running == true`, currently:
 ```go
 return fmt.Errorf("daemon already running (PID file: %s)", watchPIDFile)
@@ -374,21 +374,21 @@ parses the PID, returning 0 on error.
 Note: quickstart.go already relies on the error message containing "already
 running" (fixed in [SETUP-6] above). After this change, `startWatchDaemon`
 returns nil, so quickstart's error-check branch for "already running" will
-never be reached — it will simply print the success message from
+never be reached  -  it will simply print the success message from
 `startWatchDaemon` directly. Verify in quickstart that the output for the
 "daemon was already running" path still reads correctly (it will print
-`✓ Daemon started` or the message from startWatchDaemon — trace the code flow
+`✓ Daemon started` or the message from startWatchDaemon  -  trace the code flow
 and adjust quickstart if needed to not double-print success).
 
 ## 5. Tests to Write
 All test files are in `internal/app/`. Write in existing `*_test.go` files
 unless they don't exist, in which case create `<cmd>_test.go`:
 
-- `TestRunScan_ShimCountZeroShowsUpToDate` (scan_test.go) — mock shim.GenerateShims
+- `TestRunScan_ShimCountZeroShowsUpToDate` (scan_test.go)  -  mock shim.GenerateShims
   returning 0 and verify output contains "up to date"
-- `TestRunStatus_DaemonStoppedSuggestsWatchDaemon` (scan_test.go or new status_test.go) —
+- `TestRunStatus_DaemonStoppedSuggestsWatchDaemon` (scan_test.go or new status_test.go)  - 
   verify the stopped tracking line contains "watch --daemon"
-- `TestStartWatchDaemon_AlreadyRunningIsIdempotent` (watch_test.go) — verify that
+- `TestStartWatchDaemon_AlreadyRunningIsIdempotent` (watch_test.go)  -  verify that
   calling startWatchDaemon when daemon is running returns nil
 
 ## 6. Verification Gate
@@ -403,11 +403,11 @@ go test ./internal/app/...
 - Do not touch `output/table.go`, `output/progress.go`, or any analyzer file.
 - Do not touch `explain.go`, `doctor.go`, `stats.go`, `undo.go`, `unused.go`,
   `remove.go`, or `root.go`.
-- Import `github.com/mattn/go-isatty` for TTY detection — it is already in
+- Import `github.com/mattn/go-isatty` for TTY detection  -  it is already in
   go.sum as an indirect dependency. Add it as a direct import in scan.go.
 - The `strings.Contains` check for "already running" in quickstart.go is a
   temporary coupling; after watch.go is fixed to return nil, the check becomes
-  dead code but is harmless. Do not remove it — leave it as a safety net.
+  dead code but is harmless. Do not remove it  -  leave it as a safety net.
 - Do not change any exported function signatures.
 
 ## 8. Report
@@ -426,10 +426,10 @@ stats, and undo commands.
 
 ## 1. File Ownership
 You own these files. Do not touch any other files.
-- `internal/app/explain.go` — modify
-- `internal/app/doctor.go` — modify
-- `internal/app/stats.go` — modify
-- `internal/app/undo.go` — modify
+- `internal/app/explain.go`  -  modify
+- `internal/app/doctor.go`  -  modify
+- `internal/app/stats.go`  -  modify
+- `internal/app/undo.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 No new exported functions. Existing RunE signatures unchanged.
@@ -449,14 +449,14 @@ output.RenderUsageTable(stats map[string]output.UsageStats) string
 
 ## 4. What to Implement
 
-### [EXPLAIN-1] explain.go — fix double-print of error (audit issue: EXPLAIN error printed twice)
+### [EXPLAIN-1] explain.go  -  fix double-print of error (audit issue: EXPLAIN error printed twice)
 In `runExplain`, when `st.GetPackage(packageName)` fails, the error is returned:
 ```go
 return fmt.Errorf("package not found: %s\nRun 'brewprune scan' to update package database", packageName)
 ```
 The `main.go` handler `fmt.Fprintf(os.Stderr, "Error: %v\n", err)` then prints
 it to stderr. Cobra's error handling also prints it. Because `SilenceErrors:
-true` is set on RootCmd, cobra does NOT print the error — but the error is
+true` is set on RootCmd, cobra does NOT print the error  -  but the error is
 printed twice because `runExplain` is called through cobra's RunE, and the
 error surfaces to `main.go`'s handler which prints it once, then... actually,
 trace the flow: `Execute()` → `RootCmd.Execute()` → returns error to
@@ -481,7 +481,7 @@ if err != nil {
 This guarantees exactly one print. Returning `nil` is acceptable here because
 the error was already communicated to the user.
 
-### [EXPLAIN-2] explain.go — better missing-arg error (audit issue: DISCOVERY explain no arg)
+### [EXPLAIN-2] explain.go  -  better missing-arg error (audit issue: DISCOVERY explain no arg)
 `explainCmd` already has `Args: cobra.ExactArgs(1)`, so cobra handles arity.
 The default cobra message is `"accepts 1 arg(s), received 0"`. To customize it,
 add a custom `Args` validator:
@@ -494,7 +494,7 @@ Args: func(cmd *cobra.Command, args []string) error {
 },
 ```
 
-### [EXPLAIN-3] explain.go — table footer alignment (audit issue: EXPLAIN footer padding)
+### [EXPLAIN-3] explain.go  -  table footer alignment (audit issue: EXPLAIN footer padding)
 In `renderExplanation`, the total row:
 ```go
 fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%-36s%s │\n",
@@ -503,7 +503,7 @@ fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%-36s%s │\n",
     tierColor, truncateDetail(strings.ToUpper(score.Tier)+" tier", 36), colorReset)
 ```
 The ANSI color codes (e.g. `\033[32m`) are invisible but counted by `%s`
-format widths — they have 0 visual width but non-zero byte length. The `%-36s`
+format widths  -  they have 0 visual width but non-zero byte length. The `%-36s`
 format counts the color escape bytes as visual characters, causing the visible
 content to appear shorter than intended, leaving trailing spaces inside the
 border. Fix: use `truncateDetail` without color inside the width-padded field,
@@ -519,7 +519,7 @@ fmt.Printf("│ %sTotal%s               │ %s%2d/100%s │ %s%s%s │\n",
 This ensures the 36-char pad is computed on the plain string, not the
 color-wrapped string.
 
-### [DOCTOR-1] doctor.go — exit codes and no "Error:" prefix for non-critical issues (audit issue: DOCTOR exit code 1)
+### [DOCTOR-1] doctor.go  -  exit codes and no "Error:" prefix for non-critical issues (audit issue: DOCTOR exit code 1)
 Currently `runDoctor` returns `fmt.Errorf("diagnostics failed")` for any
 non-zero issue count. This causes main.go to print `Error: diagnostics failed`
 and exit 1 for even minor warnings (PATH not set).
@@ -551,7 +551,7 @@ Implementation:
    ```
 4. Replace `✗` with `⚠` for warning-level checks in the output lines.
 
-### [DOCTOR-2] doctor.go — fix double-print (audit issue: DOCTOR error duplicated)
+### [DOCTOR-2] doctor.go  -  fix double-print (audit issue: DOCTOR error duplicated)
 Same root cause as explain.go. The entire doctor output is printed twice when
 captured. The likely cause: `runDoctor` uses `fmt.Println` for all its output
 (goes to stdout), but the final `return fmt.Errorf("diagnostics failed")` also
@@ -564,14 +564,14 @@ If doctor output is truly doubled (all lines twice), there may be a cobra
 `root.go` for hooks. If none found, the "duplication" may be the audit
 observing the cobra `Usage()` function printing on error. With
 `SilenceUsage: true` set on RootCmd, cobra will not print usage on error.
-Confirm `SilenceUsage: true` is set on RootCmd (it is — already present).
+Confirm `SilenceUsage: true` is set on RootCmd (it is  -  already present).
 
 The fix is the same as explain.go: for error cases that should not print
 `Error: diagnostics failed`, use `os.Exit(2)` instead of returning an error.
 After [DOCTOR-1]'s fix, only genuine critical failures return an error to
 main.go, which is correct. The double-print bug is resolved as a side effect.
 
-### [STATS-1] stats.go — sort stats by Total Runs descending (audit issue: TRACKING stats sort)
+### [STATS-1] stats.go  -  sort stats by Total Runs descending (audit issue: TRACKING stats sort)
 In `showUsageTrends`, the `RenderUsageTable` function in `output/table.go`
 already sorts by `TotalRuns` descending (confirmed in table.go lines 217-219).
 However, packages with zero runs appear interspersed with used packages when
@@ -590,7 +590,7 @@ usage appear before packages without. Since maps are unordered, the sort in
 slice-based structure rather than relying solely on the table renderer.
 
 Actually, `RenderUsageTable` already handles sorting internally (table.go
-lines 207-219). Agent B does not need to pre-sort in stats.go — the existing
+lines 207-219). Agent B does not need to pre-sort in stats.go  -  the existing
 table renderer already sorts by TotalRuns descending. If the audit observed
 unstable ordering, it was because never-used packages all have TotalRuns=0
 and are sorted randomly among themselves. The secondary sort (LastUsed) should
@@ -598,7 +598,7 @@ be added by **Agent C** in `RenderUsageTable`. Agent B should leave a comment
 in stats.go noting that `RenderUsageTable` is expected to sort by TotalRuns
 desc + LastUsed desc as secondary.
 
-### [STATS-2] stats.go — style the per-package stats view (audit issue: TRACKING stats --package unstyled)
+### [STATS-2] stats.go  -  style the per-package stats view (audit issue: TRACKING stats --package unstyled)
 In `showPackageStats`, the current output is a plain key-value dump. Apply
 minimal styling:
 1. Print a bold package name header.
@@ -606,7 +606,7 @@ minimal styling:
    "monthly"/"rarely" → red, "never" → gray.
 3. Add a separator line.
 
-Use inline ANSI constants (same as `explain.go` already does — copy the const
+Use inline ANSI constants (same as `explain.go` already does  -  copy the const
 block or define it at package level in a new `internal/app/colors.go` file if
 you prefer, but do NOT add a file that Agent D or Agent A is also adding).
 Adding a `colors.go` is safe since no other agent creates that file.
@@ -621,7 +621,7 @@ First Seen: 2026-02-28 03:08:20
 Frequency:  daily   ← green
 ```
 
-### [UNDO-1] undo.go — friendly message for `undo latest` with no snapshots (audit issue: EDGE undo latest terse error)
+### [UNDO-1] undo.go  -  friendly message for `undo latest` with no snapshots (audit issue: EDGE undo latest terse error)
 In `runUndo`, when `snapshotArg == "latest"` and `len(snapshots) == 0`,
 currently returns `fmt.Errorf("no snapshots available")`.
 
@@ -638,15 +638,15 @@ This matches the `listSnapshots()` message exactly. Return nil to avoid
 the `Error:` prefix.
 
 ## 5. Tests to Write
-- `TestRunExplain_MissingArgError` (explain_test.go or new) — cobra rejects 0
+- `TestRunExplain_MissingArgError` (explain_test.go or new)  -  cobra rejects 0
   args with custom message containing "missing package name"
-- `TestRunExplain_NotFoundPrintedOnce` — verify explain nonexistent package
+- `TestRunExplain_NotFoundPrintedOnce`  -  verify explain nonexistent package
   prints error exactly once (capture output)
-- `TestRunDoctor_WarningOnlyExitsCode2` (doctor_test.go or new) — if only
+- `TestRunDoctor_WarningOnlyExitsCode2` (doctor_test.go or new)  -  if only
   warnings, os.Exit(2) is called; use a test harness that catches os.Exit
-- `TestShowPackageStats_FrequencyIsColored` (stats_test.go) — verify colored
+- `TestShowPackageStats_FrequencyIsColored` (stats_test.go)  -  verify colored
   frequency output for "daily" package
-- `TestRunUndo_LatestNoSnapshotsFriendlyMessage` (undo_test.go) — verify
+- `TestRunUndo_LatestNoSnapshotsFriendlyMessage` (undo_test.go)  -  verify
   friendly multi-line message is printed and nil is returned
 
 ## 6. Verification Gate
@@ -686,8 +686,8 @@ the output package.
 
 ## 1. File Ownership
 You own these files. Do not touch any other files.
-- `internal/output/table.go` — modify
-- `internal/output/progress.go` — modify
+- `internal/output/table.go`  -  modify
+- `internal/output/progress.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 ```go
@@ -700,7 +700,7 @@ All existing exported functions retain their signatures.
 
 ## 3. Interfaces You May Call
 ```go
-// Already in go.mod as indirect dep — import as direct:
+// Already in go.mod as indirect dep  -  import as direct:
 // github.com/mattn/go-isatty
 isatty.IsTerminal(fd uintptr) bool
 
@@ -711,7 +711,7 @@ os.Stdout.Fd()
 
 ## 4. What to Implement
 
-### [OUTPUT-1] table.go — NO_COLOR / isatty support (audit issue: OUTPUT ANSI leaks)
+### [OUTPUT-1] table.go  -  NO_COLOR / isatty support (audit issue: OUTPUT ANSI leaks)
 Add `IsColorEnabled() bool` at the top of `table.go`:
 ```go
 func IsColorEnabled() bool {
@@ -739,14 +739,14 @@ Apply to: `RenderConfidenceTable`, `RenderUsageTable`, `RenderTierSummary`,
 The constants `colorReset`, `colorGreen`, etc. remain; they are still used
 internally. Do not delete them.
 
-### [OUTPUT-2] table.go — remove empty Version column from RenderPackageTable (audit issue: OUTPUT empty Version column)
+### [OUTPUT-2] table.go  -  remove empty Version column from RenderPackageTable (audit issue: OUTPUT empty Version column)
 In `RenderPackageTable`, the current header and rows include a `Version` column
 that is always blank. Remove it:
 - Header: `%-20s %-8s %-13s %-13s` (Package, Size, Installed, Last Used)
 - Row format matches.
 - The separator `strings.Repeat("─", 80)` may need width adjustment.
 
-### [OUTPUT-3] table.go — fix Status column for safe/medium packages in RenderConfidenceTable (audit issue: ANALYSIS unused --all Status column)
+### [OUTPUT-3] table.go  -  fix Status column for safe/medium packages in RenderConfidenceTable (audit issue: ANALYSIS unused --all Status column)
 In `formatTierLabel`:
 ```go
 func formatTierLabel(tier string, isCritical bool) string {
@@ -782,7 +782,7 @@ Agent D's tests may depend on. Coordinate with Agent D. If Agent D's tests
 check for `"SAFE"` in output, they will break. Use `✓ safe` and update
 Agent D's test expectations in your report so Agent D can fix them.
 
-### [OUTPUT-4] table.go — add secondary sort by LastUsed in RenderUsageTable (audit issue: TRACKING stats sort)
+### [OUTPUT-4] table.go  -  add secondary sort by LastUsed in RenderUsageTable (audit issue: TRACKING stats sort)
 In `RenderUsageTable`, the current sort is by `TotalRuns` descending. Add a
 secondary sort by `LastUsed` descending (more recent = higher), with zero-time
 values (never used) sorted to the bottom:
@@ -801,7 +801,7 @@ sort.SliceStable(entries, func(i, j int) bool {
 })
 ```
 
-### [OUTPUT-5] progress.go — fix duplicate 100% line in ProgressBar (audit issue: REMOVE progress bar duplicate)
+### [OUTPUT-5] progress.go  -  fix duplicate 100% line in ProgressBar (audit issue: REMOVE progress bar duplicate)
 In `ProgressBar`, the duplicate final line occurs because `Finish()` calls
 `p.render()` (which prints via `\r`) and then `fmt.Fprintln` (which adds a
 newline). The caller in `remove.go` also calls `progress.Increment()` for the
@@ -815,7 +815,7 @@ func (p *ProgressBar) Finish() {
     defer p.mu.Unlock()
     p.current = p.total
     p.render()          // renders the final 100% frame
-    fmt.Fprintln(p.writer) // move to new line — this is the only newline
+    fmt.Fprintln(p.writer) // move to new line  -  this is the only newline
 }
 ```
 The issue is that `Increment()` calls `render()` (which uses `\r`, no newline),
@@ -848,18 +848,18 @@ Similarly, apply TTY detection to `Spinner.Start()`: in `NewSpinner`, if stdout
 is not a TTY, skip the goroutine animation and just print `message...` once.
 In `Stop()` and `StopWithMessage()`, skip the `\r` clear when not a TTY.
 
-### [OUTPUT-6] progress.go — Spinner non-TTY (also covered by SETUP-1 in Agent A)
+### [OUTPUT-6] progress.go  -  Spinner non-TTY (also covered by SETUP-1 in Agent A)
 Agent A adds inline isatty checks in scan.go **before** creating spinners.
 Agent C adds isatty awareness **inside** the Spinner itself as a belt-and-
 suspenders fix. These two changes are compatible and do not conflict. Agent C's
 spinner fix benefits all callers system-wide; Agent A's fix benefits only scan.
 
 ## 5. Tests to Write
-- `TestIsColorEnabled_NoColor` (table_test.go) — set NO_COLOR=1 env, verify false
-- `TestIsColorEnabled_NonTTY` (table_test.go) — stdout is a pipe, verify false
-- `TestRenderPackageTable_NoVersionColumn` (table_test.go) — verify Version not in header
-- `TestRenderUsageTable_SortedByRunsThenLastUsed` (table_test.go) — packages with equal runs sorted by LastUsed desc
-- `TestProgressBar_NoTTY_NoDuplicateLine` (progress_test.go) — SetWriter to a buffer (non-TTY), run Increment loop + Finish, verify single 100% line
+- `TestIsColorEnabled_NoColor` (table_test.go)  -  set NO_COLOR=1 env, verify false
+- `TestIsColorEnabled_NonTTY` (table_test.go)  -  stdout is a pipe, verify false
+- `TestRenderPackageTable_NoVersionColumn` (table_test.go)  -  verify Version not in header
+- `TestRenderUsageTable_SortedByRunsThenLastUsed` (table_test.go)  -  packages with equal runs sorted by LastUsed desc
+- `TestProgressBar_NoTTY_NoDuplicateLine` (progress_test.go)  -  SetWriter to a buffer (non-TTY), run Increment loop + Finish, verify single 100% line
 
 ## 6. Verification Gate
 ```
@@ -900,9 +900,9 @@ root commands.
 
 ## 1. File Ownership
 You own these files. Do not touch any other files.
-- `internal/app/unused.go` — modify
-- `internal/app/remove.go` — modify
-- `internal/app/root.go` — modify
+- `internal/app/unused.go`  -  modify
+- `internal/app/remove.go`  -  modify
+- `internal/app/root.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 No new exported functions. Existing RunE signatures unchanged.
@@ -910,7 +910,7 @@ You depend on `output.IsColorEnabled()` added by Agent C (Wave 2, same wave).
 Wave 2 agents run in parallel; do not assume Agent C's changes are present
 when you build. If `IsColorEnabled` is not yet available, stub it as:
 ```go
-// temporary stub — will be provided by output package
+// temporary stub  -  will be provided by output package
 func colorEnabled() bool { return true }
 ```
 and replace with `output.IsColorEnabled()` before final commit.
@@ -926,7 +926,7 @@ output.RenderReclaimableFooter(safe, medium, risky output.TierStats, showAll boo
 // From store package
 store.GetLastUsage(pkg string) (*time.Time, error)
 
-// From analyzer package (post Wave 0 — correct score logic)
+// From analyzer package (post Wave 0  -  correct score logic)
 analyzer.New(st *store.Store) *analyzer.Analyzer
 func (a *Analyzer) ComputeScore(pkg string) (*ConfidenceScore, error)
 func (a *Analyzer) GetPackagesByTier(tier string) ([]*ConfidenceScore, error)
@@ -934,7 +934,7 @@ func (a *Analyzer) GetPackagesByTier(tier string) ([]*ConfidenceScore, error)
 
 ## 4. What to Implement
 
-### [ROOT-1] root.go — bare invocation shows short nudge, not full help (audit issue: DISCOVERY no-args shows full help)
+### [ROOT-1] root.go  -  bare invocation shows short nudge, not full help (audit issue: DISCOVERY no-args shows full help)
 Set a `RunE` on `RootCmd` that checks if any arguments were provided and
 prints a short usage hint instead of the full help:
 ```go
@@ -955,9 +955,9 @@ RunE: func(cmd *cobra.Command, args []string) error {
     return nil
 },
 ```
-Do not remove the Long description — it is still used by `brewprune --help`.
+Do not remove the Long description  -  it is still used by `brewprune --help`.
 
-### [ROOT-2] root.go — unknown subcommand shows available commands (audit issue: DISCOVERY unknown subcommand)
+### [ROOT-2] root.go  -  unknown subcommand shows available commands (audit issue: DISCOVERY unknown subcommand)
 Add a `PersistentPreRunE` or use cobra's `SuggestionsMinimumDistance` and
 `DisableSuggestions` options. Cobra already supports suggestions via
 `cmd.SuggestionsFor(args[0])`. Enable suggestions on RootCmd:
@@ -987,7 +987,7 @@ RootCmd.SuggestionsMinimumDistance = 2
 Cobra will automatically append `"Did you mean this?\n  <closest command>"` to
 the unknown command error, which satisfies the audit requirement.
 
-### [UNUSED-1] unused.go — show risky tier by default when no usage data exists (audit issue: ANALYSIS unused shows nothing)
+### [UNUSED-1] unused.go  -  show risky tier by default when no usage data exists (audit issue: ANALYSIS unused shows nothing)
 In `runUnused`, when no tier flag and no `--all` flag are set, risky packages
 are hidden. The audit says this is the wrong default when there is no usage
 data at all (the user's first run after scan).
@@ -1014,12 +1014,12 @@ fmt.Println(output.RenderTierSummary(safeTier, mediumTier, riskyTier, unusedAll 
 ```
 Add a distinct banner when `showRiskyImplicit`:
 ```
-⚠ No usage data yet — showing all packages (risky tier included).
+⚠ No usage data yet  -  showing all packages (risky tier included).
   Run 'brewprune watch --daemon' and wait 1-2 weeks for better recommendations.
   Use 'brewprune unused --all' to always show all tiers.
 ```
 
-### [UNUSED-2] unused.go — distinct message for --casks with no casks (audit issue: ANALYSIS unused --casks no message)
+### [UNUSED-2] unused.go  -  distinct message for --casks with no casks (audit issue: ANALYSIS unused --casks no message)
 After the empty-result check in `runUnused`:
 ```go
 if len(scores) == 0 {
@@ -1037,14 +1037,14 @@ if len(scores) == 0 {
 }
 ```
 
-### [UNUSED-3] unused.go — document --tier risky implicit behavior (audit issue: EDGE tier risky vs no flags)
+### [UNUSED-3] unused.go  -  document --tier risky implicit behavior (audit issue: EDGE tier risky vs no flags)
 In `unusedCmd.Long`, add a note:
 ```
 Note: specifying --tier shows that tier regardless of --all. Running
 'brewprune unused --tier risky' shows all risky packages without needing --all.
 ```
 
-### [REMOVE-1] remove.go — fix "Last Used" showing never (audit issue: REMOVE last used never)
+### [REMOVE-1] remove.go  -  fix "Last Used" showing never (audit issue: REMOVE last used never)
 In `displayConfidenceScores`, the `LastUsed` field is hard-coded to
 `getNeverTime()` (returns `time.Time{}`):
 ```go
@@ -1060,7 +1060,7 @@ the same package):
 LastUsed: getLastUsed(st, score.Package),
 ```
 
-### [REMOVE-2] remove.go — dry-run hint in no-tier error (audit issue: REMOVE no flags no hint)
+### [REMOVE-2] remove.go  -  dry-run hint in no-tier error (audit issue: REMOVE no flags no hint)
 In `runRemove`, when `tier == ""`:
 ```go
 return fmt.Errorf("no tier specified: use --safe, --medium, or --risky")
@@ -1070,7 +1070,7 @@ Change to:
 return fmt.Errorf("no tier specified. Use --safe, --medium, or --risky. Add --dry-run to preview changes first.")
 ```
 
-### [REMOVE-3] remove.go / unused.go — flag consistency for --tier (audit issue: DISCOVERY flag inconsistency)
+### [REMOVE-3] remove.go / unused.go  -  flag consistency for --tier (audit issue: DISCOVERY flag inconsistency)
 `unused` uses `--tier <value>`. `remove` uses `--safe`, `--medium`, `--risky`.
 The audit recommends making them consistent. The minimal fix without breaking
 backward compat: add `--tier <value>` as an **alias** on `removeCmd`:
@@ -1089,20 +1089,20 @@ func determineTier() string {
     return ""
 }
 ```
-Add `removeTierFlag string` to the var block. This is backward compatible —
+Add `removeTierFlag string` to the var block. This is backward compatible  - 
 existing `--safe`/`--medium`/`--risky` flags continue to work, and `--tier
 medium` now also works.
 
 ## 5. Tests to Write
-- `TestRunUnused_NoUsageDataShowsRisky` (unused_test.go) — when no events in DB
+- `TestRunUnused_NoUsageDataShowsRisky` (unused_test.go)  -  when no events in DB
   and no flags, risky packages are shown
-- `TestRunUnused_CasksNoCasksInstalledMessage` (unused_test.go) — --casks with
+- `TestRunUnused_CasksNoCasksInstalledMessage` (unused_test.go)  -  --casks with
   0 casks shows "No casks installed"
-- `TestDetermineTier_TierFlag` (remove_test.go or new) — --tier safe sets tier
+- `TestDetermineTier_TierFlag` (remove_test.go or new)  -  --tier safe sets tier
   to "safe"
-- `TestDisplayConfidenceScores_LastUsedNotNever` (remove_test.go) — when package
+- `TestDisplayConfidenceScores_LastUsedNotNever` (remove_test.go)  -  when package
   has usage data, LastUsed is not zero in output
-- `TestRootCmd_BareInvocationPrintsHint` (root_test.go) — bare invocation prints
+- `TestRootCmd_BareInvocationPrintsHint` (root_test.go)  -  bare invocation prints
   quickstart hint, not full help text
 
 ## 6. Verification Gate
@@ -1192,8 +1192,8 @@ touch Wave 2 files and vice versa.
 
 | Dependency | Direction | Risk |
 |---|---|---|
-| Wave 0 inverts score → all tiers change | 0 → 1,2 | Low — agents test against correct behavior |
-| Agent C adds `IsColorEnabled()` | C → D (same wave) | Medium — Agent D stubs it until C lands |
-| Agent C changes `formatTierLabel` output strings | C → D (same wave) | Medium — Agent D must update string assertions |
-| Agent A makes watch `--daemon` return nil when running | A → quickstart | Low — quickstart still works, just dead code path |
-| Agent B uses `isatty` import | B + A both add import | Low — same package, no conflict |
+| Wave 0 inverts score → all tiers change | 0 → 1,2 | Low  -  agents test against correct behavior |
+| Agent C adds `IsColorEnabled()` | C → D (same wave) | Medium  -  Agent D stubs it until C lands |
+| Agent C changes `formatTierLabel` output strings | C → D (same wave) | Medium  -  Agent D must update string assertions |
+| Agent A makes watch `--daemon` return nil when running | A → quickstart | Low  -  quickstart still works, just dead code path |
+| Agent B uses `isatty` import | B + A both add import | Low  -  same package, no conflict |

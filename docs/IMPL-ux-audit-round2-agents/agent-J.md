@@ -1,12 +1,12 @@
-# Wave 1 Agent J: explain.go — exit code, scoring direction note, table width
+# Wave 1 Agent J: explain.go  -  exit code, scoring direction note, table width
 
 You are Wave 1 Agent J. Fix three UX issues in explain.go.
 
 ## 1. File Ownership
 
 You own these files. Do not touch any other files.
-- `internal/app/explain.go` — modify
-- `internal/app/explain_test.go` — modify
+- `internal/app/explain.go`  -  modify
+- `internal/app/explain_test.go`  -  modify
 
 ## 2. Interfaces You Must Implement
 
@@ -14,7 +14,7 @@ No new exported functions. You are modifying existing behavior only.
 
 ## 3. Interfaces You May Call
 
-Existing `os`, `fmt`, `strings`, `analyzer` — no new imports needed.
+Existing `os`, `fmt`, `strings`, `analyzer`  -  no new imports needed.
 
 ## 4. What to Implement
 
@@ -29,7 +29,7 @@ The current code in `runExplain`:
 _, err = st.GetPackage(packageName)
 if err != nil {
     fmt.Fprintf(os.Stderr, "Error: package not found: %s\nRun 'brewprune scan' to update package database\n", packageName)
-    return nil   // exits 0 — WRONG
+    return nil   // exits 0  -  WRONG
 }
 ```
 
@@ -46,7 +46,7 @@ if err != nil {
 }
 ```
 
-### Finding 2: `explain git` shows "0/40 pts — used today" which contradicts itself
+### Finding 2: `explain git` shows "0/40 pts  -  used today" which contradicts itself
 
 In `renderExplanation`, the table shows:
 ```
@@ -63,7 +63,7 @@ fmt.Println("│ Component           │ Removal │ Detail                     
 fmt.Println("│                     │  pts    │                                      │")
 ```
 
-Wait — looking at the actual header:
+Wait  -  looking at the actual header:
 ```go
 fmt.Println("│ Component           │ Points  │ Detail                               │")
 ```
@@ -117,25 +117,25 @@ Detail column = 52 chars (50 content + 2 spaces). Adjust ALL border lines to
 match. Also update the Total row format string.
 
 The `truncateDetail` call site max width changes from 36 → 50.
-The `truncateDetail` function itself is fine — just pass 50.
+The `truncateDetail` function itself is fine  -  just pass 50.
 
 ## 5. Tests to Write
 
 Update `internal/app/explain_test.go`:
 
-1. `TestRunExplain_NotFound_ExitsNonZero` — verify that `explain nonexistent`
+1. `TestRunExplain_NotFound_ExitsNonZero`  -  verify that `explain nonexistent`
    exits non-zero. Since `os.Exit(1)` is called, use the subprocess test
    pattern: exec the test binary with `-test.run=TestRunExplain_NotFound_ExitsNonZero`
    as a subprocess and check its exit code. Look at how
    `TestRunDoctor_WarningOnlyExitsCode2` in `doctor_test.go` handles os.Exit
    testing for the pattern.
-2. `TestRenderExplanation_ScoringNote` — call `renderExplanation` with a
+2. `TestRenderExplanation_ScoringNote`  -  call `renderExplanation` with a
    test score and verify the output contains "Note:" and "recently used" (or
    the equivalent text from the note you add).
-3. `TestRenderExplanation_DetailNotTruncated` — verify that a detail string of
+3. `TestRenderExplanation_DetailNotTruncated`  -  verify that a detail string of
    40 characters renders without "..." in the output (was truncated before,
    should not be now).
-4. Update `TestRunExplain_NotFoundPrintedOnce` — this existing test currently
+4. Update `TestRunExplain_NotFoundPrintedOnce`  -  this existing test currently
    checks that the not-found message is printed exactly once (without double-
    print). It should still pass after the os.Exit change, but you may need to
    use a subprocess approach to check the exit code too.
@@ -156,18 +156,18 @@ All must pass before reporting completion.
 
 - `os.Exit(1)` for not-found is the right fix. The comment `[EXPLAIN-1]`
   says "return nil so main.go's error handler is never reached, guaranteeing
-  exactly one print" — this was a previous attempt to avoid double-print.
+  exactly one print"  -  this was a previous attempt to avoid double-print.
   `os.Exit(1)` also avoids double-print AND sets the correct exit code.
 - The table width change must be consistent: all border lines, format strings,
   and `truncateDetail` max widths must use 50.
-- Do NOT change `truncateDetail` function behavior — only the call sites.
+- Do NOT change `truncateDetail` function behavior  -  only the call sites.
 - If you discover that correct implementation requires changing a file not in
   your ownership list, do NOT modify it. Report it in section 8.
 
 ## 8. Report
 
 Append your completion report to `docs/IMPL-ux-audit-round2.md` under
-`### Agent J — Completion Report`.
+`### Agent J  -  Completion Report`.
 
 Include:
 - What you implemented (function names, key decisions)

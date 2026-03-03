@@ -65,7 +65,7 @@
 
 ### [SETUP] PATH configuration status confusing
 - **Severity**: UX-improvement
-- **What happens**: Status and doctor both report "PATH configured (restart shell to activate)" but also warn "⚠ Shim directory not in PATH — executions won't be intercepted". These messages contradict each other.
+- **What happens**: Status and doctor both report "PATH configured (restart shell to activate)" but also warn "⚠ Shim directory not in PATH  -  executions won't be intercepted". These messages contradict each other.
 - **Expected**: Clear distinction between "written to shell config" vs "active in current session"
 - **Repro**:
 ```bash
@@ -207,7 +207,7 @@ docker exec bp-audit4 brewprune status  # event count doesn't increase
 ### [STATS] Empty stats output is ambiguous
 - **Severity**: UX-polish
 - **What happens**: `brewprune stats` for packages with no usage just shows "Package: jq, Total Uses: 0, Last Used: never" etc.
-- **Expected**: Consider adding "No usage recorded yet — install age: 1 day" or similar context
+- **Expected**: Consider adding "No usage recorded yet  -  install age: 1 day" or similar context
 - **Repro**: `docker exec bp-audit4 brewprune stats --package jq`
 
 ### [STATS] --all flag shows unsorted output
@@ -234,7 +234,7 @@ docker exec bp-audit4 brewprune status  # event count doesn't increase
 
 ### [DOCTOR] Pipeline test failure message is too technical
 - **Severity**: UX-polish
-- **What happens**: Error says "no usage event recorded after 35.322s (waited 35s) — shim executed git but daemon did not write to database"
+- **What happens**: Error says "no usage event recorded after 35.322s (waited 35s)  -  shim executed git but daemon did not write to database"
 - **Expected**: Simplify: "Pipeline test failed: shim logged event but daemon didn't process it (timeout after 35s). Try: brewprune watch --daemon"
 - **Repro**: `docker exec bp-audit4 brewprune doctor` (with daemon stopped)
 
@@ -278,7 +278,7 @@ docker exec bp-audit4 brewprune status  # event count doesn't increase
 
 ### [EDGE] Nonexistent database path gives misleading message
 - **Severity**: UX-critical
-- **What happens**: `brewprune --db /nonexistent/path.db status` shows "brewprune is not set up — run 'brewprune scan' to get started." This is misleading because the issue is the wrong path, not lack of setup.
+- **What happens**: `brewprune --db /nonexistent/path.db status` shows "brewprune is not set up  -  run 'brewprune scan' to get started." This is misleading because the issue is the wrong path, not lack of setup.
 - **Expected**: "Error: database not found at /nonexistent/path.db. Check --db path or run quickstart."
 - **Repro**: `docker exec bp-audit4 brewprune --db /nonexistent/path.db status`
 

@@ -8,14 +8,14 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/blackwell-systems/brewprune)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-You have 100+ Homebrew packages installed. But which ones do you actually use? `brewprune` monitors your real usage via PATH shims and tells you — from day one. After a couple of weeks of data, it scores packages by removal safety and lets you reclaim disk space with automatic rollback if anything breaks.
+You have 100+ Homebrew packages installed. But which ones do you actually use? `brewprune` monitors your real usage via PATH shims and tells you  -  from day one. After a couple of weeks of data, it scores packages by removal safety and lets you reclaim disk space with automatic rollback if anything breaks.
 
 **Day 1:** `brewprune stats` shows what you've used today, this week, ever.
-**Day 14+:** `brewprune unused` shows what's safe to remove — backed by real data, not guesswork.
+**Day 14+:** `brewprune unused` shows what's safe to remove  -  backed by real data, not guesswork.
 
 ## Quick example
 
-**From day one — see what you actually use:**
+**From day one  -  see what you actually use:**
 
 ```bash
 $ brewprune stats --days 7
@@ -32,7 +32,7 @@ ripgrep    1      5 days ago
 Sorted by: most used first
 ```
 
-**After 14 days of tracking — see what's safe to remove:**
+**After 14 days of tracking  -  see what's safe to remove:**
 
 *Risky-tier packages are hidden by default. Use `--all` to show them.*
 
@@ -43,8 +43,8 @@ SAFE: 3 packages (1.2 GB) · MEDIUM: 2 packages (456 MB) · RISKY: 48 packages (
 
 Package          Size     Uses (7d)  Last Used        Depended On   Status
 ────────────────────────────────────────────────────────────────────────────────
-node@16          450 MB   0          never            —             SAFE
-postgresql@14    340 MB   0          never            —             SAFE
+node@16          450 MB   0          never             -              SAFE
+postgresql@14    340 MB   0          never             -              SAFE
 python@3.9       420 MB   1          6 months ago     2 packages    MEDIUM
 
 Reclaimable: 1.2 GB (safe) · 456 MB (medium) · 3.8 GB (risky, hidden)
@@ -255,11 +255,11 @@ Snapshots enable rollback via `brewprune undo`. If an exact version can't be fet
 
 **Days 2-14:** Daemon collects usage data in background. Use `brewprune stats` anytime to see what you've been using.
 
-**Day 14+:** `brewprune unused` scores are now meaningful — view, review with `--dry-run`, then remove.
+**Day 14+:** `brewprune unused` scores are now meaningful  -  view, review with `--dry-run`, then remove.
 
 **Ongoing:** Rescan after manual brew installs (`brewprune scan`), check status occasionally.
 
-**Note:** `unused` scores show COLLECTING for the first 1-2 weeks while tracking builds a picture of your workflow. This is normal — `stats` works immediately and gives you real data while you wait.
+**Note:** `unused` scores show COLLECTING for the first 1-2 weeks while tracking builds a picture of your workflow. This is normal  -  `stats` works immediately and gives you real data while you wait.
 
 ## Daemon Mode
 
@@ -339,20 +339,20 @@ This checks:
 ## Limitations & Accuracy
 
 **What brewprune tracks:**
-- CLI tool executions — any Homebrew formula binary you run from a terminal (exact, via PATH shims)
+- CLI tool executions  -  any Homebrew formula binary you run from a terminal (exact, via PATH shims)
 
 **What it doesn't track:**
-- **Casks** — GUI apps installed via `brew install --cask` have no CLI binary to shim; they will always show as "never used" regardless of how often you open them
-- Binaries invoked by full absolute path (e.g. `/opt/homebrew/bin/git`) — shim is bypassed
+- **Casks**  -  GUI apps installed via `brew install --cask` have no CLI binary to shim; they will always show as "never used" regardless of how often you open them
+- Binaries invoked by full absolute path (e.g. `/opt/homebrew/bin/git`)  -  shim is bypassed
 - Binaries run from IDE terminals or scripts with a different PATH that doesn't include `~/.brewprune/bin`
 - Language imports (Python/Ruby/Node modules) unless a binary is also executed
 - Background daemons and launchd services that exec Homebrew binaries without going through your shell PATH
 
 **Accuracy notes:**
 - First 1-2 weeks may show misleading "never used" scores (insufficient data)
-- Casks will always score low — treat them as heuristic-only, not usage-based
+- Casks will always score low  -  treat them as heuristic-only, not usage-based
 - Libraries without binaries will appear unused if only imported, not executed
-- Score is a heuristic, not a certainty — always review before removing
+- Score is a heuristic, not a certainty  -  always review before removing
 - Newly installed packages aren't shimmed until the next `brewprune scan`
 
 ## Comparison to alternatives
@@ -363,25 +363,25 @@ This checks:
 - brewprune tracks real usage and removes packages you never touch, even if they're not technically orphaned
 
 ### vs manual cleanup
-- Manual cleanup is guesswork—you don't know what you last used or when
+- Manual cleanup is guesswork - you don't know what you last used or when
 - brewprune gives you heuristic scores based on actual data
 - Automatic snapshots mean you can always undo if you remove the wrong thing
 
 ### vs `brew cleanup`
 - `brew cleanup` removes old versions and cache files
 - brewprune removes entire unused packages
-- Different use cases—run both for maximum disk reclamation
+- Different use cases - run both for maximum disk reclamation
 
 ## Privacy
 
 - 100% local: data stored in `~/.brewprune/` (SQLite + snapshots)
 - No telemetry, no cloud sync, no network calls
-- Tracks binary executions only — logs command name + timestamp via PATH shims (not arguments, file contents, shell history, or network activity)
+- Tracks binary executions only  -  logs command name + timestamp via PATH shims (not arguments, file contents, shell history, or network activity)
 
 ## FAQ
 
 **Q: When does brewprune start being useful?**
-A: Immediately — `brewprune stats` shows real usage from the first day. For removal recommendations (`brewprune unused`), wait at least 1-2 weeks so scores reflect your actual workflow patterns. The longer you track, the more accurate the scores.
+A: Immediately  -  `brewprune stats` shows real usage from the first day. For removal recommendations (`brewprune unused`), wait at least 1-2 weeks so scores reflect your actual workflow patterns. The longer you track, the more accurate the scores.
 
 **Q: What happens if I remove something I need?**
 A: Run `brewprune undo latest` to reinstall the same package set (and specific versions when available from Homebrew). Exact version restoration depends on Homebrew bottle/formula availability.
@@ -397,10 +397,10 @@ A: brewprune records package name + timestamp when Homebrew-managed executables 
 It only knows "this binary/app was accessed at this time."
 
 **Q: Does this work with Homebrew Cask?**
-A: Partially. Cask scoring is heuristic-only (age, dependencies, type) — brewprune has no way to intercept GUI app launches via PATH shims, since casks don't install CLI binaries. Casks will always show "never used" regardless of how often you open them. Treat cask recommendations with extra caution and review manually before removing.
+A: Partially. Cask scoring is heuristic-only (age, dependencies, type)  -  brewprune has no way to intercept GUI app launches via PATH shims, since casks don't install CLI binaries. Casks will always show "never used" regardless of how often you open them. Treat cask recommendations with extra caution and review manually before removing.
 
 **Q: What if I use a package via a script?**
-A: As long as the script executes the binary directly, the shim will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage—be careful with `--medium` and `--risky` in this case.
+A: As long as the script executes the binary directly, the shim will catch it. If you only import a library (e.g., Python/Ruby gems installed via Homebrew), brewprune won't detect usage - be careful with `--medium` and `--risky` in this case.
 
 **Q: How do I see what snapshots I have?**
 A: Run `brewprune undo --list` to see all available snapshots with their IDs, creation times, and package counts.
