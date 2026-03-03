@@ -85,6 +85,19 @@ func ProcessUsageLog(st *store.Store) (ProcessingStats, error) {
 	}
 	defer f.Close()
 
+	// Check if offset is stale (exceeds file size)
+	fileInfo, err := f.Stat()
+	if err != nil {
+		return stats, fmt.Errorf("shim_processor: stat log: %w", err)
+	}
+	fileSize := fileInfo.Size()
+
+	if offset > fileSize {
+		// Offset is stale (file was truncated/deleted and recreated)
+		log.Printf("shim_processor: offset %d exceeds file size %d, resetting to 0", offset, fileSize)
+		offset = 0
+	}
+
 	if offset > 0 {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
 			// Offset may be stale after log rotation — reset to 0.
