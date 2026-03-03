@@ -967,7 +967,7 @@ notes: ""
 ### Agent A — Completion Report
 
 agent: A
-status: complete   # or partial/blocked
+status: complete
 findings_fixed: [1, 10, 15]
 files_modified:
   - internal/app/root.go
