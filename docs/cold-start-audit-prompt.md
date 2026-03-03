@@ -1,9 +1,9 @@
-# Cold-Start UX Audit Prompt - Round 11
+# Cold-Start UX Audit Prompt - Round 12
 
 **Metadata:**
-- Audit Date: 2026-03-02
+- Audit Date: 2026-03-03
 - Tool Version: brewprune version dev (commit: unknown, built: unknown)
-- Container: brewprune-r11
+- Container: brewprune-r12
 - Environment: Linux aarch64 (Ubuntu) with Homebrew (Linuxbrew)
 - Binary location: /home/linuxbrew/.linuxbrew/bin/brewprune
 - PATH in container: /home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -14,7 +14,7 @@ You are performing a UX audit of **brewprune** - a tool that tracks Homebrew pac
 
 You are acting as a **new user** encountering this tool for the first time.
 
-You have access to a Docker container called `brewprune-r11` with brewprune installed and the following packages available:
+You have access to a Docker container called `brewprune-r12` with brewprune installed and the following packages available:
 
 ```
 acl, bat, brotli, bzip2, ca-certificates, curl, cyrus-sasl, expat, fd,
@@ -24,7 +24,7 @@ libxml2, lz4, ncurses, oniguruma, openldap, openssl@3, pcre2, readline,
 ripgrep, sqlite, tmux, utf8proc, util-linux, xz, zlib-ng-compat, zstd
 ```
 
-Run ALL commands using: `docker exec brewprune-r11 <command>`
+Run ALL commands using: `docker exec brewprune-r12 <command>`
 
 ---
 
@@ -37,22 +37,22 @@ Test how a new user discovers brewprune's capabilities from zero knowledge.
 **Commands to run (in order):**
 
 ```
-docker exec brewprune-r11 brewprune --help
-docker exec brewprune-r11 brewprune --version
-docker exec brewprune-r11 brewprune -v
-docker exec brewprune-r11 brewprune help
-docker exec brewprune-r11 brewprune
-docker exec brewprune-r11 brewprune completion --help
-docker exec brewprune-r11 brewprune doctor --help
-docker exec brewprune-r11 brewprune explain --help
-docker exec brewprune-r11 brewprune quickstart --help
-docker exec brewprune-r11 brewprune remove --help
-docker exec brewprune-r11 brewprune scan --help
-docker exec brewprune-r11 brewprune stats --help
-docker exec brewprune-r11 brewprune status --help
-docker exec brewprune-r11 brewprune undo --help
-docker exec brewprune-r11 brewprune unused --help
-docker exec brewprune-r11 brewprune watch --help
+docker exec brewprune-r12 brewprune --help
+docker exec brewprune-r12 brewprune --version
+docker exec brewprune-r12 brewprune -v
+docker exec brewprune-r12 brewprune help
+docker exec brewprune-r12 brewprune
+docker exec brewprune-r12 brewprune completion --help
+docker exec brewprune-r12 brewprune doctor --help
+docker exec brewprune-r12 brewprune explain --help
+docker exec brewprune-r12 brewprune quickstart --help
+docker exec brewprune-r12 brewprune remove --help
+docker exec brewprune-r12 brewprune scan --help
+docker exec brewprune-r12 brewprune stats --help
+docker exec brewprune-r12 brewprune status --help
+docker exec brewprune-r12 brewprune undo --help
+docker exec brewprune-r12 brewprune unused --help
+docker exec brewprune-r12 brewprune watch --help
 ```
 
 **Reference: known help output structure**
@@ -79,24 +79,24 @@ Test the recommended path and the manual path for a new user setting up brewprun
 **Commands (Quickstart Path):**
 
 ```
-docker exec brewprune-r11 brewprune quickstart
-docker exec brewprune-r11 brewprune status
-docker exec brewprune-r11 ls -la /root/.brewprune/
-docker exec brewprune-r11 cat /root/.brewprune/watch.log
-docker exec brewprune-r11 brewprune doctor
+docker exec brewprune-r12 brewprune quickstart
+docker exec brewprune-r12 brewprune status
+docker exec brewprune-r12 ls -la /root/.brewprune/
+docker exec brewprune-r12 cat /root/.brewprune/watch.log
+docker exec brewprune-r12 brewprune doctor
 ```
 
 **Commands (Manual Path - run after resetting state):**
 
 ```
-docker exec brewprune-r11 rm -rf /root/.brewprune
-docker exec brewprune-r11 brewprune scan
-docker exec brewprune-r11 brewprune status
-docker exec brewprune-r11 brewprune watch --daemon
-docker exec brewprune-r11 brewprune status
-docker exec brewprune-r11 ls -la /root/.brewprune/
-docker exec brewprune-r11 cat /root/.brewprune/watch.pid
-docker exec brewprune-r11 brewprune doctor
+docker exec brewprune-r12 rm -rf /root/.brewprune
+docker exec brewprune-r12 brewprune scan
+docker exec brewprune-r12 brewprune status
+docker exec brewprune-r12 brewprune watch --daemon
+docker exec brewprune-r12 brewprune status
+docker exec brewprune-r12 ls -la /root/.brewprune/
+docker exec brewprune-r12 cat /root/.brewprune/watch.pid
+docker exec brewprune-r12 brewprune doctor
 ```
 
 **Evaluate:**
@@ -117,41 +117,41 @@ Test the primary value proposition. Run with no usage data (fresh state after qu
 **Commands (Default and basic flags):**
 
 ```
-docker exec brewprune-r11 brewprune unused
-docker exec brewprune-r11 brewprune unused --all
-docker exec brewprune-r11 brewprune unused --tier safe
-docker exec brewprune-r11 brewprune unused --tier medium
-docker exec brewprune-r11 brewprune unused --tier risky
+docker exec brewprune-r12 brewprune unused
+docker exec brewprune-r12 brewprune unused --all
+docker exec brewprune-r12 brewprune unused --tier safe
+docker exec brewprune-r12 brewprune unused --tier medium
+docker exec brewprune-r12 brewprune unused --tier risky
 ```
 
 **Commands (Score filtering):**
 
 ```
-docker exec brewprune-r11 brewprune unused --min-score 70
-docker exec brewprune-r11 brewprune unused --min-score 50
+docker exec brewprune-r12 brewprune unused --min-score 70
+docker exec brewprune-r12 brewprune unused --min-score 50
 ```
 
 **Commands (Sort options):**
 
 ```
-docker exec brewprune-r11 brewprune unused --sort score
-docker exec brewprune-r11 brewprune unused --sort size
-docker exec brewprune-r11 brewprune unused --sort age
+docker exec brewprune-r12 brewprune unused --sort score
+docker exec brewprune-r12 brewprune unused --sort size
+docker exec brewprune-r12 brewprune unused --sort age
 ```
 
 **Commands (Other flags):**
 
 ```
-docker exec brewprune-r11 brewprune unused --casks
-docker exec brewprune-r11 brewprune unused --verbose
-docker exec brewprune-r11 brewprune unused --tier safe --verbose
+docker exec brewprune-r12 brewprune unused --casks
+docker exec brewprune-r12 brewprune unused --verbose
+docker exec brewprune-r12 brewprune unused --tier safe --verbose
 ```
 
 **Commands (Potentially conflicting flag combinations  -  note: per --help, --tier always shows the specified tier regardless of --all):**
 
 ```
-docker exec brewprune-r11 brewprune unused --tier safe --all
-docker exec brewprune-r11 brewprune unused --all --tier medium
+docker exec brewprune-r12 brewprune unused --tier safe --all
+docker exec brewprune-r12 brewprune unused --all --tier medium
 ```
 
 **Evaluate:**
@@ -175,42 +175,42 @@ Test the usage tracking mechanism that feeds the scoring system. This requires s
 **Commands (Start daemon and verify):**
 
 ```
-docker exec brewprune-r11 brewprune watch --daemon
-docker exec brewprune-r11 cat /root/.brewprune/watch.pid
-docker exec brewprune-r11 brewprune status
+docker exec brewprune-r12 brewprune watch --daemon
+docker exec brewprune-r12 cat /root/.brewprune/watch.pid
+docker exec brewprune-r12 brewprune status
 ```
 
 **Commands (Generate usage via shimmed commands):**
 
 ```
-docker exec brewprune-r11 /root/.brewprune/bin/git --version
-docker exec brewprune-r11 /root/.brewprune/bin/jq --version
-docker exec brewprune-r11 /root/.brewprune/bin/bat --version
-docker exec brewprune-r11 /root/.brewprune/bin/fd --version
-docker exec brewprune-r11 /root/.brewprune/bin/rg --version
+docker exec brewprune-r12 /root/.brewprune/bin/git --version
+docker exec brewprune-r12 /root/.brewprune/bin/jq --version
+docker exec brewprune-r12 /root/.brewprune/bin/bat --version
+docker exec brewprune-r12 /root/.brewprune/bin/fd --version
+docker exec brewprune-r12 /root/.brewprune/bin/rg --version
 ```
 
 **Commands (Wait for daemon polling cycle and verify):**
 
 ```
-docker exec brewprune-r11 sleep 35
-docker exec brewprune-r11 cat /root/.brewprune/usage.log
-docker exec brewprune-r11 brewprune status
-docker exec brewprune-r11 brewprune stats
-docker exec brewprune-r11 brewprune stats --days 1
-docker exec brewprune-r11 brewprune stats --days 7
-docker exec brewprune-r11 brewprune stats --days 90
-docker exec brewprune-r11 brewprune stats --package git
-docker exec brewprune-r11 brewprune stats --package jq
-docker exec brewprune-r11 brewprune stats --all
+docker exec brewprune-r12 sleep 35
+docker exec brewprune-r12 cat /root/.brewprune/usage.log
+docker exec brewprune-r12 brewprune status
+docker exec brewprune-r12 brewprune stats
+docker exec brewprune-r12 brewprune stats --days 1
+docker exec brewprune-r12 brewprune stats --days 7
+docker exec brewprune-r12 brewprune stats --days 90
+docker exec brewprune-r12 brewprune stats --package git
+docker exec brewprune-r12 brewprune stats --package jq
+docker exec brewprune-r12 brewprune stats --all
 ```
 
 **Commands (Stop daemon and verify):**
 
 ```
-docker exec brewprune-r11 brewprune watch --stop
-docker exec brewprune-r11 brewprune status
-docker exec brewprune-r11 ls -la /root/.brewprune/
+docker exec brewprune-r12 brewprune watch --stop
+docker exec brewprune-r12 brewprune status
+docker exec brewprune-r12 ls -la /root/.brewprune/
 ```
 
 **Evaluate:**
@@ -232,19 +232,19 @@ Test the per-package drill-down feature with valid installed packages, invalid p
 **Commands (Valid packages from container's brew list):**
 
 ```
-docker exec brewprune-r11 brewprune explain git
-docker exec brewprune-r11 brewprune explain jq
-docker exec brewprune-r11 brewprune explain bat
-docker exec brewprune-r11 brewprune explain openssl@3
-docker exec brewprune-r11 brewprune explain curl
+docker exec brewprune-r12 brewprune explain git
+docker exec brewprune-r12 brewprune explain jq
+docker exec brewprune-r12 brewprune explain bat
+docker exec brewprune-r12 brewprune explain openssl@3
+docker exec brewprune-r12 brewprune explain curl
 ```
 
 **Commands (Invalid and edge cases):**
 
 ```
-docker exec brewprune-r11 brewprune explain nonexistent-package
-docker exec brewprune-r11 brewprune explain
-docker exec brewprune-r11 brewprune explain --help
+docker exec brewprune-r12 brewprune explain nonexistent-package
+docker exec brewprune-r12 brewprune explain
+docker exec brewprune-r12 brewprune explain --help
 ```
 
 **Evaluate:**
@@ -267,21 +267,21 @@ Test the health check and diagnostic system under different system states.
 **Commands (After quickstart  -  healthy state):**
 
 ```
-docker exec brewprune-r11 brewprune doctor
+docker exec brewprune-r12 brewprune doctor
 ```
 
 **Commands (With stopped daemon  -  degraded state):**
 
 ```
-docker exec brewprune-r11 brewprune watch --stop
-docker exec brewprune-r11 brewprune doctor
+docker exec brewprune-r12 brewprune watch --stop
+docker exec brewprune-r12 brewprune doctor
 ```
 
 **Commands (Before any setup  -  blank state):**
 
 ```
-docker exec brewprune-r11 rm -rf /root/.brewprune
-docker exec brewprune-r11 brewprune doctor
+docker exec brewprune-r12 rm -rf /root/.brewprune
+docker exec brewprune-r12 brewprune doctor
 ```
 
 **Evaluate:**
@@ -302,41 +302,41 @@ Test package removal and rollback features with safety mechanisms. Always run dr
 **Commands (Dry-run previews  -  safe to run anytime):**
 
 ```
-docker exec brewprune-r11 brewprune remove --safe --dry-run
-docker exec brewprune-r11 brewprune remove --medium --dry-run
-docker exec brewprune-r11 brewprune remove --risky --dry-run
-docker exec brewprune-r11 brewprune remove --tier safe --dry-run
-docker exec brewprune-r11 brewprune remove bat fd --dry-run
+docker exec brewprune-r12 brewprune remove --safe --dry-run
+docker exec brewprune-r12 brewprune remove --medium --dry-run
+docker exec brewprune-r12 brewprune remove --risky --dry-run
+docker exec brewprune-r12 brewprune remove --tier safe --dry-run
+docker exec brewprune-r12 brewprune remove bat fd --dry-run
 ```
 
 **Commands (Check snapshot list before any removal):**
 
 ```
-docker exec brewprune-r11 brewprune undo --list
+docker exec brewprune-r12 brewprune undo --list
 ```
 
 **Commands (Actual removal  -  safe tier only with --yes):**
 
 ```
-docker exec brewprune-r11 brewprune remove --safe --yes
-docker exec brewprune-r11 brewprune undo --list
-docker exec brewprune-r11 brewprune status
+docker exec brewprune-r12 brewprune remove --safe --yes
+docker exec brewprune-r12 brewprune undo --list
+docker exec brewprune-r12 brewprune status
 ```
 
 **Commands (Rollback):**
 
 ```
-docker exec brewprune-r11 brewprune undo latest --yes
-docker exec brewprune-r11 brewprune undo --list
+docker exec brewprune-r12 brewprune undo latest --yes
+docker exec brewprune-r12 brewprune undo --list
 ```
 
 **Commands (Invalid and conflicting operations):**
 
 ```
-docker exec brewprune-r11 brewprune remove nonexistent-package
-docker exec brewprune-r11 brewprune remove --safe --medium
-docker exec brewprune-r11 brewprune undo 999
-docker exec brewprune-r11 brewprune undo
+docker exec brewprune-r12 brewprune remove nonexistent-package
+docker exec brewprune-r12 brewprune remove --safe --medium
+docker exec brewprune-r12 brewprune undo 999
+docker exec brewprune-r12 brewprune undo
 ```
 
 **Evaluate:**
@@ -360,50 +360,50 @@ Test boundary conditions and invalid input handling across all commands.
 **Commands (No-argument invocations):**
 
 ```
-docker exec brewprune-r11 brewprune
-docker exec brewprune-r11 brewprune unused
-docker exec brewprune-r11 brewprune stats
-docker exec brewprune-r11 brewprune remove
-docker exec brewprune-r11 brewprune explain
-docker exec brewprune-r11 brewprune undo
+docker exec brewprune-r12 brewprune
+docker exec brewprune-r12 brewprune unused
+docker exec brewprune-r12 brewprune stats
+docker exec brewprune-r12 brewprune remove
+docker exec brewprune-r12 brewprune explain
+docker exec brewprune-r12 brewprune undo
 ```
 
 **Commands (Unknown subcommands):**
 
 ```
-docker exec brewprune-r11 brewprune blorp
-docker exec brewprune-r11 brewprune list
-docker exec brewprune-r11 brewprune prune
+docker exec brewprune-r12 brewprune blorp
+docker exec brewprune-r12 brewprune list
+docker exec brewprune-r12 brewprune prune
 ```
 
 **Commands (Invalid flag values):**
 
 ```
-docker exec brewprune-r11 brewprune unused --invalid-flag
-docker exec brewprune-r11 brewprune unused --tier invalid
-docker exec brewprune-r11 brewprune unused --min-score 200
-docker exec brewprune-r11 brewprune unused --sort invalid
-docker exec brewprune-r11 brewprune stats --days -1
-docker exec brewprune-r11 brewprune stats --days abc
+docker exec brewprune-r12 brewprune unused --invalid-flag
+docker exec brewprune-r12 brewprune unused --tier invalid
+docker exec brewprune-r12 brewprune unused --min-score 200
+docker exec brewprune-r12 brewprune unused --sort invalid
+docker exec brewprune-r12 brewprune stats --days -1
+docker exec brewprune-r12 brewprune stats --days abc
 ```
 
 **Commands (Conflicting flags):**
 
 ```
-docker exec brewprune-r11 brewprune remove --safe --medium --risky
-docker exec brewprune-r11 brewprune remove --safe --tier medium
-docker exec brewprune-r11 brewprune unused --tier safe --all
-docker exec brewprune-r11 brewprune watch --daemon --stop
+docker exec brewprune-r12 brewprune remove --safe --medium --risky
+docker exec brewprune-r12 brewprune remove --safe --tier medium
+docker exec brewprune-r12 brewprune unused --tier safe --all
+docker exec brewprune-r12 brewprune watch --daemon --stop
 ```
 
 **Commands (Missing prerequisites  -  after rm -rf):**
 
 ```
-docker exec brewprune-r11 rm -rf /root/.brewprune
-docker exec brewprune-r11 brewprune unused
-docker exec brewprune-r11 brewprune stats
-docker exec brewprune-r11 brewprune remove --safe
-docker exec brewprune-r11 brewprune status
+docker exec brewprune-r12 rm -rf /root/.brewprune
+docker exec brewprune-r12 brewprune unused
+docker exec brewprune-r12 brewprune stats
+docker exec brewprune-r12 brewprune remove --safe
+docker exec brewprune-r12 brewprune status
 ```
 
 **Evaluate:**
@@ -425,18 +425,18 @@ Review the overall presentation, formatting, and consistency of all output modes
 **Commands (Capture all output modes for review):**
 
 ```
-docker exec brewprune-r11 brewprune --help
-docker exec brewprune-r11 brewprune unused
-docker exec brewprune-r11 brewprune unused --all
-docker exec brewprune-r11 brewprune unused --tier safe --verbose
-docker exec brewprune-r11 brewprune status
-docker exec brewprune-r11 brewprune stats
-docker exec brewprune-r11 brewprune stats --all
-docker exec brewprune-r11 brewprune explain git
-docker exec brewprune-r11 brewprune explain openssl@3
-docker exec brewprune-r11 brewprune doctor
-docker exec brewprune-r11 brewprune undo --list
-docker exec brewprune-r11 brewprune remove --safe --dry-run
+docker exec brewprune-r12 brewprune --help
+docker exec brewprune-r12 brewprune unused
+docker exec brewprune-r12 brewprune unused --all
+docker exec brewprune-r12 brewprune unused --tier safe --verbose
+docker exec brewprune-r12 brewprune status
+docker exec brewprune-r12 brewprune stats
+docker exec brewprune-r12 brewprune stats --all
+docker exec brewprune-r12 brewprune explain git
+docker exec brewprune-r12 brewprune explain openssl@3
+docker exec brewprune-r12 brewprune doctor
+docker exec brewprune-r12 brewprune undo --list
+docker exec brewprune-r12 brewprune remove --safe --dry-run
 ```
 
 **Evaluate:**
@@ -533,13 +533,13 @@ Your final report must include:
 
 Write the complete audit report to:
 
-**`/Users/dayna.blackwell/code/brewprune/docs/cold-start-audit-r11.md`**
+**`/Users/dayna.blackwell/code/brewprune/docs/cold-start-audit-r12.md`**
 
 Use the **Write** tool to create this file.
 
 ---
 
-## Regression Verification (Round 11 fixes)
+## Regression Verification (Round 12 fixes)
 
 After completing the 9 audit areas above, explicitly verify the following fixed behaviors. Mark each PASS / FAIL / PARTIAL PASS with the observed output:
 
@@ -560,7 +560,7 @@ After completing the 9 audit areas above, explicitly verify the following fixed 
 
 ## IMPORTANT
 
-- Run ALL commands via `docker exec brewprune-r11 <command>`  -  never run brewprune directly on the host
+- Run ALL commands via `docker exec brewprune-r12 <command>`  -  never run brewprune directly on the host
 - Capture exact error messages and exit codes for every command
 - Note timing (e.g., "took 3 seconds", "no progress indicator for 45 seconds")
 - Note the shim path: shims are in `/root/.brewprune/bin/` inside the container  -  when testing usage tracking (Area 4), invoke via the full shim path since ~/.brewprune/bin may not be in the docker exec PATH
