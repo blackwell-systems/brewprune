@@ -18,10 +18,11 @@ const maxShimLogLinesPerTick = 10_000
 
 // ProcessingStats holds per-cycle summary from ProcessUsageLog.
 type ProcessingStats struct {
-	LinesRead int
-	Resolved  int
-	Skipped   int
-	Inserted  int
+	LinesRead      int
+	Resolved       int
+	Skipped        int
+	Inserted       int
+	SkippedNoIndex int // lines not advanced because both binaryMap+optPathMap were empty
 }
 
 // ProcessUsageLog reads new entries from ~/.brewprune/usage.log since the last
@@ -72,7 +73,8 @@ func ProcessUsageLog(st *store.Store) (ProcessingStats, error) {
 		return stats, fmt.Errorf("shim_processor: build opt path map: %w", err)
 	}
 
-	if len(binaryMap) == 0 && len(optPathMap) == 0 {
+	noPackagesIndexed := len(binaryMap) == 0 && len(optPathMap) == 0
+	if noPackagesIndexed {
 		log.Printf("shim_processor: warning: no packages indexed yet — run 'brewprune scan' first")
 	}
 
@@ -179,7 +181,13 @@ func ProcessUsageLog(st *store.Store) (ProcessingStats, error) {
 	}
 
 	if len(events) == 0 {
-		// Advance offset even if no events matched (skip unknown binaries).
+		if noPackagesIndexed {
+			// No packages indexed — retain offset so entries are retried next tick
+			// after 'brewprune scan' has populated the database.
+			stats.SkippedNoIndex = stats.LinesRead
+			return stats, nil
+		}
+		// Packages are indexed but nothing matched — advance offset to skip unknowns.
 		if newOffset != offset {
 			return stats, writeShimOffsetAtomic(offsetPath, newOffset)
 		}
