@@ -78,7 +78,7 @@ Examples:
 		// users immediately know what to type next.
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 && cmd.HasSubCommands() {
-				return fmt.Errorf("unknown command %q for %q\nValid commands: %s\nRun 'brewprune --help' for usage.",
+				return fmt.Errorf("unknown command %q for %q\nValid commands: %s\nRun 'brewprune --help' for usage",
 					args[0], cmd.CommandPath(), validCommandsList)
 			}
 			return nil
@@ -130,7 +130,7 @@ func setupFlagErrorFuncs() {
 	for _, sub := range RootCmd.Commands() {
 		sub := sub // capture loop var
 		sub.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-			return fmt.Errorf("%w\nRun 'brewprune %s --help' to see valid flags.", err, cmd.Name())
+			return fmt.Errorf("%w\nRun 'brewprune %s --help' to see valid flags", err, cmd.Name())
 		})
 	}
 }
