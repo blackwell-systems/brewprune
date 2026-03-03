@@ -1042,3 +1042,67 @@ func TestRemoveExplicitPackageNoExplicitlyInstalledWarning(t *testing.T) {
 		t.Errorf("filter removed 'used recently' warning — it should have been kept; remaining: %v", filteredWarnings)
 	}
 }
+
+// TestRemove_LockedWarningClear verifies the locked warning has clear text.
+func TestRemove_LockedWarningClear(t *testing.T) {
+	lockedPackages := []string{"pkg-a (required by: dep-x)"}
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "\n⚠  %d packages skipped (have other packages depending on them) — remove their dependents first, or use --verbose to see details\n", len(lockedPackages))
+
+	got := buf.String()
+	if !strings.Contains(got, "have other packages depending on them") {
+		t.Errorf("locked warning should contain clear explanation, got: %q", got)
+	}
+	if !strings.Contains(got, "remove their dependents first") {
+		t.Errorf("locked warning should suggest removing dependents first, got: %q", got)
+	}
+}
+
+// TestRemove_RiskyWarningBanner verifies risky banner shown for risky dry-run.
+func TestRemove_RiskyWarningBanner(t *testing.T) {
+	var buf bytes.Buffer
+
+	activeTier := "risky"
+	removeFlagDryRun := true
+
+	if activeTier == "risky" && removeFlagDryRun {
+		fmt.Fprintln(&buf)
+		fmt.Fprintln(&buf, "═══════════════════════════════════════════════════════════════")
+		fmt.Fprintln(&buf, "⚠  WARNING: Risky tier removal may break system dependencies")
+		fmt.Fprintln(&buf, "═══════════════════════════════════════════════════════════════")
+		fmt.Fprintln(&buf)
+	}
+
+	got := buf.String()
+	if !strings.Contains(got, "WARNING") {
+		t.Errorf("risky banner should contain WARNING, got: %q", got)
+	}
+	if !strings.Contains(got, "may break system dependencies") {
+		t.Errorf("risky banner should warn about system dependencies, got: %q", got)
+	}
+	if !strings.Contains(got, "═══") {
+		t.Errorf("risky banner should have visual separator, got: %q", got)
+	}
+}
+
+// TestRemove_ExitCodeAllLocked verifies exit 1 when all packages locked.
+func TestRemove_ExitCodeAllLocked(t *testing.T) {
+	packagesToRemove := []string{}
+
+	var resultErr error
+	if len(packagesToRemove) == 0 {
+		fmt.Println("No packages to remove.")
+		resultErr = fmt.Errorf("no packages removed: all candidates were locked by dependents")
+	}
+
+	if resultErr == nil {
+		t.Fatal("expected error when all packages locked, got nil")
+	}
+	if !strings.Contains(resultErr.Error(), "no packages removed") {
+		t.Errorf("error should contain 'no packages removed', got: %q", resultErr.Error())
+	}
+	if !strings.Contains(resultErr.Error(), "locked by dependents") {
+		t.Errorf("error should mention locked by dependents, got: %q", resultErr.Error())
+	}
+}

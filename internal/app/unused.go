@@ -127,6 +127,7 @@ func runUnused(cmd *cobra.Command, args []string) error {
 	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
 	row.Scan(&eventCount)
 	showRiskyImplicit := (unusedTier == "" && !unusedAll && eventCount == 0)
+	hasUsageData := eventCount > 0
 
 	// Check for usage data and daemon status; pass showRiskyImplicit so the
 	// warning can incorporate the risky-tier-included note in a single block.
@@ -381,32 +382,26 @@ func runUnused(cmd *cobra.Command, args []string) error {
 				InstalledAt: installedAt,
 			}
 		}
-		table := output.RenderConfidenceTable(outputScores)
+		table := output.RenderConfidenceTable(outputScores, hasUsageData)
 		fmt.Print(table)
 	}
 
-	// Show sort direction note for all sort modes
+	// Show sort direction note (only for non-default sorts)
+	fmt.Println()
 	switch unusedSort {
 	case "age":
 		if allSameInstallTime {
-			fmt.Println()
 			fmt.Println("Note: All packages installed at the same time — age sort has no effect. Sorted by tier, then alphabetically.")
 		} else {
-			fmt.Println()
 			fmt.Println("Sorted by: install date (oldest first)")
 		}
 	case "size":
-		fmt.Println()
 		fmt.Println("Sorted by: size (largest first)")
 	case "score":
-		fmt.Println()
-		fmt.Println("Sorted by: score (highest first)")
+		// Default sort - don't show annotation
 	}
 
-	// Show reclaimable footer (replaces old summary block)
-	fmt.Println()
-	footer := output.RenderReclaimableFooter(safeTier, mediumTier, riskyTier, unusedAll || unusedTier != "" || showRiskyImplicit)
-	fmt.Println(footer)
+	// Reclaimable footer removed - tier summary header already shows this info
 
 	// Show filter explanation - separate counts for clarity
 	var hiddenMessages []string
@@ -565,8 +560,6 @@ func showConfidenceAssessment(st *store.Store) error {
 		daysSinceTracking = int(time.Since(firstEventTime).Hours() / 24)
 	}
 
-	fmt.Println()
-
 	// VISUAL-1: TTY check — guard all ANSI sequences to prevent leakage when piped
 	isColor := func() bool {
 		if os.Getenv("NO_COLOR") != "" {
@@ -584,37 +577,40 @@ func showConfidenceAssessment(st *store.Store) error {
 		colorReset  = "\033[0m"
 	)
 
-	// UNUSED-3: Score inversion note — printed once before confidence line.
-	// Canonical verbose Breakdown format (for Agent G / explain.go to match):
-	//   Breakdown:
-	//     (score measures removal confidence: higher = safer to remove)
-	//     Usage:        <n>/40 pts - <detail>
-	//     Dependencies: <n>/30 pts - <detail>
-	//     Age:          <n>/20 pts - <detail>
-	//     Type:         <n>/10 pts - <detail>
-	fmt.Println("Breakdown:")
-	fmt.Println("  (score measures removal confidence: higher = safer to remove)")
+	var confidenceLevel string
+	if eventCount == 0 {
+		confidenceLevel = "LOW"
+	} else if daysSinceTracking < 7 {
+		confidenceLevel = "MEDIUM"
+	} else {
+		confidenceLevel = "HIGH"
+	}
+
+	fmt.Println()
 
 	if isColor {
-		if eventCount == 0 {
-			fmt.Printf("Confidence: %sLOW%s (0 usage events recorded, tracking since: never)\n", colorRed, colorReset)
-			fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
-		} else if daysSinceTracking < 7 {
-			fmt.Printf("Confidence: %sMEDIUM%s (%d events, tracking for %d days)\n", colorYellow, colorReset, eventCount, daysSinceTracking)
-			fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
-		} else {
-			fmt.Printf("Confidence: %sHIGH%s (%d events, tracking for %d days)\n", colorGreen, colorReset, eventCount, daysSinceTracking)
+		switch confidenceLevel {
+		case "LOW":
+			fmt.Printf("Confidence: %sLOW%s (%d usage events, tracking since: never)\n", colorRed, colorReset, eventCount)
+		case "MEDIUM":
+			fmt.Printf("Confidence: %sMEDIUM%s (%d usage events, tracking since: %s)\n", colorYellow, colorReset, eventCount, firstEventTime.Format("2006-01-02"))
+		case "HIGH":
+			fmt.Printf("Confidence: %sHIGH%s (%d usage events, tracking since: %s)\n", colorGreen, colorReset, eventCount, firstEventTime.Format("2006-01-02"))
 		}
 	} else {
-		if eventCount == 0 {
-			fmt.Printf("Confidence: LOW (0 usage events recorded, tracking since: never)\n")
-			fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
-		} else if daysSinceTracking < 7 {
-			fmt.Printf("Confidence: MEDIUM (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
-			fmt.Println("Tip: 1-2 weeks of data provides more reliable recommendations")
-		} else {
-			fmt.Printf("Confidence: HIGH (%d events, tracking for %d days)\n", eventCount, daysSinceTracking)
+		switch confidenceLevel {
+		case "LOW":
+			fmt.Printf("Confidence: LOW (%d usage events, tracking since: never)\n", eventCount)
+		case "MEDIUM":
+			fmt.Printf("Confidence: MEDIUM (%d usage events, tracking since: %s)\n", eventCount, firstEventTime.Format("2006-01-02"))
+		case "HIGH":
+			fmt.Printf("Confidence: HIGH (%d usage events, tracking since: %s)\n", eventCount, firstEventTime.Format("2006-01-02"))
 		}
+	}
+
+	// Only show tip for LOW confidence
+	if confidenceLevel == "LOW" {
+		fmt.Println("Tip: Wait 1-2 weeks with daemon running for better recommendations")
 	}
 
 	return nil

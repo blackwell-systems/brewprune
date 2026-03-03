@@ -132,7 +132,7 @@ func ExampleRenderConfidenceTable() {
 		},
 	}
 
-	table := output.RenderConfidenceTable(scores)
+	table := output.RenderConfidenceTable(scores, true)
 	fmt.Println(table)
 }
 

@@ -83,7 +83,9 @@ func RenderPackageTable(packages []*brew.Package) string {
 // Note: Does not sort - expects scores to be pre-sorted by caller.
 // When any score has a non-zero InstalledAt, the "Last Used" column is replaced
 // with "Installed" showing the install date in YYYY-MM-DD format.
-func RenderConfidenceTable(scores []ConfidenceScore) string {
+// The hasUsageData parameter controls whether "never" or "—" is shown for packages
+// with no usage: when false (no tracking data exists), "—" is shown; when true, "never".
+func RenderConfidenceTable(scores []ConfidenceScore, hasUsageData bool) string {
 	if len(scores) == 0 {
 		return "No confidence scores available.\n"
 	}
@@ -134,7 +136,12 @@ func RenderConfidenceTable(scores []ConfidenceScore) string {
 			}
 		} else {
 			usesStr = fmt.Sprintf("%d", score.Uses7d)
-			timeCol = formatRelativeTime(score.LastUsed)
+			// When hasUsageData is false and LastUsed is zero, show "—" instead of "never"
+			if !hasUsageData && score.LastUsed.IsZero() {
+				timeCol = "\u2014"
+			} else {
+				timeCol = formatRelativeTime(score.LastUsed)
+			}
 		}
 
 		if IsColorEnabled() {

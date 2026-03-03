@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
 	"github.com/blackwell-systems/brewprune/internal/store"
@@ -86,8 +87,14 @@ func runExplain(cmd *cobra.Command, args []string) error {
 		dependents = nil // non-fatal: best effort
 	}
 
+	// Retrieve usage stats (best effort — non-fatal if this fails)
+	usageStats, err := a.GetUsageStats(packageName)
+	if err != nil {
+		usageStats = nil // non-fatal: best effort
+	}
+
 	// Display detailed explanation
-	renderExplanation(score, installedDate, dependents)
+	renderExplanation(score, installedDate, dependents, usageStats)
 
 	return nil
 }
@@ -95,7 +102,7 @@ func runExplain(cmd *cobra.Command, args []string) error {
 // renderExplanation displays a detailed breakdown of a package's confidence score.
 //
 // ANSI color codes are emitted only when stdout is a TTY and NO_COLOR is unset.
-func renderExplanation(score *analyzer.ConfidenceScore, installedDate string, dependents []string) {
+func renderExplanation(score *analyzer.ConfidenceScore, installedDate string, dependents []string, usageStats *analyzer.UsageStats) {
 	// TTY detection: use os.Stdout.Stat() directly (os.Stdout is *os.File, not an interface).
 	isColor := func() bool {
 		if os.Getenv("NO_COLOR") != "" {
@@ -143,6 +150,17 @@ func renderExplanation(score *analyzer.ConfidenceScore, installedDate string, de
 	fmt.Println("\nBreakdown:")
 	fmt.Println("  (score measures removal confidence: higher = safer to remove)")
 	fmt.Printf("  %-13s %2d/40 pts - %s%s\n", "Usage:", score.UsageScore, truncateDetail(score.Explanation.UsageDetail, 40), usageSignalLabel(score.UsageScore))
+
+	// Usage history timeline
+	if usageStats != nil && usageStats.TotalUses > 0 {
+		fmt.Printf("  Usage history: %d total runs, last used %s ago (%s frequency)\n",
+			usageStats.TotalUses,
+			formatUsageDuration(time.Since(*usageStats.LastUsed)),
+			usageStats.Frequency)
+	} else if usageStats != nil {
+		fmt.Println("  Usage history: no recorded usage")
+	}
+
 	fmt.Printf("  %-13s %2d/30 pts - %s\n", "Dependencies:", score.DepsScore, truncateDetail(score.Explanation.DepsDetail, 50))
 	if len(dependents) > 0 {
 		const maxNames = 8
@@ -215,4 +233,19 @@ func truncateDetail(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// formatUsageDuration converts a duration to a human-readable string for usage history display.
+func formatUsageDuration(d time.Duration) string {
+	days := int(d.Hours() / 24)
+	if days == 0 {
+		return "today"
+	} else if days == 1 {
+		return "1 day"
+	} else if days < 30 {
+		return fmt.Sprintf("%d days", days)
+	} else if days < 365 {
+		return fmt.Sprintf("%d months", days/30)
+	}
+	return fmt.Sprintf("%d years", days/365)
 }

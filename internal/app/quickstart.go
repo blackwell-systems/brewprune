@@ -16,6 +16,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func platformName() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macOS"
+	case "linux":
+		return "Linux"
+	default:
+		return runtime.GOOS
+	}
+}
+
 var quickstartCmd = &cobra.Command{
 	Use:   "quickstart",
 	Short: "End-to-end setup workflow for new brewprune installations",
@@ -112,7 +123,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 			fmt.Println("  Please add the following line to your shell config manually:")
 			fmt.Printf("    export PATH=%q:$PATH\n", shimDir)
 		} else if added {
-			fmt.Printf("  ✓ Added %s to PATH in %s\n", shimDir, configFile)
+			fmt.Printf("  ✓ Added %s to PATH in %s (%s)\n", shimDir, configFile, platformName())
 			fmt.Println("  Restart your shell (or source the config file) for this to take effect.")
 		} else {
 			fmt.Printf("  ✓ %s is already configured in ~/.profile\n", shimDir)
@@ -141,7 +152,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	if brewPath, lookErr := exec.LookPath("brew"); lookErr == nil {
 		if runtime.GOOS == "linux" {
 			// brew services is not reliable on Linux; skip directly to daemon
-			fmt.Println("  brew found but using daemon mode (brew services not supported on Linux)")
+			fmt.Println("  (using daemon mode - brew services not supported on Linux)")
 			if daemonErr := startWatchDaemonFallback(cmd, args); daemonErr != nil {
 				if strings.Contains(daemonErr.Error(), "already running") {
 					fmt.Println("  ✓ Daemon already running")
@@ -159,7 +170,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 			serviceCmd.Stdout = nil
 			serviceCmd.Stderr = nil
 			if serviceErr := serviceCmd.Run(); serviceErr != nil {
-				fmt.Println("  brew services unavailable — using daemon mode")
+				fmt.Println("  (using daemon mode)")
 				if daemonErr := startWatchDaemonFallback(cmd, args); daemonErr != nil {
 					if strings.Contains(daemonErr.Error(), "already running") {
 						fmt.Println("  ✓ Daemon already running")
@@ -230,15 +241,11 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 
 	if pathNotActive {
 		configFile := detectShellConfig()
-		fmt.Println("⚠  TRACKING IS NOT ACTIVE YET")
 		fmt.Println()
-		fmt.Println("   Your shell has not loaded the new PATH. Commands you run now")
-		fmt.Println("   will NOT be tracked by brewprune.")
+		fmt.Printf("⚠  Tracking requires shell restart: source %s (or restart terminal)\n", configFile)
 		fmt.Println()
-		fmt.Println("   To activate tracking immediately:")
-		fmt.Printf("     source %s\n", configFile)
-		fmt.Println()
-		fmt.Println("   Or restart your terminal.")
+		fmt.Println("After sourcing, verify with 'which git' (should show ~/.brewprune/bin/git)")
+		fmt.Println("The daemon is running and will start tracking once PATH is active.")
 		fmt.Println()
 		fmt.Println("Setup complete — one step remains (see warning above).")
 	} else {

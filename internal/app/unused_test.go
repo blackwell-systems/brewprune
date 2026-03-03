@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -1464,5 +1465,237 @@ func TestUnusedNoDBErrorMessage(t *testing.T) {
 func TestUnusedLongHasPrereqNote(t *testing.T) {
 	if !strings.Contains(unusedCmd.Long, "brewprune scan") {
 		t.Error("unusedCmd.Long should mention 'brewprune scan' as a prerequisite")
+	}
+}
+
+// TestUnused_LastUsedDisplayNoData verifies that when no usage events exist,
+// the Last Used column shows "—" instead of "never".
+func TestUnused_LastUsedDisplayNoData(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpDB := tmpDir + "/test.db"
+
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Insert a test package
+	pkg := &brew.Package{
+		Name:        "wget",
+		SizeBytes:   1048576,
+		InstalledAt: time.Now().AddDate(0, 0, -30),
+	}
+	if err := st.InsertPackage(pkg); err != nil {
+		t.Fatalf("failed to insert package: %v", err)
+	}
+
+	// Don't insert any usage events - eventCount will be 0
+
+	st.Close()
+
+	// Point command at our test DB
+	savedDBPath := dbPath
+	defer func() { dbPath = savedDBPath }()
+	dbPath = tmpDB
+
+	// Reset flags
+	savedTier := unusedTier
+	savedAll := unusedAll
+	savedSort := unusedSort
+	savedVerbose := unusedVerbose
+	savedCasks := unusedCasks
+	defer func() {
+		unusedTier = savedTier
+		unusedAll = savedAll
+		unusedSort = savedSort
+		unusedVerbose = savedVerbose
+		unusedCasks = savedCasks
+	}()
+	unusedTier = ""
+	unusedAll = true
+	unusedSort = "score"
+	unusedVerbose = false
+	unusedCasks = false
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	// Run command
+	err = runUnused(unusedCmd, nil)
+	w.Close()
+
+	if err != nil {
+		t.Fatalf("runUnused failed: %v", err)
+	}
+
+	outputBytes, _ := io.ReadAll(r)
+	output := string(outputBytes)
+
+	// Verify "—" appears instead of "never" for wget
+	if !strings.Contains(output, "\u2014") {
+		t.Errorf("expected output to contain '—' (em dash) when no usage data, got:\n%s", output)
+	}
+
+	// Should NOT show "never" for packages with no usage data
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "wget") && strings.Contains(line, "never") {
+			t.Errorf("expected wget line NOT to show 'never' when no usage data exists, got:\n%s", line)
+		}
+	}
+}
+
+// TestUnused_NoReclaimableFooter verifies that the footer doesn't duplicate
+// the reclaimable space info from the header.
+func TestUnused_NoReclaimableFooter(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpDB := tmpDir + "/test.db"
+
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Insert test packages
+	packages := []*brew.Package{
+		{Name: "wget", SizeBytes: 1048576, InstalledAt: time.Now().AddDate(0, 0, -90)},
+		{Name: "curl", SizeBytes: 2097152, InstalledAt: time.Now().AddDate(0, 0, -60)},
+	}
+	for _, pkg := range packages {
+		if err := st.InsertPackage(pkg); err != nil {
+			t.Fatalf("failed to insert package: %v", err)
+		}
+	}
+
+	st.Close()
+
+	savedDBPath := dbPath
+	defer func() { dbPath = savedDBPath }()
+	dbPath = tmpDB
+
+	savedTier := unusedTier
+	savedAll := unusedAll
+	defer func() {
+		unusedTier = savedTier
+		unusedAll = savedAll
+	}()
+	unusedTier = ""
+	unusedAll = true
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	err = runUnused(unusedCmd, nil)
+	w.Close()
+
+	if err != nil {
+		t.Fatalf("runUnused failed: %v", err)
+	}
+
+	outputBytes, _ := io.ReadAll(r)
+	output := string(outputBytes)
+
+	// Count occurrences of "Reclaimable:" - should only appear once (in header)
+	count := strings.Count(output, "Reclaimable:")
+	if count > 1 {
+		t.Errorf("expected 'Reclaimable:' to appear at most once (in header), found %d times:\n%s", count, output)
+	}
+}
+
+// TestUnused_SortedByOnlyNonDefault verifies that "Sorted by:" annotation
+// only appears for non-default sorts (size, age), not for default (score).
+func TestUnused_SortedByOnlyNonDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpDB := tmpDir + "/test.db"
+
+	st, err := store.New(tmpDB)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Insert test packages
+	packages := []*brew.Package{
+		{Name: "wget", SizeBytes: 1048576, InstalledAt: time.Now().AddDate(0, 0, -90)},
+		{Name: "curl", SizeBytes: 2097152, InstalledAt: time.Now().AddDate(0, 0, -60)},
+	}
+	for _, pkg := range packages {
+		if err := st.InsertPackage(pkg); err != nil {
+			t.Fatalf("failed to insert package: %v", err)
+		}
+	}
+
+	st.Close()
+
+	savedDBPath := dbPath
+	defer func() { dbPath = savedDBPath }()
+	dbPath = tmpDB
+
+	savedTier := unusedTier
+	savedAll := unusedAll
+	savedSort := unusedSort
+	defer func() {
+		unusedTier = savedTier
+		unusedAll = savedAll
+		unusedSort = savedSort
+	}()
+	unusedTier = ""
+	unusedAll = true
+
+	// Test default sort (score) - should NOT show "Sorted by:"
+	unusedSort = "score"
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err = runUnused(unusedCmd, nil)
+	w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("runUnused failed: %v", err)
+	}
+
+	outputBytes, _ := io.ReadAll(r)
+	output := string(outputBytes)
+
+	if strings.Contains(output, "Sorted by: score") {
+		t.Errorf("expected NO 'Sorted by: score' annotation for default sort, got:\n%s", output)
+	}
+
+	// Test non-default sort (size) - SHOULD show "Sorted by:"
+	unusedSort = "size"
+
+	r2, w2, _ := os.Pipe()
+	os.Stdout = w2
+
+	err = runUnused(unusedCmd, nil)
+	w2.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("runUnused failed: %v", err)
+	}
+
+	outputBytes2, _ := io.ReadAll(r2)
+	output2 := string(outputBytes2)
+
+	if !strings.Contains(output2, "Sorted by: size") {
+		t.Errorf("expected 'Sorted by: size' annotation for non-default sort, got:\n%s", output2)
 	}
 }

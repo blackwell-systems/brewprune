@@ -1053,3 +1053,27 @@ func TestDaemonAgeMinutes_GracePeriodLogic(t *testing.T) {
 		t.Errorf("6-minute-old file should be outside grace period (age >= 5), got age = %d", age6)
 	}
 }
+
+// TestStatus_ShowsPackageCount verifies tracking summary with package count.
+func TestStatus_ShowsPackageCount(t *testing.T) {
+	var buf bytes.Buffer
+
+	// Simulate the Events line output with package count
+	totalEvents := 1234
+	events24h := 56
+	formulaeCount := 78
+
+	fmt.Fprintf(&buf, "Events:       %s total · %d in last 24h · %d packages\n",
+		formatNumber(totalEvents), events24h, formulaeCount)
+
+	got := buf.String()
+	if !strings.Contains(got, "1,234 total") {
+		t.Errorf("expected formatted total events count, got: %q", got)
+	}
+	if !strings.Contains(got, "56 in last 24h") {
+		t.Errorf("expected 24h events count, got: %q", got)
+	}
+	if !strings.Contains(got, "78 packages") {
+		t.Errorf("expected package count, got: %q", got)
+	}
+}

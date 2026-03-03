@@ -138,8 +138,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf(label+"stopped  (run 'brewprune watch --daemon')\n", "Tracking:")
 	}
 
-	// Events line
-	fmt.Printf(label+"%s total · %d in last 24h\n", "Events:", formatNumber(totalEvents), events24h)
+	// Events line with package count
+	fmt.Printf(label+"%s total · %d in last 24h · %d packages\n", "Events:", formatNumber(totalEvents), events24h, formulaeCount)
 
 	// Warn if daemon is running but no recent events
 	if daemonRunning && events24h == 0 && totalEvents <= 2 {

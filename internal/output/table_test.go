@@ -175,7 +175,7 @@ func TestRenderConfidenceTable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := RenderConfidenceTable(tt.scores)
+			result := RenderConfidenceTable(tt.scores, true)
 
 			for _, expected := range tt.contains {
 				if !strings.Contains(result, expected) {
@@ -499,7 +499,7 @@ func TestRenderConfidenceTable_ScoreColumnPresent(t *testing.T) {
 		},
 	}
 
-	result := RenderConfidenceTable(scores)
+	result := RenderConfidenceTable(scores, true)
 
 	if !strings.Contains(result, "Score") {
 		t.Errorf("expected 'Score' column header in output, got:\n%s", result)
@@ -524,7 +524,7 @@ func TestRenderConfidenceTable_RiskyLabel(t *testing.T) {
 		},
 	}
 
-	result := RenderConfidenceTable(scores)
+	result := RenderConfidenceTable(scores, true)
 
 	if !strings.Contains(result, "⚠ risky") {
 		t.Errorf("expected '⚠ risky' label for risky tier, got:\n%s", result)
@@ -621,7 +621,7 @@ func TestVisualConfidenceTable(t *testing.T) {
 		},
 	}
 
-	t.Log("\n" + RenderConfidenceTable(scores))
+	t.Log("\n" + RenderConfidenceTable(scores, true))
 }
 
 func TestRenderConfidenceTable_CaskDisplay(t *testing.T) {
@@ -638,7 +638,7 @@ func TestRenderConfidenceTable_CaskDisplay(t *testing.T) {
 		},
 	}
 
-	result := RenderConfidenceTable(scores)
+	result := RenderConfidenceTable(scores, true)
 
 	// IsCask=true should show "n/a" for both usage columns
 	if !strings.Contains(result, "n/a") {
@@ -741,7 +741,7 @@ func TestSortAge_InstalledColumn(t *testing.T) {
 		},
 	}
 
-	result := RenderConfidenceTable(scores)
+	result := RenderConfidenceTable(scores, true)
 
 	if !strings.Contains(result, "Installed") {
 		t.Errorf("expected 'Installed' column header when any score has non-zero InstalledAt, got:\n%s", result)
@@ -773,7 +773,7 @@ func TestRenderConfidenceTable_LastUsedWhenNoInstalledAt(t *testing.T) {
 		},
 	}
 
-	result := RenderConfidenceTable(scores)
+	result := RenderConfidenceTable(scores, true)
 
 	if !strings.Contains(result, "Last Used") {
 		t.Errorf("expected 'Last Used' column header when InstalledAt is zero, got:\n%s", result)
@@ -1044,5 +1044,70 @@ func TestTierSummaryPlainTextWhenNoTTY(t *testing.T) {
 	}
 	if !strings.Contains(result, "RISKY: 143") {
 		t.Errorf("Expected plain 'RISKY: 143' label, got: %s", result)
+	}
+}
+
+// TestRenderConfidenceTable_NoUsageData verifies that when hasUsageData=false,
+// packages with zero LastUsed show "—" instead of "never".
+func TestRenderConfidenceTable_NoUsageData(t *testing.T) {
+	scores := []ConfidenceScore{
+		{
+			Package:   "wget",
+			Score:     80,
+			Tier:      "safe",
+			LastUsed:  time.Time{}, // zero time
+			SizeBytes: 1048576,
+			Uses7d:    0,
+			DepCount:  0,
+		},
+		{
+			Package:   "curl",
+			Score:     75,
+			Tier:      "safe",
+			LastUsed:  time.Now().Add(-48 * time.Hour), // non-zero
+			SizeBytes: 2097152,
+			Uses7d:    2,
+			DepCount:  0,
+		},
+	}
+
+	// When hasUsageData=false, zero times should show "—"
+	result := RenderConfidenceTable(scores, false)
+
+	// wget should show "—" (em dash)
+	lines := strings.Split(result, "\n")
+	var wgetLine string
+	for _, line := range lines {
+		if strings.Contains(line, "wget") {
+			wgetLine = line
+			break
+		}
+	}
+
+	if wgetLine == "" {
+		t.Fatalf("wget not found in output:\n%s", result)
+	}
+
+	if !strings.Contains(wgetLine, "\u2014") {
+		t.Errorf("expected wget line to contain '—' (em dash) when hasUsageData=false, got:\n%s", wgetLine)
+	}
+
+	if strings.Contains(wgetLine, "never") {
+		t.Errorf("expected wget line NOT to contain 'never' when hasUsageData=false, got:\n%s", wgetLine)
+	}
+
+	// When hasUsageData=true, zero times should show "never"
+	result2 := RenderConfidenceTable(scores, true)
+	lines2 := strings.Split(result2, "\n")
+	var wgetLine2 string
+	for _, line := range lines2 {
+		if strings.Contains(line, "wget") {
+			wgetLine2 = line
+			break
+		}
+	}
+
+	if !strings.Contains(wgetLine2, "never") {
+		t.Errorf("expected wget line to contain 'never' when hasUsageData=true, got:\n%s", wgetLine2)
 	}
 }

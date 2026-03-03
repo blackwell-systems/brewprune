@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blackwell-systems/brewprune/internal/analyzer"
 	"github.com/spf13/cobra"
@@ -148,7 +149,7 @@ func TestRenderExplanation_ScoringNote(t *testing.T) {
 		},
 	}
 
-	renderExplanation(score, "2025-01-01", nil)
+	renderExplanation(score, "2025-01-01", nil, nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -204,7 +205,7 @@ func TestRenderExplanation_DetailNotTruncated(t *testing.T) {
 		},
 	}
 
-	renderExplanation(score, "2024-01-01", nil)
+	renderExplanation(score, "2024-01-01", nil, nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -254,7 +255,7 @@ func TestExplainNoteWording(t *testing.T) {
 		},
 	}
 
-	renderExplanation(score, "2024-01-01", nil)
+	renderExplanation(score, "2024-01-01", nil, nil)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -285,12 +286,12 @@ func TestExplainNoteWording(t *testing.T) {
 // captureRenderExplanation is a helper that redirects stdout, calls
 // renderExplanation, and returns the captured output.
 func captureRenderExplanation(score *analyzer.ConfidenceScore, installedDate string) string {
-	return captureRenderExplanationWithDeps(score, installedDate, nil)
+	return captureRenderExplanationWithDeps(score, installedDate, nil, nil)
 }
 
 // captureRenderExplanationWithDeps is a helper that redirects stdout, calls
 // renderExplanation with dependents, and returns the captured output.
-func captureRenderExplanationWithDeps(score *analyzer.ConfidenceScore, installedDate string, dependents []string) string {
+func captureRenderExplanationWithDeps(score *analyzer.ConfidenceScore, installedDate string, dependents []string, usageStats *analyzer.UsageStats) string {
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -298,7 +299,7 @@ func captureRenderExplanationWithDeps(score *analyzer.ConfidenceScore, installed
 	}
 	os.Stdout = w
 
-	renderExplanation(score, installedDate, dependents)
+	renderExplanation(score, installedDate, dependents, usageStats)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -655,7 +656,7 @@ func TestRenderExplanation_ListsDependentNames(t *testing.T) {
 	}
 
 	dependents := []string{"curl", "libssh2", "krb5"}
-	output := captureRenderExplanationWithDeps(score, "2022-01-01", dependents)
+	output := captureRenderExplanationWithDeps(score, "2022-01-01", dependents, nil)
 
 	if !strings.Contains(output, "Depended on by:") {
 		t.Errorf("expected output to contain 'Depended on by:', got: %q", output)
@@ -672,7 +673,7 @@ func TestRenderExplanation_ListsDependentNames(t *testing.T) {
 func TestRenderExplanation_TruncatesLongDependentList(t *testing.T) {
 	score := makeTestScore("openssl@3", false)
 	dependents := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
-	output := captureRenderExplanationWithDeps(score, "2022-01-01", dependents)
+	output := captureRenderExplanationWithDeps(score, "2022-01-01", dependents, nil)
 
 	if !strings.Contains(output, "and 2 more") {
 		t.Errorf("expected output to contain 'and 2 more' for 10 dependents (max 8), got: %q", output)
@@ -682,7 +683,7 @@ func TestRenderExplanation_TruncatesLongDependentList(t *testing.T) {
 // TestRenderExplanation_NoDependents verifies that when dependents is nil,
 // "Depended on by" does not appear in the output.
 func TestRenderExplanation_NoDependents(t *testing.T) {
-	output := captureRenderExplanationWithDeps(makeTestScore("wget", false), "2022-01-01", nil)
+	output := captureRenderExplanationWithDeps(makeTestScore("wget", false), "2022-01-01", nil, nil)
 
 	if strings.Contains(output, "Depended on by") {
 		t.Errorf("expected 'Depended on by' to NOT appear when dependents is nil, got: %q", output)
@@ -719,5 +720,54 @@ func TestExplain_RecommendationNumberedList(t *testing.T) {
 	}
 	if !strings.Contains(output, "brewprune remove --safe") {
 		t.Errorf("expected step 2 to contain 'brewprune remove --safe', got: %q", output)
+	}
+}
+
+// TestExplain_ShowsUsageHistory verifies that usage history appears when data exists.
+func TestExplain_ShowsUsageHistory(t *testing.T) {
+	score := makeTestScore("git", false)
+	lastUsed := time.Now().Add(-45 * 24 * time.Hour) // 45 days ago
+	usageStats := &analyzer.UsageStats{
+		Package:   "git",
+		TotalUses: 42,
+		LastUsed:  &lastUsed,
+		Frequency: "monthly",
+	}
+
+	output := captureRenderExplanationWithDeps(score, "2024-01-01", nil, usageStats)
+
+	if !strings.Contains(output, "Usage history:") {
+		t.Errorf("expected output to contain 'Usage history:', got: %q", output)
+	}
+	if !strings.Contains(output, "42 total runs") {
+		t.Errorf("expected output to contain '42 total runs', got: %q", output)
+	}
+	if !strings.Contains(output, "monthly frequency") {
+		t.Errorf("expected output to contain 'monthly frequency', got: %q", output)
+	}
+	// Should show "days ago" or similar duration format
+	if !strings.Contains(output, "ago") {
+		t.Errorf("expected output to contain duration 'ago', got: %q", output)
+	}
+}
+
+// TestExplain_NoUsageHistory verifies graceful handling when no usage data exists.
+func TestExplain_NoUsageHistory(t *testing.T) {
+	score := makeTestScore("wget", false)
+	usageStats := &analyzer.UsageStats{
+		Package:   "wget",
+		TotalUses: 0,
+		LastUsed:  nil,
+		Frequency: "never",
+	}
+
+	output := captureRenderExplanationWithDeps(score, "2022-01-01", nil, usageStats)
+
+	if !strings.Contains(output, "Usage history: no recorded usage") {
+		t.Errorf("expected output to contain 'Usage history: no recorded usage', got: %q", output)
+	}
+	// Should not show "total runs" when there are none
+	if strings.Contains(output, "total runs") {
+		t.Errorf("expected output to NOT contain 'total runs' when usage is zero, got: %q", output)
 	}
 }

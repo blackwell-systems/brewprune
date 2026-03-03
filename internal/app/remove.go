@@ -216,6 +216,15 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// Display risky warning banner if needed
+		if activeTier == "risky" && removeFlagDryRun {
+			fmt.Println()
+			fmt.Println("═══════════════════════════════════════════════════════════════")
+			fmt.Println("⚠  WARNING: Risky tier removal may break system dependencies")
+			fmt.Println("═══════════════════════════════════════════════════════════════")
+			fmt.Println()
+		}
+
 		// Display table of packages to remove
 		fmt.Printf("\nPackages to remove (%s tier):\n\n", tier)
 		if removeFlagDryRun {
@@ -226,13 +235,13 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 		// Print skipped summary after the table
 		if len(lockedPackages) > 0 {
-			fmt.Fprintf(os.Stderr, "\n⚠  %d packages skipped (locked by dependents) — run with --verbose to see details\n", len(lockedPackages))
+			fmt.Fprintf(os.Stderr, "\n⚠  %d packages skipped (have other packages depending on them) — remove their dependents first, or use --verbose to see details\n", len(lockedPackages))
 		}
 	}
 
 	if len(packagesToRemove) == 0 {
 		fmt.Println("No packages to remove.")
-		return fmt.Errorf("all candidates were skipped (locked by dependents) — run with --verbose for details")
+		return fmt.Errorf("no packages removed: all candidates were locked by dependents")
 	}
 
 	// Display summary
@@ -467,6 +476,12 @@ func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore
 
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
+	// Check if usage data exists
+	var eventCount int
+	row := st.DB().QueryRow("SELECT COUNT(*) FROM usage_events")
+	row.Scan(&eventCount)
+	hasUsageData := eventCount > 0
+
 	// Convert to output-compatible format
 	outputScores := make([]output.ConfidenceScore, len(scores))
 	for i, score := range scores {
@@ -493,7 +508,7 @@ func displayConfidenceScores(st *store.Store, scores []*analyzer.ConfidenceScore
 		}
 	}
 
-	fmt.Print(output.RenderConfidenceTable(outputScores))
+	fmt.Print(output.RenderConfidenceTable(outputScores, hasUsageData))
 }
 
 // confirmRemoval prompts the user to confirm removal.

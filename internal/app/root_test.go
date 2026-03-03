@@ -425,3 +425,16 @@ func TestUnknownFlagSuggestsHelp(t *testing.T) {
 		t.Errorf("expected error to contain '--help', got: %s", wrapped.Error())
 	}
 }
+
+func TestRootCmd_QuickStartContainsPATHStep(t *testing.T) {
+	helpText := RootCmd.Long
+	if !strings.Contains(helpText, "Ensure ~/.brewprune/bin is in PATH") {
+		t.Error("Quick Start should mention PATH prerequisite in the steps")
+	}
+	// Verify it appears BEFORE "brewprune watch --daemon"
+	pathIdx := strings.Index(helpText, "Ensure ~/.brewprune/bin")
+	watchIdx := strings.Index(helpText, "brewprune watch --daemon")
+	if pathIdx == -1 || watchIdx == -1 || pathIdx > watchIdx {
+		t.Error("PATH step should appear before watch --daemon step")
+	}
+}

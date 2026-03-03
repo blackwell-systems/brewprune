@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // LaunchDaemon starts brewprune-watch as a background daemon process.
@@ -45,7 +46,8 @@ func LaunchDaemon(pidFile, logFile string) error {
 	cmd.Stderr = logF
 	cmd.Stdin = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true, // Create new session
+		Setsid:  true,  // Create new session
+		Setctty: false, // Do not acquire controlling terminal
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -79,6 +81,12 @@ func (w *Watcher) RunDaemon(pidFile string) error {
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	// Ignore SIGHUP (parent terminal exit should not kill daemon)
+	signal.Ignore(syscall.SIGHUP)
+
+	// Log daemon startup with SIGHUP handling
+	fmt.Fprintf(os.Stderr, "%s brewprune-watch: daemon started (PID %d), ignoring SIGHUP\n",
+		time.Now().UTC().Format(time.RFC3339), os.Getpid())
 
 	// Start the watcher
 	if err := w.Start(); err != nil {

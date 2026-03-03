@@ -247,10 +247,13 @@ func showUsageTrends(a *analyzer.Analyzer, days int) error {
 	}
 
 	// Show banner if packages are hidden
+	totalPackages := len(filteredStats) + hiddenCount
 	if hiddenCount > 0 && !statsAll {
-		totalPackages := len(filteredStats) + hiddenCount
 		fmt.Printf("Showing %d of %d packages (%d with no recorded usage — use --all to see all)\n\n",
 			len(filteredStats), totalPackages, hiddenCount)
+	} else if statsAll {
+		fmt.Printf("Showing %d of %d packages (last %d days)\n\n",
+			len(filteredStats), totalPackages, statsDays)
 	}
 
 	table := output.RenderUsageTable(filteredStats)

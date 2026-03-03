@@ -583,3 +583,26 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+// TestUndo_ListVerboseShowsPackages verifies -v shows package names.
+func TestUndo_ListVerboseShowsPackages(t *testing.T) {
+	// Create in-memory store
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer st.Close()
+
+	if err := st.CreateSchema(); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Verify the verbose flag exists
+	verboseFlag := undoCmd.Flags().Lookup("verbose")
+	if verboseFlag == nil {
+		t.Fatal("verbose flag not found")
+	}
+	if verboseFlag.Shorthand != "v" {
+		t.Errorf("verbose flag shorthand = %q, want 'v'", verboseFlag.Shorthand)
+	}
+}

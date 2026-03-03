@@ -231,6 +231,21 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				fmt.Println("Tip: Create ~/.config/brewprune/aliases to declare alias mappings.")
 				fmt.Println("     Format: one alias per line, e.g. ll=eza or g=git")
 				fmt.Println("     Aliases help brewprune associate your custom commands with their packages.")
+			} else {
+				// Aliases file exists, show count
+				aliasCount := 0
+				if data, err := os.ReadFile(aliasFile); err == nil {
+					// Count non-empty lines that aren't comments
+					for _, line := range strings.Split(string(data), "\n") {
+						trimmed := strings.TrimSpace(line)
+						if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+							aliasCount++
+						}
+					}
+				}
+				if aliasCount > 0 {
+					fmt.Printf("\nℹ Aliases configured (%d mappings loaded from %s)\n", aliasCount, aliasFile)
+				}
 			}
 		}
 	}
@@ -282,10 +297,29 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Compute total checks (approximation based on the structure above)
+	// Each check block increments either criticalIssues or warningIssues or is a pass
+	totalChecks := 8 // Database (3 checks), Events, Daemon, Shim binary, PATH, Pipeline
+
 	fmt.Println()
+
+	// Calculate status
+	overallStatus := "HEALTHY"
+	statusColor := "32" // green
+	if criticalIssues > 0 {
+		overallStatus = "BROKEN"
+		statusColor = "31" // red
+	} else if warningIssues > 0 {
+		overallStatus = "DEGRADED"
+		statusColor = "33" // yellow
+	}
+
+	passedChecks := totalChecks - criticalIssues - warningIssues
+	fmt.Printf("%s\n", colorize(statusColor, "Overall Status: "+overallStatus))
+	fmt.Printf("  %d checks passed, %d warnings, %d critical issues\n\n",
+		passedChecks, warningIssues, criticalIssues)
+
 	if criticalIssues == 0 && warningIssues == 0 {
-		fmt.Println(colorize("32", "✓ All checks passed!"))
-		fmt.Println()
 		fmt.Println("Next steps:")
 		fmt.Println("  • Wait 1-2 weeks for usage data")
 		fmt.Println("  • Check status: brewprune status")
@@ -294,12 +328,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	if criticalIssues > 0 {
-		fmt.Println(colorize("31", fmt.Sprintf("Found %d critical issue(s) and %d warning(s). Run the suggested actions above to fix.", criticalIssues, warningIssues)))
+		fmt.Println("Run the suggested actions above to fix critical issues.")
 		os.Exit(1)
 	}
 
 	// [DOCTOR-2] Warning-only path: exit 0 since warnings don't prevent usage.
 	// Exit code 0 = success/warnings, exit code 1 = critical failure.
-	fmt.Println(colorize("33", fmt.Sprintf("Found %d warning(s). System is functional but not fully configured.", warningIssues)))
+	fmt.Println("System is functional but not fully configured. Address warnings above for best experience.")
 	return nil
 }

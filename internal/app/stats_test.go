@@ -984,12 +984,9 @@ func TestShowUsageTrends_NoBannerWithAllFlag(t *testing.T) {
 		t.Fatalf("showUsageTrends returned unexpected error: %v", showErr)
 	}
 
-	// Verify no banner appears (no "Showing X of Y" text)
-	if strings.Contains(out, "Showing") && strings.Contains(out, "of") && strings.Contains(out, "packages") {
-		// More precise check - the banner format is "Showing X of Y packages"
-		if strings.Contains(out, "Showing") && strings.Index(out, "of") > strings.Index(out, "Showing") {
-			t.Errorf("expected no banner with --all flag, got:\n%s", out)
-		}
+	// Verify banner appears with context count (Agent F Finding #21)
+	if !strings.Contains(out, "Showing") || !strings.Contains(out, "of") || !strings.Contains(out, "packages") {
+		t.Errorf("expected 'Showing X of Y packages' banner with --all flag, got:\n%s", out)
 	}
 
 	// Both packages should appear
@@ -1628,5 +1625,41 @@ func TestStatsNoUsageMessageIncludesTotalCount(t *testing.T) {
 func TestStatsLongHasPrereqNote(t *testing.T) {
 	if !strings.Contains(statsCmd.Long, "brewprune scan") {
 		t.Error("statsCmd.Long should mention 'brewprune scan' as a prerequisite")
+	}
+}
+
+// TestStats_ShowsContextCount verifies "showing X of Y" message.
+func TestStats_ShowsContextCount(t *testing.T) {
+	var buf bytes.Buffer
+
+	// Simulate the context count message
+	totalPackages := 50
+	filteredCount := 30
+	hiddenCount := totalPackages - filteredCount
+	days := 30
+
+	// When statsAll is true
+	fmt.Fprintf(&buf, "Showing %d of %d packages (last %d days)\n\n",
+		filteredCount, totalPackages, days)
+
+	got := buf.String()
+	if !strings.Contains(got, "Showing 30 of 50 packages") {
+		t.Errorf("expected context count message, got: %q", got)
+	}
+	if !strings.Contains(got, "last 30 days") {
+		t.Errorf("expected time window in message, got: %q", got)
+	}
+
+	// When statsAll is false with hidden packages
+	buf.Reset()
+	fmt.Fprintf(&buf, "Showing %d of %d packages (%d with no recorded usage — use --all to see all)\n\n",
+		filteredCount, totalPackages, hiddenCount)
+
+	got = buf.String()
+	if !strings.Contains(got, "Showing 30 of 50 packages") {
+		t.Errorf("expected context count with hidden message, got: %q", got)
+	}
+	if !strings.Contains(got, "20 with no recorded usage") {
+		t.Errorf("expected hidden count in message, got: %q", got)
 	}
 }

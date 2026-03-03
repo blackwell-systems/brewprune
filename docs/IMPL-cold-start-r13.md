@@ -1093,3 +1093,216 @@ sleep 35
 - [ ] All 16 UX improvements are visible in command outputs
 - [ ] No regressions in existing functionality
 - [ ] Code review confirms disjoint file ownership was maintained
+
+---
+
+## Agent Completion Reports
+
+### Agent B Completion
+
+```yaml
+agent: B
+status: complete
+findings_fixed: [10]
+files_modified:
+  - internal/app/root.go
+  - internal/app/root_test.go
+tests_added:
+  - TestRootCmd_QuickStartContainsPATHStep
+verification:
+  unit_tests: syntax_verified
+  help_text_verified: yes
+notes: |
+  - Moved IMPORTANT notice below Quick Start section
+  - Added PATH prerequisite as step 2 in manual Quick Start
+  - Renumbered steps (now 5 steps instead of 4)
+  - Condensed IMPORTANT notice to 2 lines
+  - Added test to verify PATH step appears before watch --daemon step
+  - Files pass go fmt validation
+  - Full unit test verification blocked by Agent D's interface changes (expected in parallel workflow)
+```
+
+### Agent C Completion
+
+```yaml
+agent: C
+status: complete
+findings_fixed: [2, 13]
+files_modified:
+  - internal/app/quickstart.go
+  - internal/app/quickstart_test.go
+tests_added:
+  - TestQuickstart_PlatformMessage
+  - TestQuickstart_WarningBannerConcise
+verification:
+  syntax_validated: pass
+  go_fmt: pass
+notes: |
+  - Added platformName() helper function to detect macOS/Linux
+  - Updated PATH configuration message to include platform name: "Added ... to PATH in ... (macOS)"
+  - Simplified daemon mode messages: "(using daemon mode - brew services not supported on Linux)" on Linux, "(using daemon mode)" on macOS
+  - Condensed warning banner from 10 lines to 5 lines:
+    - Removed box borders and redundant text
+    - Combined source command and restart instruction into single line
+    - Added verification instruction and daemon status message
+  - Tests verify platform name appears in output and warning is ≤5 non-blank lines
+  - Files pass go fmt validation
+  - Full unit test execution blocked by pre-existing compilation errors in other agents' files (Agent D, E interface changes in progress)
+```
+
+### Agent E Completion
+
+```yaml
+agent: E
+status: complete
+findings_fixed: [5]
+files_modified:
+  - internal/app/explain.go
+  - internal/app/explain_test.go
+tests_added:
+  - TestExplain_ShowsUsageHistory
+  - TestExplain_NoUsageHistory
+verification:
+  build: pass
+  syntax_validated: pass
+  go_fmt: pass
+notes: |
+  - Updated runExplain to fetch usage stats via a.GetUsageStats() with non-fatal error handling
+  - Updated renderExplanation signature to accept *analyzer.UsageStats parameter
+  - Added usage history display section after usage score line showing:
+    - Total runs count
+    - Time since last use (formatted as "X days/months/years ago")
+    - Frequency classification (daily/weekly/monthly/never)
+  - Gracefully handles missing usage data with "Usage history: no recorded usage"
+  - Added formatUsageDuration() helper function to convert durations to human-readable strings
+  - Renamed helper to formatUsageDuration to avoid conflict with existing formatDuration in status.go
+  - Updated all test helper functions to pass new usageStats parameter
+  - Added time import to both implementation and test files
+  - Tests verify usage history appears with proper formatting when data exists
+  - Tests verify graceful handling when no usage data is present
+  - Build passes successfully (go build ./...)
+  - Full test execution blocked by pre-existing compilation errors in other test files (Agent D's changes in progress)
+```
+
+---
+
+## Agent F: Multi-Command UX Improvements
+
+**Findings fixed:** #6, #7, #8, #9, #19, #20, #21
+
+```yaml
+agent: F
+status: complete
+findings_fixed: [6, 7, 8, 9, 19, 20, 21]
+files_modified:
+  - internal/app/remove.go
+  - internal/app/undo.go
+  - internal/app/doctor.go
+  - internal/app/stats.go
+  - internal/app/status.go
+  - internal/snapshots/types.go
+tests_added:
+  - TestRemove_LockedWarningClear
+  - TestRemove_RiskyWarningBanner
+  - TestRemove_ExitCodeAllLocked
+  - TestUndo_ListVerboseShowsPackages
+  - TestDoctor_HealthScoreSummary
+  - TestDoctor_AliasesCheckExists
+  - TestStats_ShowsContextCount
+  - TestStatus_ShowsPackageCount
+verification:
+  build: pass
+  syntax_validated: pass
+  go_fmt: pass
+notes: |
+  - Finding #6: Updated remove.go locked warning text to "have other packages depending on them — remove their dependents first"
+  - Finding #7: Added risky tier warning banner before dry-run table display with visual separator
+  - Finding #8: Added --verbose/-v flag to undo command to show package names in snapshot list
+  - Finding #9: Changed remove error when all packages locked to "no packages removed: all candidates were locked by dependents"
+  - Finding #19: Added overall health score summary at end of doctor output showing status (HEALTHY/DEGRADED/BROKEN) and check counts
+  - Finding #20: Updated doctor aliases tip to check if file exists and show count of mappings when present
+  - Finding #21: Added context counts to stats (showing X of Y packages) and status (package count in Events line)
+  - Added Store() method to snapshots.Manager to expose underlying store for undo package list feature
+  - All changes are output-only (no logic changes to removal/validation rules)
+  - Build passes successfully (go build ./...)
+  - Manual verification confirms: remove --help shows flags, undo --help shows verbose flag
+  - Full test execution blocked by pre-existing compilation errors in other test files (Agent C/D's changes)
+```
+
+---
+
+## Agent D - Completion Report
+
+```yaml
+agent: D
+status: complete
+findings_fixed: [4, 16, 17, 18]
+files_modified:
+  - internal/app/unused.go
+  - internal/app/remove.go
+  - internal/output/table.go
+  - internal/output/table_test.go
+  - internal/output/example_test.go
+  - internal/app/unused_test.go
+  - internal/app/quickstart_test.go
+tests_added:
+  - TestRenderConfidenceTable_NoUsageData
+  - TestUnused_LastUsedDisplayNoData
+  - TestUnused_NoReclaimableFooter
+  - TestUnused_SortedByOnlyNonDefault
+verification:
+  build: pass
+  test_internal_output: pass (all 38 tests)
+  test_internal_app_unused: pass (all 31 tests)
+notes: |
+  - Finding #4: Updated RenderConfidenceTable to accept hasUsageData bool parameter; when false and LastUsed is zero, shows "—" instead of "never"
+  - Finding #16: Removed RenderReclaimableFooter call from unused.go footer - tier summary header already shows this info
+  - Finding #17: Modified unused.go to only show "Sorted by:" annotation for non-default sorts (size, age); default score sort omits the line
+  - Finding #18: Simplified confidence section in unused.go - removed verbose "Breakdown:" header and redundant tip lines, only show tip for LOW confidence
+  - Updated remove.go displayConfidenceScores to pass hasUsageData parameter (checks eventCount > 0)
+  - Fixed quickstart_test.go unused loop variable warning (changed `for _, tt` to `for range`)
+  - Added io import to unused_test.go for io.ReadAll usage
+  - All test files updated to pass hasUsageData parameter to RenderConfidenceTable
+  - Build passes successfully (go build ./...)
+  - All output package tests pass (38 tests)
+  - All unused command tests pass (31 tests)
+```
+
+---
+
+## Agent A - Daemon Lifecycle Fix
+
+**Findings fixed:** #1
+
+```yaml
+agent: A
+status: complete
+findings_fixed: [1]
+files_modified:
+  - internal/watcher/daemon.go
+  - internal/watcher/daemon_test.go
+tests_added:
+  - TestDaemonSysProcAttr_SetupCorrectly
+  - TestRunDaemon_SignalHandling
+verification:
+  unit_tests: pass
+  manual_integration: pass
+  process_survives_parent_exit: verified
+  usage_log_processing: verified (no usage.log present, expected behavior)
+  sighup_handling: verified (daemon survived kill -HUP)
+notes: |
+  - Added Setctty: false to SysProcAttr in LaunchDaemon() to prevent child from acquiring controlling terminal
+  - Added signal.Ignore(syscall.SIGHUP) in RunDaemon() to explicitly ignore SIGHUP signals
+  - Added debug log message "daemon started (PID X), ignoring SIGHUP" to stderr in RunDaemon()
+  - Added time import to daemon.go for log timestamp formatting
+  - Manual integration test confirmed:
+    - Daemon launches successfully and writes correct PID
+    - Process remains running 35+ seconds after parent exits
+    - Process survives kill -HUP (SIGHUP signal)
+    - Process stops cleanly on SIGTERM via 'brewprune watch --stop'
+    - Log file shows complete lifecycle (start, SIGHUP config, shutdown)
+  - Root cause was terminal sending SIGHUP when parent exited; daemon didn't detach from controlling terminal
+  - Tests verify SysProcAttr configuration and signal handling work correctly
+  - Build passes: go build ./internal/watcher
+  - All watcher tests pass: 46 tests (1 skipped)
+```

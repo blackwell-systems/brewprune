@@ -521,6 +521,62 @@ func TestDoctorPATHHint_BashConfig(t *testing.T) {
 	}
 }
 
+// TestDoctor_HealthScoreSummary verifies overall status line.
+func TestDoctor_HealthScoreSummary(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	// No daemon PID file — daemon is not running, so we'll have warnings.
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+	})
+
+	// Should show overall status
+	if !strings.Contains(out, "Overall Status:") {
+		t.Errorf("expected 'Overall Status:' in output, got:\n%s", out)
+	}
+	// Should show check counts
+	if !strings.Contains(out, "checks passed") {
+		t.Errorf("expected 'checks passed' in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "warnings") {
+		t.Errorf("expected 'warnings' in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "critical issues") {
+		t.Errorf("expected 'critical issues' in output, got:\n%s", out)
+	}
+
+	// Cleanup
+	_ = tmpHome
+}
+
+// TestDoctor_AliasesCheckExists verifies aliases file detection.
+func TestDoctor_AliasesCheckExists(t *testing.T) {
+	tmpHome := setupMinimalEnv(t)
+
+	// Create aliases file with some content
+	cfgDir := filepath.Join(tmpHome, ".config", "brewprune")
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	aliasFile := filepath.Join(cfgDir, "aliases")
+	content := "ll=eza\ng=git\n# comment\n\n"
+	if err := os.WriteFile(aliasFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write aliases file: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		runDoctor(doctorCmd, []string{}) //nolint:errcheck
+	})
+
+	// Should show aliases configured message
+	if !strings.Contains(out, "Aliases configured") {
+		t.Errorf("expected 'Aliases configured' when file exists, got:\n%s", out)
+	}
+	if !strings.Contains(out, "2 mappings") {
+		t.Errorf("expected '2 mappings' (non-comment, non-empty lines), got:\n%s", out)
+	}
+}
+
 // TestDoctorAliasesTip_SuppressedWhenDaemonRunning verifies that the aliases tip
 // is not shown when the daemon is running and events are above the threshold.
 // We test this indirectly by setting up an environment where the daemon appears
@@ -817,7 +873,8 @@ func TestDoctor_PipelineSkippedWhenPathNotActive(t *testing.T) {
 	}
 
 	// Must NOT report critical issues — this is expected post-install state.
-	if strings.Contains(out, "CRITICAL ISSUES") || strings.Contains(out, "critical issue") {
+	// Check for actual critical issue reporting, not just the phrase "critical issues" in the summary
+	if strings.Contains(out, "Overall Status: BROKEN") {
 		t.Errorf("doctor must not report critical issues for PATH-not-yet-active state, got:\n%s", out)
 	}
 	if doctorErr != nil {

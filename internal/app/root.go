@@ -33,18 +33,18 @@ var (
 		Long: `brewprune tracks Homebrew package usage and provides heuristic-scored
 removal recommendations with automatic snapshots for easy rollback.
 
-IMPORTANT: You must run 'brewprune watch --daemon' to track package usage.
-Without the daemon running, recommendations are based on heuristics only
-(install age, dependencies, type) - not actual usage data.
-
 Quick Start:
   brewprune quickstart         # Recommended: automated setup in one command
 
   Or manually:
   1. brewprune scan
-  2. brewprune watch --daemon  # Keep this running!
-  3. Wait 1-2 weeks for usage data
-  4. brewprune unused --tier safe
+  2. Ensure ~/.brewprune/bin is in PATH (quickstart does this automatically)
+  3. brewprune watch --daemon  # Keep this running!
+  4. Wait 1-2 weeks for usage data
+  5. brewprune unused --tier safe
+
+IMPORTANT: The daemon must be running to track usage. Without it,
+recommendations are based on heuristics only (age, dependencies, type).
 
 Features:
   • Real-time usage tracking via PATH shims

@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	undoFlagList bool
-	undoFlagYes  bool
+	undoFlagList    bool
+	undoFlagYes     bool
+	undoFlagVerbose bool
 )
 
 var undoCmd = &cobra.Command{
@@ -39,6 +40,7 @@ Arguments:
 func init() {
 	undoCmd.Flags().BoolVar(&undoFlagList, "list", false, "List available snapshots")
 	undoCmd.Flags().BoolVar(&undoFlagYes, "yes", false, "Skip confirmation prompt")
+	undoCmd.Flags().BoolVarP(&undoFlagVerbose, "verbose", "v", false, "Show package names in snapshot list")
 
 	RootCmd.AddCommand(undoCmd)
 }
@@ -191,6 +193,24 @@ func listSnapshots(snapMgr *snapshots.Manager) error {
 
 	fmt.Printf("\nAvailable snapshots:\n\n")
 	fmt.Print(output.RenderSnapshotTable(snaps))
+
+	// Show package details if --verbose flag is set
+	if undoFlagVerbose {
+		fmt.Println()
+		fmt.Println("Package details:")
+		st := snapMgr.Store()
+		for _, snap := range snaps {
+			pkgs, err := st.GetSnapshotPackages(snap.ID)
+			if err == nil && len(pkgs) > 0 {
+				fmt.Printf("\n  Snapshot %d:\n", snap.ID)
+				for _, pkg := range pkgs {
+					fmt.Printf("    - %s\n", pkg.PackageName)
+				}
+			}
+		}
+	} else {
+		fmt.Println("\nUse --verbose to see package names")
+	}
 
 	fmt.Printf("\nRestore with: brewprune undo <id>\n")
 

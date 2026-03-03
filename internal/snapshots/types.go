@@ -36,3 +36,8 @@ func New(store *store.Store, snapshotDir string) *Manager {
 		snapshotDir: snapshotDir,
 	}
 }
+
+// Store returns the underlying store.Store instance.
+func (m *Manager) Store() *store.Store {
+	return m.store
+}
