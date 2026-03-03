@@ -109,8 +109,7 @@ Examples:
 func init() {
 	// Global flags
 	RootCmd.PersistentFlags().StringVar(&dbPath, "db", "", "database path (default: ~/.brewprune/brewprune.db)")
-	// -v not registered as shorthand; use --version explicitly. -v is reserved for --verbose in subcommands.
-	RootCmd.Flags().BoolVar(&versionFlag, "version", false, "show version information")
+	RootCmd.Flags().BoolVarP(&versionFlag, "version", "v", false, "show version information")
 
 	// Enable cobra's built-in suggestion feature for unknown subcommands
 	RootCmd.SuggestionsMinimumDistance = 2
@@ -119,10 +118,29 @@ func init() {
 	RootCmd.AddCommand(scanCmd)
 	RootCmd.AddCommand(watchCmd)
 	// Note: unused, stats, remove, undo commands will be added by other agents
+
+}
+
+// setupFlagErrorFuncs registers a --help hint on the FlagErrorFunc for every
+// subcommand currently registered on RootCmd. It is called from Execute() so
+// that commands registered by other files' init() functions are included.
+// It is also exported for use in tests (via TestMain) to ensure the funcs are
+// set before individual tests inspect them.
+func setupFlagErrorFuncs() {
+	for _, sub := range RootCmd.Commands() {
+		sub := sub // capture loop var
+		sub.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+			return fmt.Errorf("%w\nRun 'brewprune %s --help' to see valid flags.", err, cmd.Name())
+		})
+	}
 }
 
 // Execute runs the root command
 func Execute() error {
+	// Add --help suggestion to unknown-flag errors for all subcommands.
+	// This is done here (not in init) so that all subcommands registered by
+	// other files' init() functions are included.
+	setupFlagErrorFuncs()
 	return RootCmd.Execute()
 }
 

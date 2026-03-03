@@ -2,11 +2,22 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
+
+func TestMain(m *testing.M) {
+	// Ensure FlagErrorFuncs are set on all subcommands before any test runs.
+	// This mirrors what Execute() does at runtime, allowing tests to inspect
+	// the FlagErrorFunc on subcommands without calling Execute().
+	setupFlagErrorFuncs()
+	os.Exit(m.Run())
+}
 
 func TestRootCommand(t *testing.T) {
 	// Test that root command is properly configured
@@ -343,18 +354,14 @@ func TestRootUnknownCommandIncludesValidCommands(t *testing.T) {
 	}
 }
 
-func TestRootVersionFlagNoShorthand(t *testing.T) {
-	// Verify that -v is NOT a valid shorthand for --version on the root command.
-	// The -v shorthand is reserved for --verbose on the unused subcommand.
+func TestRootVersionFlagShorthand(t *testing.T) {
+	// Verify that -v IS registered as a shorthand for --version on the root command.
 	flag := RootCmd.Flags().ShorthandLookup("v")
-	if flag != nil {
-		t.Errorf("expected -v to NOT be registered on root command, but found flag: %s", flag.Name)
+	if flag == nil {
+		t.Error("expected -v to be registered as shorthand for --version on root command")
 	}
-
-	// Also verify that --version long form is still registered.
-	versionFlag := RootCmd.Flags().Lookup("version")
-	if versionFlag == nil {
-		t.Error("expected --version flag to still be registered on root command")
+	if flag != nil && flag.Name != "version" {
+		t.Errorf("expected -v shorthand to map to 'version', got %q", flag.Name)
 	}
 }
 
@@ -390,4 +397,31 @@ func TestUnknownSubcommandErrorOrder(t *testing.T) {
 	// The actual stderr output order is verified by the Execute() function logic,
 	// which prints error first, then hint. This test verifies the error is properly
 	// returned so Execute() can format it correctly.
+}
+
+func TestUnknownFlagSuggestsHelp(t *testing.T) {
+	// Find any subcommand and verify its FlagErrorFunc wraps errors with a --help suggestion
+	var sub *cobra.Command
+	for _, cmd := range RootCmd.Commands() {
+		if cmd.Name() == "unused" {
+			sub = cmd
+			break
+		}
+	}
+	if sub == nil {
+		t.Skip("unused subcommand not found")
+	}
+	fn := sub.FlagErrorFunc()
+	if fn == nil {
+		t.Error("expected FlagErrorFunc to be set on unused subcommand")
+		return
+	}
+	wrapped := fn(sub, fmt.Errorf("unknown flag: --invalid"))
+	if wrapped == nil {
+		t.Error("expected FlagErrorFunc to return non-nil error")
+		return
+	}
+	if !strings.Contains(wrapped.Error(), "--help") {
+		t.Errorf("expected error to contain '--help', got: %s", wrapped.Error())
+	}
 }
