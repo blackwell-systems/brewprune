@@ -234,6 +234,7 @@ func RenderConfidenceTableVerbose(scores []VerboseScore) string {
 
 		// Breakdown section
 		sb.WriteString("\nBreakdown:\n")
+		sb.WriteString("  (score measures removal confidence: higher = safer to remove)\n")
 		fmt.Fprintf(&sb, "  Usage:        %2d/40 pts - %s\n", score.UsageScore, score.Explanation.UsageDetail)
 		fmt.Fprintf(&sb, "  Dependencies: %2d/30 pts - %s\n", score.DepsScore, score.Explanation.DepsDetail)
 		fmt.Fprintf(&sb, "  Age:          %2d/20 pts - %s\n", score.AgeScore, score.Explanation.AgeDetail)
