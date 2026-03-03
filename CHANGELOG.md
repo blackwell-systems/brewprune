@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-03-02
+
 ### Fixed
 - **Dependency graph stale after `undo` + `scan`** (Cold-Start Audit Round 10) — `ScanPackages` used `INSERT OR IGNORE` when writing dependency rows, so old relationships from before the undo survived silently. A post-undo scan now calls `ClearDependencies(pkg)` for every package before re-inserting, ensuring the dependency table always reflects the current `brew deps` output.
 - **Daemon reads `usage.log` but records zero events — WAL checkpoint race** (Round 10, follow-up) — `watch --daemon` opened a SQLite WAL connection in the parent process before spawning the child; when `runWatch` returned, `defer db.Close()` triggered a WAL checkpoint that raced with the child's own `store.New()` call. The child could see 0 packages during the checkpoint window, causing all shim log entries to be skipped. Fixed by handling `--daemon` before `store.New`: the launcher now spawns the child without ever opening the database. `LaunchDaemon` is a new standalone function (no store needed); `StartDaemon` is a thin wrapper for backward compat.
