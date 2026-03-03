@@ -699,6 +699,153 @@ func TestProcessUsageLog_GitResolvesAfterFix(t *testing.T) {
 	}
 }
 
+// ── ProcessUsageLog — empty index does not advance offset (Finding #2 fix) ────
+
+// TestProcessUsageLog_EmptyMapsDoNotAdvanceOffset verifies that when both
+// binaryMap and optPathMap are empty (no packages indexed), ProcessUsageLog
+// does NOT advance the offset. All log entries must be retried on the next tick
+// once 'brewprune scan' has populated the database.
+func TestProcessUsageLog_EmptyMapsDoNotAdvanceOffset(t *testing.T) {
+	st := newTestStore(t)
+	// No packages inserted — both maps will be empty.
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	offsetPath := filepath.Join(tmpHome, ".brewprune", "usage.offset")
+
+	lines := "1709012345678901234,/home/linuxbrew/.linuxbrew/bin/git\n" +
+		"1709012345678901235,/home/linuxbrew/.linuxbrew/bin/jq\n" +
+		"1709012345678901236,/home/linuxbrew/.linuxbrew/bin/bat\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	stats, err := ProcessUsageLog(st)
+	if err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	// Offset file must not exist OR must still contain 0.
+	if _, statErr := os.Stat(offsetPath); !os.IsNotExist(statErr) {
+		savedOffset, _ := readShimOffset(offsetPath)
+		if savedOffset != 0 {
+			t.Errorf("offset advanced to %d with empty index — entries will be permanently skipped", savedOffset)
+		}
+	}
+
+	if stats.SkippedNoIndex != 3 {
+		t.Errorf("stats.SkippedNoIndex = %d, want 3", stats.SkippedNoIndex)
+	}
+}
+
+// TestProcessUsageLog_WithPackagesAdvancesOffset verifies that when the store
+// contains at least one matching package, ProcessUsageLog resolves the entry
+// and advances the offset.
+func TestProcessUsageLog_WithPackagesAdvancesOffset(t *testing.T) {
+	st := newTestStore(t)
+	insertPkg(t, st, "git", []string{"/home/linuxbrew/.linuxbrew/bin/git"})
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	offsetPath := filepath.Join(tmpHome, ".brewprune", "usage.offset")
+
+	lines := "1709012345678901234,/home/linuxbrew/.linuxbrew/bin/git\n" +
+		"1709012345678901235,/home/linuxbrew/.linuxbrew/bin/jq\n" +
+		"1709012345678901236,/home/linuxbrew/.linuxbrew/bin/bat\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	stats, err := ProcessUsageLog(st)
+	if err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	if stats.Resolved < 1 {
+		t.Errorf("stats.Resolved = %d, want >= 1", stats.Resolved)
+	}
+
+	// Offset must have been advanced.
+	savedOffset, err := readShimOffset(offsetPath)
+	if err != nil {
+		t.Fatalf("readShimOffset: %v", err)
+	}
+	if savedOffset == 0 {
+		t.Errorf("offset was not advanced (still 0) — events were resolved but offset not written")
+	}
+	if savedOffset != int64(len(lines)) {
+		t.Errorf("offset = %d, want %d", savedOffset, len(lines))
+	}
+}
+
+// TestProcessUsageLog_PartialMapsAdvanceOffset verifies that when the store has
+// at least one package (maps non-empty) and the log contains a mix of known and
+// unknown binaries, the offset IS advanced and known entries are resolved while
+// unknown entries are counted as Skipped.
+func TestProcessUsageLog_PartialMapsAdvanceOffset(t *testing.T) {
+	st := newTestStore(t)
+	insertPkg(t, st, "git", []string{"/opt/homebrew/bin/git"})
+	// "unknown-tool" is not in the DB.
+
+	tmpHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpHome, ".brewprune"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	logPath := filepath.Join(tmpHome, ".brewprune", "usage.log")
+	offsetPath := filepath.Join(tmpHome, ".brewprune", "usage.offset")
+
+	lines := "1709012345678901234,/home/u/.brewprune/bin/git\n" +
+		"1709012345678901235,/home/u/.brewprune/bin/unknown-tool\n"
+	if err := os.WriteFile(logPath, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmpHome)
+
+	stats, err := ProcessUsageLog(st)
+	if err != nil {
+		t.Fatalf("ProcessUsageLog: %v", err)
+	}
+
+	// The known package must have been resolved.
+	if stats.Resolved < 1 {
+		t.Errorf("stats.Resolved = %d, want >= 1", stats.Resolved)
+	}
+
+	// The unknown binary must be counted as skipped.
+	if stats.Skipped < 1 {
+		t.Errorf("stats.Skipped = %d, want >= 1", stats.Skipped)
+	}
+
+	// Offset must have been advanced past both lines.
+	savedOffset, err := readShimOffset(offsetPath)
+	if err != nil {
+		t.Fatalf("readShimOffset: %v", err)
+	}
+	if savedOffset != int64(len(lines)) {
+		t.Errorf("offset = %d, want %d", savedOffset, len(lines))
+	}
+}
+
 // TestProcessUsageLog_JqResolvesAfterFix verifies that a usage.log entry with
 // a jq shim path resolves to the "jq" package and is inserted into the store,
 // using jq's actual Linuxbrew binary path as stored in the container DB.
