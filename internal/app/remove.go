@@ -61,7 +61,9 @@ Examples:
   brewprune remove package1 package2
 
   # Remove medium-tier packages without snapshot (dangerous!)
-  brewprune remove --medium --no-snapshot --yes`,
+  brewprune remove --medium --no-snapshot --yes
+
+Requires: run 'brewprune scan' first to initialize the database.`,
 	RunE: runRemove,
 }
 
@@ -71,7 +73,7 @@ func init() {
 	removeCmd.Flags().BoolVar(&removeFlagRisky, "risky", false, "Remove all packages (requires confirmation)")
 	removeCmd.Flags().BoolVar(&removeFlagDryRun, "dry-run", false, "Show what would be removed without removing")
 	removeCmd.Flags().BoolVar(&removeFlagYes, "yes", false, "Skip confirmation prompts")
-	removeCmd.Flags().BoolVar(&removeFlagNoSnapshot, "no-snapshot", false, "Skip automatic snapshot creation (dangerous)")
+	removeCmd.Flags().BoolVar(&removeFlagNoSnapshot, "no-snapshot", false, "Skip automatic snapshot creation [WARNING: removal cannot be undone]")
 	removeCmd.Flags().StringVar(&removeTierFlag, "tier", "", "Remove packages of specified tier: safe, medium, risky (shortcut: --safe, --medium, --risky)")
 
 	RootCmd.AddCommand(removeCmd)
@@ -155,6 +157,10 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		// Display table consistent with tier-based removal
 		if len(explicitScores) > 0 {
 			fmt.Printf("\nPackages to remove (explicit):\n\n")
+			if removeFlagDryRun {
+				fmt.Println("  *** DRY RUN — NO CHANGES WILL BE MADE ***")
+				fmt.Println()
+			}
 			displayConfidenceScores(st, explicitScores)
 		}
 
@@ -212,6 +218,10 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 		// Display table of packages to remove
 		fmt.Printf("\nPackages to remove (%s tier):\n\n", tier)
+		if removeFlagDryRun {
+			fmt.Println("  *** DRY RUN — NO CHANGES WILL BE MADE ***")
+			fmt.Println()
+		}
 		displayConfidenceScores(st, scores)
 
 		// Print skipped summary after the table
@@ -222,7 +232,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	if len(packagesToRemove) == 0 {
 		fmt.Println("No packages to remove.")
-		return nil
+		return fmt.Errorf("all candidates were skipped (locked by dependents) — run with --verbose for details")
 	}
 
 	// Display summary
