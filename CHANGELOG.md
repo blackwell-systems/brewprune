@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-03-04
+
+### Fixed
+- **Timestamp parsing handles mixed formats** - Legacy self-test entries in `usage.log` used Unix seconds (10 digits), while current shim entries use nanoseconds (19 digits). Parser now detects format by magnitude (threshold: 10^15) and converts appropriately. Fixes "Last Used: 1969-12-31" display bug for old log entries without requiring data migration.
+
+## [0.3.3] - 2026-03-03
+
 ### Fixed
 - **CRITICAL: Daemon exits immediately after start** (Cold-Start Audit Round 13) - When `watch --daemon` spawned the child process, the parent's exit triggered SIGHUP to the child even though `Setsid: true` created a new session. The child needed `Setctty: false` in `SysProcAttr` to prevent acquiring a controlling terminal, and `signal.Ignore(syscall.SIGHUP)` in `RunDaemon` to ignore hangup from parent exit. Without this, the daemon wrote a PID file but exited immediately, leaving users with a stale PID and no tracking. Fixed by Agent A.
 - **Daemon silently fails when usage.log rotated or truncated** (Round 13, robustness follow-up) - The daemon's offset tracking file (`usage.offset`) could become stale if `usage.log` was truncated, deleted, or rotated (e.g., log rotation tools, manual cleanup, or file corruption). The offset would exceed the file size, causing `Seek()` to fail or read from an invalid position - silently skipping all entries. Now checks `fileInfo.Size()` before seeking and resets offset to 0 with a warning log when stale: "offset N exceeds file size M, resetting to 0". Daemon auto-recovers from truncated logs.
