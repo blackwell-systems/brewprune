@@ -186,10 +186,25 @@ func ProcessUsageLog(st *store.Store) (ProcessingStats, error) {
 		}
 
 		stats.Resolved++
+
+		// Handle mixed timestamp formats: old self-test entries use seconds,
+		// new shim entries use nanoseconds. Detect by magnitude:
+		// - Unix seconds for 2026: ~1.77 × 10^9 (10 digits)
+		// - Unix nanos for 2026:   ~1.77 × 10^18 (19 digits)
+		// Threshold: 10^15 (year 2001 in seconds, year 1970 in nanos)
+		var ts time.Time
+		if tsNano < 1_000_000_000_000_000 {
+			// Legacy format: seconds since epoch
+			ts = time.Unix(tsNano, 0)
+		} else {
+			// Current format: nanoseconds since epoch
+			ts = time.Unix(0, tsNano)
+		}
+
 		events = append(events, pendingEvent{
 			pkg:        pkg,
 			binaryPath: argv0,
-			timestamp:  time.Unix(0, tsNano),
+			timestamp:  ts,
 		})
 	}
 
