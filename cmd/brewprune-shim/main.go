@@ -113,13 +113,16 @@ func logExecution(cmdName string) {
 
 // findRealBinary locates the actual Homebrew binary at the stable opt prefix.
 // Tries /opt/homebrew (Apple Silicon), /usr/local (Intel), and
-// /home/linuxbrew/.linuxbrew (Linux) as fallbacks.
+// /home/linuxbrew/.linuxbrew (Linux) as primary candidates, then falls back
+// to any executable on PATH outside the shim directory (e.g. /bin/cat).
 // Returns "" if the binary would resolve back to the shim itself (infinite exec loop guard).
 func findRealBinary(name string) string {
 	// Prevent infinite exec loop: brewprune-shim must never exec itself.
 	if name == "brewprune-shim" {
 		return ""
 	}
+
+	// Primary: stable Homebrew prefix paths.
 	prefixes := []string{"/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"}
 	for _, prefix := range prefixes {
 		p := filepath.Join(prefix, "bin", name)
@@ -127,5 +130,19 @@ func findRealBinary(name string) string {
 			return p
 		}
 	}
+
+	// Fallback: search PATH entries, skipping the shim directory to prevent loops.
+	homeDir, _ := os.UserHomeDir()
+	shimDir := filepath.Join(homeDir, ".brewprune", "bin")
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == shimDir {
+			continue // skip — would resolve back to this shim
+		}
+		p := filepath.Join(dir, name)
+		if info, err := os.Stat(p); err == nil && !info.IsDir() {
+			return p
+		}
+	}
+
 	return ""
 }
