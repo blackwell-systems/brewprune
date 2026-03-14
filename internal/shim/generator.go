@@ -274,6 +274,18 @@ func GenerateShims(binaries []string) (int, error) {
 			continue
 		}
 
+		// Skip brewprune itself - it shouldn't track its own usage.
+		if basename == "brewprune" {
+			continue
+		}
+
+		// Skip if the binary doesn't actually exist on disk.
+		// This prevents creating shims for stale database entries (e.g.,
+		// broken symlinks or binaries that were removed but still in DB).
+		if _, err := os.Stat(binPath); os.IsNotExist(err) {
+			continue // Binary doesn't exist - skip
+		}
+
 		// Only shim if the brew version is what the user would actually run.
 		// Exclude the shim dir from PATH so we don't find our own symlinks.
 		found, err := lookPathExcludingShimDir(basename, shimDir)
@@ -366,6 +378,17 @@ func RefreshShims(binaries []string) (added int, removed int, err error) {
 		basename := filepath.Base(binPath)
 		if basename == shimBinaryName {
 			continue
+		}
+
+		// Skip brewprune itself - it shouldn't track its own usage.
+		if basename == "brewprune" {
+			continue
+		}
+
+		// Skip if the binary doesn't actually exist on disk.
+		// This prevents creating shims for stale database entries.
+		if _, err := os.Stat(binPath); os.IsNotExist(err) {
+			continue // Binary doesn't exist - skip
 		}
 
 		found, err := lookPathExcludingShimDir(basename, shimDir)

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Shims created for non-existent binaries cause runtime failures** - When a package's binary was removed or became a broken symlink (e.g., `bat` package claimed `/opt/homebrew/bin/cat` but the file didn't exist), brewprune would create a shim that failed at runtime with "cannot find real binary for 'cat' in Homebrew prefix". This broke system commands. Added validation at three layers: `RefreshBinaryPaths` now skips broken symlinks with `os.Stat` check; `GenerateShims` verifies each binary exists before creating a shim; `RefreshShims` skips non-existent binaries during incremental updates. Running `brewprune scan` after this fix will clean up stale database entries and remove invalid shims.
+- **brewprune created shim for itself, tracking its own usage** - The tool shimmed `/opt/homebrew/bin/brewprune`, polluting usage data with self-referential execution events. Both `GenerateShims` and `RefreshShims` now skip `brewprune` binary explicitly (in addition to skipping `brewprune-shim`). Running `brewprune scan` will remove the self-shim.
+
 ## [0.3.4] - 2026-03-04
 
 ### Fixed

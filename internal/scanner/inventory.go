@@ -124,6 +124,13 @@ func (s *Scanner) RefreshBinaryPaths() error {
 		}
 
 		if info.Mode()&os.ModeSymlink != 0 {
+			// Verify the symlink target is reachable before adding it.
+			// This prevents storing broken symlinks (e.g., bat's cat alias
+			// that was removed but symlink metadata still exists).
+			if _, err := os.Stat(fullPath); err != nil {
+				continue // Broken symlink - skip
+			}
+
 			// Resolve symlink to find which package it belongs to
 			target, err := os.Readlink(fullPath)
 			if err != nil {
