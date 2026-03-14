@@ -89,9 +89,63 @@ func checkShimVersion() {
 	_ = os.WriteFile(warnPath, []byte(today+"\n"), 0600)
 }
 
+// isPromptGitCall detects if git is being called by a shell prompt daemon
+// (gitstatusd from powerlevel10k, starship, etc.) to avoid inflating usage stats.
+//
+// Strategy: Filter git commands that are overwhelmingly used by prompts and
+// rarely invoked directly by users. Be conservative - it's better to track
+// a few extra prompt calls than miss real user git usage.
+func isPromptGitCall() bool {
+	// Check for GITSTATUS_DAEMON environment variable (powerlevel10k)
+	if os.Getenv("GITSTATUS_DAEMON") != "" {
+		return true
+	}
+
+	if len(os.Args) < 2 {
+		// No arguments - track it (might be 'git' with no command)
+		return false
+	}
+
+	// Build the full command line for pattern matching
+	cmdLine := strings.Join(os.Args[1:], " ")
+
+	// Filter patterns that indicate automated prompt queries
+	// These combinations are virtually never typed by humans
+	promptPatterns := []string{
+		"status --porcelain",                    // gitstatusd
+		"status --porcelain=v2",                 // gitstatusd v2
+		"rev-parse --git-dir",                   // check if in git repo
+		"rev-parse --is-inside-work-tree",       // check if in repo
+		"rev-parse --show-toplevel",             // get repo root
+		"symbolic-ref --short HEAD",             // get current branch
+		"symbolic-ref -q HEAD",                  // get current branch (quiet)
+		"rev-parse --abbrev-ref HEAD",           // get current branch
+		"rev-parse --short HEAD",                // get short commit hash
+		"describe --tags --exact-match",         // get current tag
+		"describe --contains --all",             // get branch/tag containing commit
+		"status -uno",                           // status without untracked
+		"diff --quiet --exit-code",              // check for changes (silent)
+		"diff-index --quiet HEAD",               // check for uncommitted changes
+	}
+
+	for _, pattern := range promptPatterns {
+		if strings.Contains(cmdLine, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // logExecution appends a usage record to ~/.brewprune/usage.log.
 // Failures are silently ignored so the user's command always proceeds.
 func logExecution(cmdName string) {
+	// Skip tracking git calls from shell prompt daemons (gitstatusd, etc.)
+	// to avoid inflating git usage with thousands of prompt-driven git status checks.
+	if cmdName == "git" && isPromptGitCall() {
+		return
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return
