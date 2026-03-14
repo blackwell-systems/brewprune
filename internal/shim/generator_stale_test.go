@@ -49,9 +49,9 @@ func TestGenerateShims_SkipsNonExistentBinaries(t *testing.T) {
 
 	// Test with mix of existing and non-existing binaries
 	binaries := []string{
-		realBin,                                 // exists - should create shim
-		"/nonexistent/path/to/broken-tool",     // doesn't exist - should skip
-		filepath.Join(realBinDir, "fake-cat"),  // doesn't exist - should skip
+		realBin,                               // exists - should create shim
+		"/nonexistent/path/to/broken-tool",    // doesn't exist - should skip
+		filepath.Join(realBinDir, "fake-cat"), // doesn't exist - should skip
 	}
 
 	count, err := GenerateShims(binaries)
