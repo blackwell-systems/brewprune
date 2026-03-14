@@ -112,20 +112,20 @@ func isPromptGitCall() bool {
 	// Filter patterns that indicate automated prompt queries
 	// These combinations are virtually never typed by humans
 	promptPatterns := []string{
-		"status --porcelain",                    // gitstatusd
-		"status --porcelain=v2",                 // gitstatusd v2
-		"rev-parse --git-dir",                   // check if in git repo
-		"rev-parse --is-inside-work-tree",       // check if in repo
-		"rev-parse --show-toplevel",             // get repo root
-		"symbolic-ref --short HEAD",             // get current branch
-		"symbolic-ref -q HEAD",                  // get current branch (quiet)
-		"rev-parse --abbrev-ref HEAD",           // get current branch
-		"rev-parse --short HEAD",                // get short commit hash
-		"describe --tags --exact-match",         // get current tag
-		"describe --contains --all",             // get branch/tag containing commit
-		"status -uno",                           // status without untracked
-		"diff --quiet --exit-code",              // check for changes (silent)
-		"diff-index --quiet HEAD",               // check for uncommitted changes
+		"status --porcelain",              // gitstatusd
+		"status --porcelain=v2",           // gitstatusd v2
+		"rev-parse --git-dir",             // check if in git repo
+		"rev-parse --is-inside-work-tree", // check if in repo
+		"rev-parse --show-toplevel",       // get repo root
+		"symbolic-ref --short HEAD",       // get current branch
+		"symbolic-ref -q HEAD",            // get current branch (quiet)
+		"rev-parse --abbrev-ref HEAD",     // get current branch
+		"rev-parse --short HEAD",          // get short commit hash
+		"describe --tags --exact-match",   // get current tag
+		"describe --contains --all",       // get branch/tag containing commit
+		"status -uno",                     // status without untracked
+		"diff --quiet --exit-code",        // check for changes (silent)
+		"diff-index --quiet HEAD",         // check for uncommitted changes
 	}
 
 	for _, pattern := range promptPatterns {
